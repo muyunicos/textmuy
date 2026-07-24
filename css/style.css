@@ -10,7 +10,7 @@ html, body {
     font-size: 14px;
     line-height: 1.4;
     color: #333;
-    background: #1a1a1a;
+    background: #0e0e0e;
     overflow-x: hidden;
 }
 
@@ -39,156 +39,10 @@ img {
     padding: 0 15px;
 }
 
-/* ===== HEADER ===== */
-header {
-    background: #1a1a1a;
-    border-bottom: 1px solid #333;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-header .wrapper {
-    display: flex;
-    align-items: center;
-    height: 60px;
-    padding: 0;
-}
-
-.logo img.textstudio {
-    height: 42px;
-    width: auto;
-}
-
-.search {
-    display: flex;
-    align-items: center;
-    margin: 0 20px;
-    flex: 1;
-}
-
-.search input[type="search"] {
-    width: 100%;
-    padding: 6px 12px;
-    border: 1px solid #444;
-    border-radius: 4px;
-    background: #2a2a2a;
-    color: #fff;
-    font-size: 13px;
-}
-
-.search button {
-    margin-left: 8px;
-    padding: 6px 16px;
-    background: #333;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-#menu-header {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-#menu-header li {
-    position: relative;
-}
-
-#menu-header a {
-    display: block;
-    padding: 8px 12px;
-    color: #ccc;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-#menu-header a:hover {
-    color: #fff;
-    background: #333;
-}
-
-#menu-header li.selected a,
-#menu-header li.generic.selected a {
-    color: #fff;
-    background: #4a90d9;
-}
-
-#menu-header li.premium a {
-    background: #e67e22;
-    color: #fff;
-    border-radius: 20px;
-    padding: 6px 16px;
-}
-
-#menu-header li.premium a span {
-    font-weight: 900;
-}
-
-#menu-header ul ul {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    min-width: 220px;
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 4px;
-    padding: 8px 0;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-10px);
-    transition: all 0.2s;
-    z-index: 100;
-}
-
-#menu-header li:hover ul {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
-#menu-header ul ul li {
-    width: 100%;
-}
-
-#menu-header ul ul a {
-    padding: 10px 16px;
-}
-
-#menu-header ul ul span {
-    display: block;
-    font-size: 11px;
-    color: #999;
-    margin-top: 2px;
-}
-
-#login-header a.login-small {
-    display: block;
-    width: 24px;
-    height: 24px;
-    background: #444;
-    border-radius: 50%;
-    margin-left: 10px;
-}
-
-#show-menu-icon {
-    display: none;
-    width: 24px;
-    height: 2px;
-    background: #fff;
-    margin-left: 10px;
-    cursor: pointer;
-}
-
 /* ===== MAIN CONTENT / EDITOR ===== */
 #content {
     background: #0e0e0e;
-    min-height: calc(100vh - 60px);
+    min-height: 100vh;
     position: relative;
 }
 
@@ -320,22 +174,23 @@ header .wrapper {
     40% { opacity: 1; transform: scale(1); }
 }
 
-/* ===== EDITOR MAIN CONTAINER ===== */
+/* ===== EDITOR MAIN CONTAINER (LIGHT THEME) ===== */
 #tt-main-container {
     position: relative;
     z-index: 4;
     margin: 20px auto;
     max-width: 1000px;
-    background: #1a1a1a;
+    background: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     overflow: hidden;
 }
 
+/* ===== MENU TABS ===== */
 .tt-menu {
     display: flex;
-    background: #2a2a2a;
-    border-bottom: 1px solid #333;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
 }
 
 .tt-menu li {
@@ -352,7 +207,7 @@ header .wrapper {
 }
 
 .tt-menu li:hover {
-    background: #333;
+    background: #e8e8e8;
 }
 
 .tt-menu li.selected {
@@ -366,7 +221,7 @@ header .wrapper {
 .tt-menu .tt-label {
     font-size: 12px;
     font-weight: 500;
-    color: #999;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -374,7 +229,7 @@ header .wrapper {
 .tt-menu .tt-icon {
     width: 20px;
     height: 20px;
-    background: #555;
+    background: #ccc;
     border-radius: 4px;
 }
 
@@ -414,7 +269,7 @@ header .wrapper {
     gap: 12px;
 }
 
-/* ===== FORM CONTROLS ===== */
+/* ===== FORM CONTROLS (LIGHT) ===== */
 .tt-option {
     display: flex;
     flex-direction: column;
@@ -430,43 +285,54 @@ header .wrapper {
 .tt-option label.tt-label {
     font-size: 12px;
     font-weight: 500;
-    color: #bbb;
+    color: #555;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .tt-option label.tt-label span {
-    color: #999;
+    color: #777;
 }
 
 .tt-option textarea {
     width: 100%;
     padding: 10px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    color: #fff;
+    color: #333;
     font-size: 16px;
     font-family: inherit;
     resize: vertical;
     min-height: 60px;
 }
 
+.tt-option textarea:focus {
+    outline: none;
+    border-color: #4a90d9;
+    background: #fff;
+}
+
 .tt-font-select {
     width: 100%;
     padding: 6px 10px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    color: #fff;
+    color: #333;
     font-size: 13px;
     cursor: pointer;
 }
 
+.tt-font-select:focus {
+    outline: none;
+    border-color: #4a90d9;
+}
+
 .tt-font-select option {
-    background: #2a2a2a;
-    color: #fff;
+    background: #fff;
+    color: #333;
 }
 
 input[type="range"] {
@@ -492,32 +358,32 @@ input[type="range"]::-webkit-slider-thumb {
     background: #fff;
     border: 2px solid #4a90d9;
     cursor: pointer;
-    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
 }
 
 input[type="color"] {
     width: 36px;
     height: 28px;
     padding: 0;
-    border: 1px solid #444;
+    border: 1px solid #ddd;
     border-radius: 4px;
     background: none;
     cursor: pointer;
     flex-shrink: 0;
 }
 
-/* ===== FIELDSET STYLING ===== */
+/* ===== FIELDSET STYLING (LIGHT) ===== */
 fieldset {
-    border: 1px solid #333;
+    border: 1px solid #ddd;
     border-radius: 6px;
     padding: 10px 12px;
     margin-bottom: 12px;
-    background: #222;
+    background: #f9f9f9;
 }
 
 fieldset legend {
     padding: 0 8px;
-    color: #999;
+    color: #666;
     font-size: 12px;
     font-weight: 500;
 }
@@ -528,7 +394,7 @@ fieldset label {
     gap: 6px;
     cursor: pointer;
     font-size: 12px;
-    color: #bbb;
+    color: #555;
 }
 
 fieldset input[type="checkbox"] {
@@ -538,11 +404,36 @@ fieldset input[type="checkbox"] {
     accent-color: #4a90d9;
 }
 
+fieldset input[type="text"] {
+    width: 100%;
+    padding: 6px 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #333;
+    font-size: 13px;
+}
+
+fieldset input[type="text"]:focus {
+    outline: none;
+    border-color: #4a90d9;
+}
+
+fieldset select {
+    padding: 6px 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #333;
+    font-size: 13px;
+    cursor: pointer;
+}
+
 /* ===== GRADIENT PICKER ===== */
 .tt-gradient-picker {
     height: 40px;
     background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
-    border: 1px solid #444;
+    border: 1px solid #ddd;
     border-radius: 4px;
     position: relative;
     cursor: pointer;
@@ -560,16 +451,7 @@ fieldset input[type="checkbox"] {
     transform: translateX(-50%);
 }
 
-/* ===== DOWNLOAD FIELDSET ===== */
-.tt-download-fieldset {
-    background: #222;
-}
-
-.tt-download-fieldset legend {
-    color: #bbb;
-    font-weight: 600;
-}
-
+/* ===== DOWNLOAD SECTION ===== */
 #tt-download-size-list,
 #tt-download-format-list {
     display: grid;
@@ -581,25 +463,27 @@ fieldset input[type="checkbox"] {
 #tt-download-format-list li {
     padding: 10px;
     text-align: center;
-    background: #2a2a2a;
-    border: 1px solid #333;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 500;
-    color: #bbb;
+    color: #666;
     transition: all 0.2s;
 }
 
 #tt-download-size-list li:hover,
 #tt-download-format-list li:hover {
-    background: #333;
-    color: #fff;
+    background: #e8e8e8;
+    color: #333;
 }
 
-#tt-download-size-list li.selected {
+#tt-download-size-list li.selected,
+#tt-download-format-list li.selected {
     background: #4a90d9;
     color: #fff;
+    border-color: #4a90d9;
 }
 
 .tt-annotation {
@@ -609,7 +493,7 @@ fieldset input[type="checkbox"] {
     margin-top: 2px;
 }
 
-/* ===== CUSTOM MENU ===== */
+/* ===== CUSTOM MENU (LIGHT) ===== */
 #tt-custom-menu {
     display: flex;
     gap: 4px;
@@ -619,29 +503,30 @@ fieldset input[type="checkbox"] {
 #tt-custom-menu li {
     flex: 1;
     padding: 8px 12px;
-    background: #2a2a2a;
-    border: 1px solid #333;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 500;
-    color: #999;
+    color: #777;
     text-align: center;
     transition: all 0.2s;
 }
 
 #tt-custom-menu li.selected,
 #tt-custom-menu li:hover {
-    background: #333;
-    color: #fff;
+    background: #e8e8e8;
+    color: #333;
 }
 
 #tt-custom-menu li.selected {
     color: #4a90d9;
     border-color: #4a90d9;
+    background: #fff;
 }
 
-/* ===== ALIGN LIST ===== */
+/* ===== ALIGN LIST (LIGHT) ===== */
 .tt-align-list {
     display: flex;
     gap: 4px;
@@ -651,8 +536,8 @@ fieldset input[type="checkbox"] {
 .tt-align-list li {
     width: 32px;
     height: 28px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
@@ -662,9 +547,19 @@ fieldset input[type="checkbox"] {
 }
 
 .tt-align-list li:hover {
-    background: #333;
+    background: #e8e8e8;
 }
 
+.tt-align-list li.selected {
+    background: #4a90d9;
+    border-color: #4a90d9;
+}
+
+.tt-align-list li.selected img {
+    filter: brightness(0) invert(1);
+}
+
+/* ===== FONT OPTIONS LIST (LIGHT) ===== */
 .tt-font-options-list {
     display: flex;
     gap: 4px;
@@ -674,155 +569,81 @@ fieldset input[type="checkbox"] {
 .tt-font-options-list li {
     width: 32px;
     height: 28px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    color: #fff;
+    color: #333;
     transition: all 0.2s;
 }
 
 .tt-font-options-list li:hover {
-    background: #333;
+    background: #e8e8e8;
 }
 
-/* ===== FOOTER ===== */
-footer {
-    background: #1a1a1a;
-    border-top: 1px solid #333;
-    color: #999;
-    font-size: 13px;
-}
-
-footer .wrapper {
-    padding: 30px 15px;
-}
-
-footer .columns {
-    display: flex;
-    gap: 40px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-footer .column {
-    flex: 1;
-    min-width: 200px;
-}
-
-footer h2 {
-    color: #ccc;
-    font-size: 14px;
-    font-weight: 700;
-    margin-bottom: 12px;
-}
-
-footer .links {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-footer .links a {
-    color: #999;
-    transition: color 0.2s;
-}
-
-footer .links a:hover {
+.tt-font-options-list li.selected {
+    background: #4a90d9;
     color: #fff;
+    border-color: #4a90d9;
 }
 
-footer .langs {
+/* ===== PRESET LIST (LIGHT) ===== */
+.tt-preset-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
-footer .langs img {
-    width: 16px;
-    height: 16px;
-    margin-right: 6px;
-}
-
-footer .social {
-    display: flex;
-    gap: 12px;
-    margin-top: 12px;
-}
-
-footer .social a {
+.tt-preset-list li {
+    padding: 10px 12px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: #2a2a2a;
-    border-radius: 50%;
-    color: #ccc;
-    font-size: 14px;
-    font-weight: 700;
-    transition: all 0.2s;
+    justify-content: space-between;
 }
 
-footer .social a:hover {
+.tt-preset-list li:hover {
+    background: #e8e8e8;
+    color: #333;
+}
+
+.tt-preset-list li.selected {
     background: #4a90d9;
     color: #fff;
+    border-color: #4a90d9;
 }
 
-.copyright {
-    text-align: center;
-    padding: 16px 0;
-    border-top: 1px solid #333;
-    color: #666;
-    font-size: 12px;
+/* ===== DOWNLOAD BUTTON (LIGHT) ===== */
+.tt-download-button {
+    width: 100%;
+    padding: 10px;
+    background: #4a90d9;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
 }
 
-.bottom-links {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid #333;
-}
-
-.bottom-links ul {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.bottom-links a {
-    color: #666;
-    font-size: 12px;
-    transition: color 0.2s;
-}
-
-.bottom-links a:hover {
-    color: #999;
+.tt-download-button:hover {
+    background: #3a7dc1;
 }
 
 /* ===== RESPONSIVE ===== */
 @media screen and (max-width: 900px) {
-    header .wrapper {
-        flex-wrap: wrap;
-        height: auto;
-        padding: 10px;
-    }
-
-    .search {
-        margin: 10px 0;
-    }
-
-    #menu-header {
-        display: none;
-    }
-
-    #show-menu-icon {
-        display: block;
-    }
-
     .tt-columns {
         flex-direction: column;
     }
@@ -833,16 +654,6 @@ footer .social a:hover {
 
     #tt-main-container {
         margin: 10px;
-    }
-
-    footer .columns {
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .bottom-links ul {
-        flex-direction: column;
-        gap: 8px;
     }
 }
 

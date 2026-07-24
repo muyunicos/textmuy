@@ -44,7 +44,7 @@
         var max = parseFloat(el.max) || 1;
         var val = parseFloat(el.value) || 0;
         var percent = ((val - min) / (max - min)) * 100;
-        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #444 ' + percent + '%)';
+        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #ddd ' + percent + '%)';
     }
 
     window.addEventListener('resize', function() {

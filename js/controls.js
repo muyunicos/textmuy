@@ -403,7 +403,7 @@
         const max = parseFloat(el.max) || 1;
         const val = parseFloat(el.value) || 0;
         const percent = ((val - min) / (max - min)) * 100;
-        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #444 ' + percent + '%)';
+        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #ddd ' + percent + '%)';
     }
 
     // ===== MENU TAB SWITCHING =====
@@ -1171,16 +1171,16 @@
         `;
         
         modal.innerHTML = `
-            <div style="background: #1a1a2e; padding: 30px; border-radius: 10px; max-width: 600px; width: 90%;">
+            <div style="background: #fff; padding: 30px; border-radius: 10px; max-width: 600px; width: 90%;">
                 <h3 style="color: #fff; margin-bottom: 15px;">Import Preset from TextStudio</h3>
                 <p style="color: #ccc; margin-bottom: 15px; font-size: 14px;">
                     Could not import automatically. Please visit <a href="${url}" target="_blank" style="color: #4a9eff;">${url}</a>, 
                     open browser console (F12), and paste the preset JSON below.
                 </p>
-                <textarea id="manual-json-input" style="width: 100%; height: 200px; background: #0f0f1a; color: #fff; border: 1px solid #333; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;" placeholder="Paste JSON here..."></textarea>
+                <textarea id="manual-json-input" style="width: 100%; height: 200px; background: #f5f5f5; color: #333; border: 1px solid #ddd; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;" placeholder="Paste JSON here..."></textarea>
                 <div style="margin-top: 15px; display: flex; gap: 10px;">
                     <button id="manual-json-import" style="flex: 1; padding: 10px; background: #4a9eff; color: #fff; border: none; border-radius: 5px; cursor: pointer;">Import</button>
-                    <button id="manual-json-cancel" style="flex: 1; padding: 10px; background: #333; color: #fff; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
+                    <button id="manual-json-cancel" style="flex: 1; padding: 10px; background: #ddd; color: #333; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
                 </div>
             </div>
         `;

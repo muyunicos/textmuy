@@ -1,4 +1,4 @@
-/* ===== TEXTSTUDIO EXPORT - Download Functionality ===== */
+/* ===== TEXTMUY EXPORT - PNG Transparent Download ===== */
 
 (function() {
     'use strict';
@@ -9,156 +9,115 @@
         editor = editorInstance;
     }
 
-    // Main download function
+    // Main download function - exports transparent PNG at custom size
     function download() {
         const settings = editor.getSettings();
-        const canvas = editor.getCanvas();
-        const ctx = editor.getCtx();
+        const widthInput = document.getElementById('tt-custom-width-input');
+        const heightInput = document.getElementById('tt-custom-height-input');
 
-        if (!canvas || !ctx) {
-            console.error('Canvas not available for export');
-            return;
-        }
+        const width = widthInput ? parseInt(widthInput.value) || 1920 : settings.canvas.width;
+        const height = heightInput ? parseInt(heightInput.value) || 1080 : settings.canvas.height;
 
-        const format = settings.download.format || 'png';
-        const quality = settings.download.size || 'medium';
-        const ratio = settings.download.ratio || 'fit';
-        const spacing = settings.download.spacing || 0.05;
+        // Create export canvas with exact dimensions
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = width;
+        exportCanvas.height = height;
+        const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.textBaseline = 'middle';
+        exportCtx.textAlign = 'center';
 
-        // Create export canvas with appropriate scale
-        const scale = getQualityScale(quality);
-        const exportCanvas = createExportCanvas(canvas, ctx, scale, ratio, spacing, settings);
+        // Do NOT draw background - leave transparent
 
-        // Export based on format
-        switch (format) {
-            case 'png':
-                downloadCanvas(exportCanvas, 'png', 1.0);
-                break;
-            case 'transparent-png':
-                downloadCanvas(exportCanvas, 'png', 1.0);
-                break;
-            case 'jpg':
-                downloadCanvas(exportCanvas, 'jpg', 0.92);
-                break;
-            case 'pdf':
-                downloadPDF(exportCanvas);
-                break;
-            default:
-                downloadCanvas(exportCanvas, 'png', 1.0);
-        }
-    }
+        // Get settings and render text with auto-fit
+        const s = settings;
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
+        const fontWeight = s.fontWeight || 'normal';
 
-    // Get scale factor for quality
-    function getQualityScale(quality) {
-        switch (quality) {
-            case 'medium': return 1;   // LITE
-            case 'big': return 2;     // PRO
-            case 'max': return 4;     // ULTRA
-            default: return 1;
-        }
-    }
+        // Auto-fit: binary search for best font size
+        const padding = width * (s.canvas.padding || 0.05);
+        const availW = width - padding * 2;
+        const availH = height - padding * 2;
+        const text = s.text || 'TEXT';
+        const lines = text.split('\n');
 
-    // Create export canvas with proper dimensions and content
-    function createExportCanvas(sourceCanvas, sourceCtx, scale, ratio, spacing, settings) {
-        const sourceWidth = sourceCanvas.width;
-        const sourceHeight = sourceCanvas.height;
-
-        // Calculate export dimensions
-        let exportWidth = sourceWidth * scale;
-        let exportHeight = sourceHeight * scale;
-
-        // Apply aspect ratio
-        if (ratio !== 'fit') {
-            var parts = ratio.split(':');
-            var w = parseFloat(parts[0]);
-            var h = parseFloat(parts[1]);
-            var ratioVal = w / h;
-            var sourceRatio = sourceWidth / sourceHeight;
-
-            if (ratioVal > sourceRatio) {
-                exportHeight = exportWidth / ratioVal;
+        let lo = 8, hi = 400, best = 8;
+        while (lo <= hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            exportCtx.font = `${fontWeight} ${mid}px ${fontName}`;
+            let maxLineWidth = 0;
+            for (let i = 0; i < lines.length; i++) {
+                const w = exportCtx.measureText(lines[i]).width;
+                if (w > maxLineWidth) maxLineWidth = w;
+            }
+            const textHeight = mid * s.lineHeight * lines.length;
+            if (maxLineWidth <= availW && textHeight <= availH) {
+                best = mid;
+                lo = mid + 1;
             } else {
-                exportWidth = exportHeight * ratioVal;
+                hi = mid - 1;
             }
         }
 
-        // Add spacing
-        var spacingPx = spacing * Math.min(exportWidth, exportHeight);
-        exportWidth += spacingPx * 2;
-        exportHeight += spacingPx * 2;
+        const fontSizePx = best;
+        exportCtx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
 
-        // Create export canvas
-        var exportCanvas = document.createElement('canvas');
-        exportCanvas.width = exportWidth;
-        exportCanvas.height = exportHeight;
-        var exportCtx = exportCanvas.getContext('2d');
+        const centerX = width / 2;
+        const centerY = height / 2;
 
-        // Fill background
-        if (settings.background.active && settings.background.alpha > 0) {
-            exportCtx.fillStyle = settings.background.color;
-            exportCtx.globalAlpha = settings.background.alpha;
-            exportCtx.fillRect(0, 0, exportWidth, exportHeight);
-            exportCtx.globalAlpha = 1;
-        } else {
-            exportCtx.fillStyle = '#000000';
-            exportCtx.fillRect(0, 0, exportWidth, exportHeight);
-        }
+        // Render text effects (same order as editor)
+        exportCtx.save();
+        exportCtx.translate(centerX, centerY);
+        exportCtx.rotate((s.rotate * Math.PI) / 180);
 
-        // Draw source canvas
-        exportCtx.drawImage(
-            sourceCanvas,
-            spacingPx,
-            spacingPx,
-            exportWidth - spacingPx * 2,
-            exportHeight - spacingPx * 2
-        );
+        // Use the editor's internal render functions by temporarily swapping canvas
+        // Save original canvas/ctx
+        const origCanvas = editor.getCanvas();
+        const origCtx = editor.getCtx();
 
-        return exportCanvas;
-    }
+        // Temporarily set our export canvas as the editor's canvas
+        // We need to access the internal state - use a workaround
+        // Actually, let's just call the editor's render which uses its own canvas
+        // Then copy the text portion (without background) to our export canvas
 
-    // Download canvas as image
-    function downloadCanvas(canvas, format, quality) {
-        var mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
-        var fileName = generateFileName(format);
+        // Simpler approach: render to editor canvas, then copy pixels to export canvas
+        // But editor canvas has background...
 
-        if (format === 'png') {
-            canvas.toBlob(function(blob) {
-                saveBlob(blob, fileName);
-            }, mimeType, quality);
-        } else {
-            // For JPG, create a white background
-            var tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            var tempCtx = tempCanvas.getContext('2d');
-            tempCtx.fillStyle = '#ffffff';
-            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-            tempCtx.drawImage(canvas, 0, 0);
+        // Best approach: temporarily disable background, render, copy, restore
+        const bgActive = s.background.active;
+        s.background.active = false;
 
-            tempCanvas.toBlob(function(blob) {
-                saveBlob(blob, fileName);
-            }, mimeType, quality);
-        }
-    }
+        // Set canvas dimensions for export
+        const origWidth = origCanvas.width;
+        const origHeight = origCanvas.height;
 
-    // Download as PDF
-    function downloadPDF(canvas) {
-        var imgData = canvas.toDataURL('image/png');
-        var fileName = generateFileName('pdf');
+        origCanvas.width = width;
+        origCanvas.height = height;
 
-        // For simplicity, download as PNG with .pdf extension
-        var link = document.createElement('a');
-        link.href = imgData;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        editor.render();
+
+        // Copy rendered content to export canvas
+        exportCtx.clearRect(0, 0, width, height);
+        exportCtx.drawImage(origCanvas, 0, 0);
+
+        // Restore
+        s.background.active = bgActive;
+        origCanvas.width = origWidth;
+        origCanvas.height = origHeight;
+        editor.render();
+
+        exportCtx.restore();
+
+        // Download as PNG
+        const fileName = generateFileName();
+        exportCanvas.toBlob(function(blob) {
+            saveBlob(blob, fileName);
+        }, 'image/png');
     }
 
     // Save blob to file
     function saveBlob(blob, fileName) {
-        var url = URL.createObjectURL(blob);
-        var link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
         link.href = url;
         link.download = fileName;
         document.body.appendChild(link);
@@ -168,17 +127,15 @@
     }
 
     // Generate file name
-    function generateFileName(format) {
-        var date = new Date();
-        var timestamp = date.getFullYear() + '' +
+    function generateFileName() {
+        const date = new Date();
+        const timestamp = date.getFullYear() + '' +
             String(date.getMonth() + 1).padStart(2, '0') +
             String(date.getDate()).padStart(2, '0') + '_' +
             String(date.getHours()).padStart(2, '0') +
             String(date.getMinutes()).padStart(2, '0') +
             String(date.getSeconds()).padStart(2, '0');
-
-        var ext = format === 'jpg' ? 'jpg' : format === 'pdf' ? 'pdf' : 'png';
-        return 'textstudio_' + timestamp + '.' + ext;
+        return 'textmuy_' + timestamp + '.png';
     }
 
     // Export the module

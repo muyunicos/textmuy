@@ -86,6 +86,7 @@
             size: 0,
             distance: 0,
             angle: 0,
+            strength: 0,
             color: '#000000',
             alpha: 1
         },
@@ -95,6 +96,7 @@
             size: 0,
             distance: 0,
             angle: 0,
+            strength: 0,
             color: '#000000',
             alpha: 1
         },
@@ -103,6 +105,7 @@
             active: false,
             size: 0.1,
             smoothing: 0,
+            soften: 0.1,
             angle: 135,
             highlight: { color: '#ffffff', alpha: 1 },
             shadow: { color: '#000000', alpha: 1 }
@@ -110,8 +113,10 @@
 
         lettering: {
             active: false,
+            blendmode: 'over',
             boggle: { active: false, angle: 0, amplitude: 0.1 },
-            reverseOverlap: { active: false, letters: 0, lines: 0 }
+            reverseOverlap: { active: false, letters: 0, lines: 0 },
+            shadow: { active: false, size: 0, distance: 0, angle: 0, color: '#000000', alpha: 1 }
         },
 
         distort: {
@@ -124,6 +129,9 @@
             src: null,
             position: 'left',
             size: 1,
+            alpha: 1,
+            rotate: 0,
+            composite: 'source-over',
             offset: { x: 0, y: 0 }
         },
 
@@ -131,7 +139,16 @@
             active: true,
             color: '#000000',
             alpha: 1,
-            image: { active: false, src: null, size: 'cover', repeat: 'repeat' }
+            composite: 'source-over',
+            image: { active: false, src: null, size: 'cover', repeat: 'repeat', alpha: 1 },
+            gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, type: 'linear', colors: [] }
+        },
+
+        canvas: {
+            width: 1920,
+            height: 1080,
+            autoFit: true,
+            padding: 0.05
         },
 
         download: {
@@ -142,8 +159,18 @@
         },
 
         processing: {
+            active: false,
             code: null
-        }
+        },
+
+        animation: {
+            active: false,
+            id: null,
+            pause: 1000,
+            duration: 1000
+        },
+
+        mergeGradients: 0
     };
 
     // Editor state
@@ -181,6 +208,71 @@
         render();
     }
 
+    // Calculate extra width/height from effects (outline, depth, shadow)
+    function calcExtraWidth(s, fontSizePx) {
+        let extra = 0;
+        if (s.outline.active) extra += s.outline.width * fontSizePx * 2;
+        if (s.outline2.active) extra += s.outline2.width * fontSizePx * 2;
+        if (s.shadowOuter.active) extra += s.shadowOuter.distance * fontSizePx * 2 + s.shadowOuter.size * fontSizePx * 2;
+        if (s.shadowOuter2.active) extra += s.shadowOuter2.distance * fontSizePx * 2 + s.shadowOuter2.size * fontSizePx * 2;
+        if (s.depth.active) extra += s.depth.length * fontSizePx * 2;
+        if (s.depth2.active) extra += s.depth2.length * fontSizePx * 2;
+        return extra;
+    }
+
+    function calcExtraHeight(s, fontSizePx) {
+        return calcExtraWidth(s, fontSizePx); // Same calculation for both dimensions
+    }
+
+    // Measure text width with letter spacing
+    function measureTextWidth(ctx, text, letterSpacing, fontSizePx) {
+        let totalWidth = 0;
+        const spacing = letterSpacing * fontSizePx * 0.1;
+        for (let i = 0; i < text.length; i++) {
+            totalWidth += ctx.measureText(text[i]).width;
+        }
+        totalWidth += spacing * Math.max(0, text.length - 1);
+        return totalWidth;
+    }
+
+    // Auto-fit: find the largest font size that fits within the canvas
+    function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
+        const fontWeight = s.fontWeight || 'normal';
+        const padding = canvasWidth * (s.canvas.padding || 0.05);
+        const availW = canvasWidth - padding * 2;
+        const availH = canvasHeight - padding * 2;
+
+        let lo = 8;
+        let hi = 400;
+        let best = 8;
+
+        while (lo <= hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            ctx.font = `${fontWeight} ${mid}px ${fontName}`;
+
+            // Find the widest line
+            let maxLineWidth = 0;
+            for (let i = 0; i < lines.length; i++) {
+                const w = measureTextWidth(ctx, lines[i], s.letterSpacing, mid);
+                if (w > maxLineWidth) maxLineWidth = w;
+            }
+
+            const textHeight = mid * s.lineHeight * lines.length;
+            const extraW = calcExtraWidth(s, mid);
+            const extraH = calcExtraHeight(s, mid);
+
+            if (maxLineWidth + extraW <= availW && textHeight + extraH <= availH) {
+                best = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        return best;
+    }
+
     // Main render function
     function render() {
         if (state.isRendering || !state.ctx) return;
@@ -189,34 +281,38 @@
         const ctx = state.ctx;
         const s = state.settings;
 
-        // Load custom font if needed
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
-        const fontWeight = s.fontWeight || 'normal';
-        const fontSizePx = s.fontSize * state.scale;
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
-
-        const text = s.text || 'TEXT';
-        const lines = text.split('\n');
-        const metrics = ctx.measureText(text.replace(/\n/g, ' '));
-        const textWidth = metrics.width;
-        const textHeight = fontSizePx * 1.3 * lines.length;
-
-        const padding = 80 * state.scale;
-        const iconWidth = s.icon.active && state.iconImg ? fontSizePx * 0.5 * s.icon.size : 0;
-        const totalWidth = textWidth + iconWidth + (s.icon.active ? fontSizePx * 0.3 : 0);
-
-        const canvasWidth = Math.max(totalWidth + padding * 2, 600 * state.scale);
-        const canvasHeight = Math.max(textHeight + padding * 2, 300 * state.scale);
+        // Use canvas dimensions from settings (fixed size)
+        const canvasWidth = s.canvas.width * state.scale;
+        const canvasHeight = s.canvas.height * state.scale;
 
         state.canvas.width = canvasWidth;
         state.canvas.height = canvasHeight;
-        state.canvas.style.width = canvasWidth / state.scale + 'px';
-        state.canvas.style.height = canvasHeight / state.scale + 'px';
+        // Scale down for display if too large
+        const maxDisplayWidth = 900;
+        const displayScale = Math.min(1, maxDisplayWidth / canvasWidth);
+        state.canvas.style.width = (canvasWidth / state.scale * displayScale) + 'px';
+        state.canvas.style.height = (canvasHeight / state.scale * displayScale) + 'px';
 
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
         // Draw background
         drawBackground(ctx, canvasWidth, canvasHeight);
+
+        const text = s.text || 'TEXT';
+        const lines = text.split('\n');
+
+        // Auto-fit or use manual font size
+        let fontSizePx;
+        if (s.canvas.autoFit) {
+            fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
+        } else {
+            fontSizePx = s.fontSize * state.scale;
+        }
+
+        // Load custom font if needed
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
+        const fontWeight = s.fontWeight || 'normal';
+        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
 
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
@@ -1388,7 +1484,7 @@
         var max = parseFloat(el.max) || 1;
         var val = parseFloat(el.value) || 0;
         var percent = ((val - min) / (max - min)) * 100;
-        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #444 ' + percent + '%)';
+        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #ddd ' + percent + '%)';
     }
 
     function getSettings() {
