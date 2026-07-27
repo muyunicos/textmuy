@@ -233,6 +233,28 @@ img {
     border-radius: 4px;
 }
 
+/* ===== ICONS (FontAwesome) ===== */
+.tt-align-list li i,
+.tt-font-options-list li i {
+    font-size: 16px;
+    color: #555;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tt-align-list li.selected i,
+.tt-font-options-list li.selected i {
+    color: #4a90d9;
+}
+
+.tt-align-list li:hover i,
+.tt-font-options-list li:hover i {
+    color: #4a90d9;
+}
+
 /* ===== OPTIONS PANEL ===== */
 .tt-options {
     padding: 16px;
@@ -240,12 +262,6 @@ img {
 
 .tt-options section {
     display: none;
-}
-
-.tt-options section:first-child,
-.tt-options section[data-name="text"]:target,
-#tt-options-menu li.selected + section {
-    display: block;
 }
 
 .tt-options section.active {

@@ -35,13 +35,21 @@
         }
 
         // Font size (zoom)
-        bindRange('tt-font-size-input', 'fontSize', function(val) {
-            return parseInt(val);
-        });
+        const zoomInput = document.getElementById('tt-font-size-input');
+        if (zoomInput) {
+            updateRangeFill(zoomInput);
+            zoomInput.addEventListener('input', function() {
+                updateRangeFill(this);
+                const value = parseInt(this.value) / 100; // Convert 10-200 range to 0.1-2.0 zoom factor
+                // Clamp value to reasonable range
+                const clampedValue = Math.max(0.1, Math.min(2.0, value));
+                setNestedSetting('canvas.zoom', clampedValue);
+            });
+        }
 
         // Letter spacing
         bindRange('tt-letter-spacing-input', 'letterSpacing', function(val) {
-            return parseFloat(val);
+            return parseFloat(val) / 100; // Convert -50 to 150 to -0.5 to 1.5
         });
 
         // Line height
@@ -53,6 +61,19 @@
         bindRange('tt-rotate-input', 'rotate', function(val) {
             return parseFloat(val);
         });
+
+        // Curve the text (arc) - moved to TEXT section
+        const curveInput = document.getElementById('tt-distort-arc-angle-input');
+        if (curveInput) {
+            curveInput.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                setNestedSetting('distort.arc.angle', value);
+                // Auto-activate distort when curve is changed
+                if (value !== 0) {
+                    setNestedSetting('distort.active', true);
+                }
+            });
+        }
 
         // ===== FILL CONTROLS =====
         bindCheckbox('tt-fill-active-input', 'fill.active');
@@ -84,11 +105,11 @@
             return parseFloat(val);
         });
         bindColor('tt-outline-fill-color-input', 'outline.color');
-        bindCheckbox('tt-outline-fill-gradient-active-input', 'outline.fill.gradient.active');
-        bindRange('tt-outline-fill-gradient-angle-input', 'outline.fill.gradient.angle', function(val) {
+        bindCheckbox('tt-outline-fill-gradient-active-input', 'outline.gradient.active');
+        bindRange('tt-outline-fill-gradient-angle-input', 'outline.gradient.angle', function(val) {
             return parseFloat(val);
         });
-        bindRange('tt-outline-fill-alpha-input', 'outline.fill.alpha', function(val) {
+        bindRange('tt-outline-fill-alpha-input', 'outline.alpha', function(val) {
             return parseFloat(val);
         });
         bindCheckbox('tt-outline-texture-active-input', 'outline.texture.active');
@@ -288,13 +309,32 @@
         // ===== FONT WEIGHT (Bold) =====
         const fontWeightList = document.querySelector('.tt-font-options-list');
         if (fontWeightList) {
+            // Initialize first selection
+            const firstLi = fontWeightList.querySelector('li');
+            if (firstLi) {
+                firstLi.classList.add('selected');
+                const input = document.getElementById('tt-font-weight-input');
+                if (input) {
+                    input.value = firstLi.dataset.selected;
+                }
+            }
+            
             fontWeightList.addEventListener('click', function(e) {
                 const li = e.target.closest('li');
                 if (li) {
                     const input = document.getElementById('tt-font-weight-input');
                     if (input) {
-                        input.value = li.dataset.selected;
-                        editor.updateSettings({ fontWeight: li.dataset.selected });
+                        // Toggle logic: if already selected, toggle to unselected
+                        if (li.classList.contains('selected')) {
+                            li.classList.remove('selected');
+                            input.value = li.dataset.unselected;
+                            editor.updateSettings({ fontWeight: li.dataset.unselected });
+                        } else {
+                            document.querySelectorAll('.tt-font-options-list li').forEach(el => el.classList.remove('selected'));
+                            li.classList.add('selected');
+                            input.value = li.dataset.selected;
+                            editor.updateSettings({ fontWeight: li.dataset.selected });
+                        }
                     }
                 }
             });
@@ -450,6 +490,25 @@
 
     // ===== DOWNLOAD CONTROLS =====
     function bindDownloadControls() {
+        function bindCanvasDimension(id, key) {
+            const input = document.getElementById(id);
+            if (!input) return;
+            input.addEventListener('input', function() {
+                const value = Math.max(100, Math.min(8000, parseInt(this.value, 10) || 0));
+                if (!value) return;
+                const settings = editor.getSettings();
+                settings.canvas[key] = value;
+                editor.render();
+            });
+        }
+        bindCanvasDimension('tt-custom-width-input', 'width');
+        bindCanvasDimension('tt-custom-height-input', 'height');
+        const downloadBtn = document.getElementById('tt-download-btn');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function() {
+                if (window.ExportManager) ExportManager.download();
+            });
+        }
         const sizeList = document.getElementById('tt-download-size-list');
         if (sizeList) {
             sizeList.addEventListener('click', function(e) {
@@ -818,13 +877,13 @@
     }
 
     function copyImageToClipboard() {
-        const canvas = editor.getCanvas();
-        if (!canvas) {
+        if (!window.ExportManager || !editor.getCanvas()) {
             alert('Canvas not available');
             return;
         }
 
         try {
+            const canvas = ExportManager.canvasFromSettings(editor.getSettings());
             canvas.toBlob(function(blob) {
                 if (!blob) {
                     alert('Failed to create image blob');
@@ -855,7 +914,7 @@
             },
             'tt-outline-fill-gradient-colors-input': {
                 checkbox: 'tt-outline-fill-gradient-active-input',
-                settingsPath: 'outline.fill.gradient'
+                settingsPath: 'outline.gradient'
             },
             'tt-depth-gradient-colors-input': {
                 checkbox: 'tt-depth-gradient-active-input',

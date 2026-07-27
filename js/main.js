@@ -16,6 +16,10 @@
         var textarea = document.getElementById('tt-text-textarea');
         if (textarea) { textarea.value = 'TEXT'; }
 
+        // Initialize zoom control to match default zoom value
+        var zoomInput = document.getElementById('tt-font-size-input');
+        if (zoomInput) { zoomInput.value = 64; updateRangeFill(zoomInput); }
+
         initRangeSliders();
 
         var bgCheckbox = document.getElementById('tt-background-active-input');
@@ -27,8 +31,21 @@
         var textSection = document.querySelector('#tt-options section[data-name="text"]');
         if (textSection) { textSection.classList.add('active'); }
 
-        var fillColumn = document.querySelector('[data-custom="fill"]');
-        if (fillColumn) { fillColumn.style.display = 'flex'; }
+        // Initialize bold button state
+        var boldLi = document.querySelector('.tt-font-options-list li');
+        var boldInput = document.getElementById('tt-font-weight-input');
+        if (boldLi && boldInput) {
+            boldLi.classList.add('selected');
+            boldInput.value = boldLi.dataset.selected;
+        }
+
+        // Initialize all custom columns to be hidden except fill
+        var customColumns = document.querySelectorAll('[data-custom]');
+        customColumns.forEach(function(col) {
+            if (col.dataset.custom !== 'fill') {
+                col.style.display = 'none';
+            }
+        });
 
         var fillMenu = document.querySelector('#tt-custom-menu li[data-filter="fill"]');
         if (fillMenu) { fillMenu.classList.add('selected'); }

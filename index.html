@@ -6,6 +6,7 @@
     <title>TextStudio - Online Text Effects & Logo Generator</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Freckle+Dragon&family=Permanent+Marker&family=Rock+Salt&family=Bangers&family=Anton&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&family=Pacifico&family=Press+Start+2P&family=Creepster&family=Share+Tech+Mono&family=Rubik+Wet+Paint&family=Carter+One&family=Fascinate&family=Kanit:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Carter+One&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -53,13 +54,13 @@
                                         <textarea id="tt-text-textarea" spellcheck="false" placeholder="Your text..." data-tt-option="text" rows="3" cols="20"></textarea>
                                         <input type="hidden" id="tt-align-input" data-tt-option="align" />
                                         <ul class="tt-align-list" data-input="tt-align-input">
-                                            <li data-id="left" title="Left alignment"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQiIGhlaWdodD0iMTQiIHZpZXdCb3g9IjAgMCAxNCAxNCI+PHBhdGggZD0iTTEgMTMuNUwxMyAxMkgxMyAxSDF6IiBmaWxsPSIjODg4Ii8+PC9zdmc+" alt="<" /></li>
-                                            <li data-id="center" title="Center alignment"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQiIGhlaWdodD0iMTQiIHZpZXdCb3g9IjAgMCAxNCAxNCI+PHBhdGggZD0iTTYgMTMuNUw4IDEyTDggNGwxMyA0TDggMUw2IDF6IiBmaWxsPSIjODg4Ii8+PC9zdmc+" alt="-" /></li>
-                                            <li data-id="right" title="Right alignment"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQiIGhlaWdodD0iMTQiIHZpZXdCb3g9IjAgMCAxNCAxNCI+PHBhdGggZD0iIk0xIDExTDEzIDExTDEzIDRIMTBMNiA0TDMgN0wxMCA3eiIgZmlsbD0iIzg4OCIvPjwvc3ZnPg==" alt=">" /></li>
+                                            <li data-id="left" title="Left alignment"><i class="fas fa-align-left"></i></li>
+                                            <li data-id="center" title="Center alignment"><i class="fas fa-align-center"></i></li>
+                                            <li data-id="right" title="Right alignment"><i class="fas fa-align-right"></i></li>
                                         </ul>
                                         <input type="hidden" id="tt-font-weight-input" value="normal" data-tt-option="font.weight" />
                                         <ul class="tt-font-options-list">
-                                            <li data-selected="bold" data-unselected="normal" data-input="tt-font-weight-input" title="Put in bold"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQiIGhlaWdodD0iMTQiIHZpZXdCb3g9IjAgMCAxNiAxNCI+PHBhdGggZD0iTTIgMTQuSDhWOUgxNGw4LTV6IiBmaWxsPSIjODg4Ii8+PC9zdmc+" alt="B" /></li>
+                                            <li data-selected="bold" data-unselected="normal" data-input="tt-font-weight-input" title="Put in bold"><i class="fas fa-bold"></i></li>
                                         </ul>
                                     </div>
                                     <div class="tt-option">
@@ -90,16 +91,20 @@
                                 </div>
                                 <div class="tt-column-inner" id="tt-column-text-settings">
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-font-size-input"><span>Font Size:</span><span class="tt-undo" data-undo-control="tt-font-size-input"></span></label>
-                                        <input type="range" min="12" max="140" step="1" value="64" id="tt-font-size-input" data-tt-option="fontSize" />
+                                        <label class="tt-label" for="tt-font-size-input"><span>Zoom:</span><span class="tt-undo" data-undo-control="tt-font-size-input"></span></label>
+                                        <input type="range" min="10" max="200" step="1" value="64" id="tt-font-size-input" data-tt-option="canvas.zoom" />
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-letter-spacing-input"><span>Character spacing:</span><span class="tt-undo" data-undo-control="tt-letter-spacing-input"></span></label>
-                                        <input type="range" min="-0.5" max="1.5" step="0.01" value="0.0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" />
+                                        <input type="range" min="-50" max="150" step="1" value="0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" />
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-line-height-input"><span>Line height:</span><span class="tt-undo" data-undo-control="tt-line-height-input"></span></label>
                                         <input type="range" min="0.1" max="3" step="0.01" value="1" id="tt-line-height-input" data-tt-option="lineHeight" />
+                                    </div>
+                                    <div class="tt-option">
+                                        <label class="tt-label" for="tt-distort-arc-angle-input"><span>Curve the text:</span><span class="tt-undo" data-undo-control="tt-distort-arc-angle-input"></span></label>
+                                        <input type="range" min="-360" max="360" step="1" value="0" id="tt-distort-arc-angle-input" data-tt-option="distort.arc.angle" />
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input"></span></label>
@@ -267,22 +272,22 @@
                                         <fieldset id="tt-outline-fill-gradient-fieldset" data-autominimize="1">
                                             <legend>
                                                 <label for="tt-outline-fill-gradient-active-input">
-                                                    <input type="checkbox" id="tt-outline-fill-gradient-active-input" data-tt-option="outline.fill.gradient.active" />
+                                                    <input type="checkbox" id="tt-outline-fill-gradient-active-input" data-tt-option="outline.gradient.active" />
                                                     <span>Gradient</span>
                                                 </label>
                                             </legend>
                                             <div class="tt-option">
-                                                <input type="hidden" id="tt-outline-fill-gradient-colors-input" data-tt-option="outline.fill.gradient.colors" />
+                                                <input type="hidden" id="tt-outline-fill-gradient-colors-input" data-tt-option="outline.gradient.colors" />
                                                 <div class="tt-gradient-picker" data-update-input="tt-outline-fill-gradient-colors-input"></div>
                                             </div>
                                             <div class="tt-option" id="tt-outline-fill-gradient-angle-option">
                                                 <label class="tt-label" for="tt-outline-fill-gradient-angle-input"><span>Gradient direction:</span></label>
-                                                <input type="range" min="-180" max="180" step="2.5" value="0" id="tt-outline-fill-gradient-angle-input" data-tt-option="outline.fill.gradient.angle" />
+                                                <input type="range" min="-180" max="180" step="2.5" value="0" id="tt-outline-fill-gradient-angle-input" data-tt-option="outline.gradient.angle" />
                                             </div>
                                         </fieldset>
                                         <div class="tt-option">
                                             <label class="tt-label" for="tt-outline-fill-alpha-input"><span>Color opacity:</span></label>
-                                            <input type="range" min="0" max="1" step="0.01" value="1" id="tt-outline-fill-alpha-input" data-tt-option="outline.fill.alpha" />
+                                            <input type="range" min="0" max="1" step="0.01" value="1" id="tt-outline-fill-alpha-input" data-tt-option="outline.alpha" />
                                         </div>
                                         <fieldset id="tt-outline-texture-fieldset" data-autominimize="1">
                                             <legend>
@@ -597,8 +602,7 @@
                                             </label>
                                         </legend>
                                         <div class="tt-option">
-                                            <label class="tt-label" for="tt-distort-arc-input"><span>Arc (bend):</span></label>
-                                            <input type="range" min="-180" max="180" step="1" value="0" id="tt-distort-arc-input" data-tt-option="distort.arc.angle" />
+                                            <p style="color: #666; font-size: 12px;">Curve the text is now available in the TEXT section</p>
                                         </div>
                                     </fieldset>
                                 </div>
@@ -714,9 +718,6 @@
                                     <label class="tt-label">Format:</label>
                                     <ul class="tt-download-format-list" id="tt-download-format-list">
                                         <li data-format="png-transparent" class="selected" title="PNG with transparency"><span>PNG TRANSPARENT</span></li>
-                                        <li data-format="jpg" title="JPG"><span>JPG</span></li>
-                                        <li data-format="pdf" title="PDF"><span>PDF</span></li>
-                                        <li data-format="textstudio" title=".TEXTSTUDIO preset file"><span>.TEXTSTUDIO</span></li>
                                     </ul>
                                 </div>
                                 <div class="tt-option">

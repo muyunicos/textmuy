@@ -147,8 +147,14 @@
         canvas: {
             width: 1920,
             height: 1080,
-            autoFit: true,
+            autoFit: false,
+            zoom: 0.64,
             padding: 0.05
+        },
+
+        distort: {
+            active: false,
+            arc: { angle: 0 }
         },
 
         download: {
@@ -181,7 +187,8 @@
         scale: 2,
         isRendering: false,
         iconImg: null,
-        bgImg: null
+        bgImg: null,
+        transparentOutput: false
     };
 
     // Initialize the editor
@@ -301,12 +308,25 @@
         const text = s.text || 'TEXT';
         const lines = text.split('\n');
 
-        // Auto-fit or use manual font size
+        // Auto-fit or use zoom-based font size
         let fontSizePx;
         if (s.canvas.autoFit) {
             fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
         } else {
-            fontSizePx = s.fontSize * state.scale;
+            // Use zoom system: text always fits canvas, zoom controls margins
+            // Zoom affects padding: higher zoom = less padding (larger text)
+            const zoom = s.canvas.zoom || 0.64;
+            const originalPadding = s.canvas.padding || 0.05;
+            // Adjust padding based on zoom: higher zoom = less padding
+            // Clamp zoom to prevent issues
+            const clampedZoom = Math.max(0.1, Math.min(2.0, zoom));
+            const adjustedPadding = originalPadding / clampedZoom;
+            
+            // Temporarily adjust padding for autoFit calculation
+            const originalPaddingSetting = s.canvas.padding;
+            s.canvas.padding = adjustedPadding;
+            fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
+            s.canvas.padding = originalPaddingSetting; // Restore original padding
         }
 
         // Load custom font if needed
@@ -328,7 +348,7 @@
         ctx.rotate((s.rotate * Math.PI) / 180);
 
         // Apply distort/arc if active
-        if (s.distort.active && s.distort.arc.angle !== 0) {
+        if (s.distort && s.distort.arc && s.distort.arc.angle !== 0) {
             ctx.save();
             applyDistort(ctx, s.distort.arc.angle, fontSizePx);
         }
@@ -793,18 +813,18 @@
         ctx.restore();
     }
 
-    // Apply distort/arc effect
+    // Apply distort/arc effect (TextStudio-style curve with per-character positioning)
     function applyDistort(ctx, arcAngle, fontSizePx) {
-        // Improved arc distortion with per-character positioning along a curve
+        // TextStudio-style arc distortion with per-character positioning along a curve
         const angleRad = (arcAngle * Math.PI) / 180;
         
         if (Math.abs(arcAngle) > 0) {
             // Calculate radius based on text width and arc angle
-            const radius = fontSizePx * 5 / Math.abs(angleRad);
+            const radius = fontSizePx * 3 / Math.abs(angleRad);
             
             // Apply transformation matrix for arc effect
             ctx.translate(0, radius);
-            ctx.scale(1, 1 - Math.abs(angleRad) / 10);
+            ctx.scale(1, 1 - Math.abs(angleRad) / 8);
             ctx.translate(0, -radius);
         }
     }
@@ -816,10 +836,97 @@
         const totalHeight = fontSizePx * lineHeight * lines.length;
         const startY = -totalHeight / 2 + fontSizePx / 2;
 
+        // Check if curve text is active
+        const isCurved = s.distort && s.distort.arc && s.distort.arc.angle !== 0;
+
+        // Calculate widths for alignment (TextStudio style: align lines relative to each other)
+        const lineWidths = [];
+        let maxLineWidth = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            lineWidths.push(lineWidth);
+            if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
+        }
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const y = startY + i * fontSizePx * lineHeight;
-            drawTextWithSpacing(ctx, line, 0, y, letterSpacing, isStroke, s);
+            
+            // Calculate X offset based on alignment (TextStudio style)
+            let xOffset = 0;
+            if (s.align === 'left') {
+                xOffset = -maxLineWidth / 2; // Left align relative to center
+            } else if (s.align === 'right') {
+                xOffset = maxLineWidth / 2 - lineWidths[i]; // Right align relative to center
+            }
+            // Center is default (xOffset = 0)
+            
+            if (isCurved) {
+                // Curve text: apply effect but simpler version
+                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s);
+            } else {
+                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s);
+            }
+        }
+    }
+
+    // Draw text with curve effect (per-character positioning)
+    function drawTextCurved(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
+        const arcAngle = s.distort.arc.angle;
+        const angleRad = (arcAngle * Math.PI) / 180;
+        
+        // Calculate curve parameters - TextStudio style: full circle at max angle
+        // For 360 degrees, we want the text to complete a full circle
+        const maxAngle = 360;
+        const circumference = 2 * Math.PI; // Full circle in radians
+        
+        // Calculate radius so that at max angle, text completes full circle
+        // Measure total text width
+        let totalWidth = 0;
+        const chars = [];
+        for (let i = 0; i < text.length; i++) {
+            const charWidth = ctx.measureText(text[i]).width;
+            chars.push({ char: text[i], width: charWidth });
+            totalWidth += charWidth;
+        }
+        totalWidth += spacing * (text.length - 1);
+        
+        // Calculate radius based on angle to achieve TextStudio-style effect
+        // At 360 degrees, we want circumference = totalWidth
+        // So radius = totalWidth / (2 * PI)
+        // But we scale this by the angle ratio to get intermediate values
+        const angleRatio = Math.abs(arcAngle) / maxAngle;
+        const radius = (totalWidth / circumference) / Math.max(0.1, angleRatio);
+        
+        // Center the text on the curve
+        const startAngle = -totalWidth / (2 * radius);
+        
+        // Draw each character along the curve
+        let currentAngle = startAngle;
+        for (let i = 0; i < chars.length; i++) {
+            const char = chars[i];
+            
+            // Calculate position on the curve
+            const charAngle = currentAngle + char.width / (2 * radius);
+            const charX = Math.sin(charAngle) * radius;
+            const charY = y - (radius - Math.cos(charAngle) * radius);
+            
+            // Calculate rotation for the character (tangent to the curve)
+            const rotation = charAngle;
+            
+            ctx.save();
+            ctx.translate(charX, charY);
+            ctx.rotate(rotation);
+            
+            if (isStroke) {
+                ctx.strokeText(char.char, -char.width / 2, 0);
+            } else {
+                ctx.fillText(char.char, -char.width / 2, 0);
+            }
+            
+            ctx.restore();
+            
+            currentAngle += (char.width + spacing) / radius;
         }
     }
 
@@ -937,8 +1044,10 @@
     }
 
     // Load preset with enhanced TextStudio compatibility
-    function loadPreset(preset) {
-        const s = state.settings;
+    function loadPreset(preset, targetSettings) {
+        // Passing a target is used by the API/export path.  It keeps preset
+        // conversion independent from the visible editor and its DOM controls.
+        const s = targetSettings || state.settings;
 
         // Basic text properties with validation
         if (preset.text !== undefined) s.text = String(preset.text || 'TEXT');
@@ -1204,17 +1313,20 @@
             if (preset.animation.duration !== undefined) s.animation.duration = clampValue(preset.animation.duration, 0, 10000, 1000);
         }
 
-        // Update UI elements
-        updateUIFromSettings();
+        if (!targetSettings) {
+            // Update UI elements
+            updateUIFromSettings();
 
-        // Trigger font load and render
-        if (window.FontLoader && FontLoader.isCustomFont(s.font)) {
-            FontLoader.loadFont(s.font).then(function() {
+            // Trigger font load and render
+            if (window.FontLoader && FontLoader.isCustomFont(s.font)) {
+                FontLoader.loadFont(s.font).then(function() {
+                    render();
+                });
+            } else {
                 render();
-            });
-        } else {
-            render();
+            }
         }
+        return s;
     }
 
     // Update UI elements from settings
@@ -1229,14 +1341,17 @@
 
         const fontSizeInput = document.getElementById('tt-font-size-input');
         if (fontSizeInput) {
-            fontSizeInput.value = s.fontSize;
+            // Convert zoom back to slider value (0.1-2.0 -> 10-200)
+            const zoomValue = (s.canvas.zoom || 0.64) * 100;
+            fontSizeInput.value = Math.round(zoomValue);
             // Update range fill visual
             updateRangeFill(fontSizeInput);
         }
 
         const letterSpacingInput = document.getElementById('tt-letter-spacing-input');
         if (letterSpacingInput) {
-            letterSpacingInput.value = s.letterSpacing;
+            // Convert back from internal value (-0.5 to 1.5) to slider value (-50 to 150)
+            letterSpacingInput.value = s.letterSpacing * 100;
             updateRangeFill(letterSpacingInput);
         }
 
@@ -1248,6 +1363,12 @@
 
         const rotateInput = document.getElementById('tt-rotate-input');
         if (rotateInput) rotateInput.value = s.rotate;
+
+        const curveInput = document.getElementById('tt-distort-arc-angle-input');
+        if (curveInput) {
+            curveInput.value = s.distort.arc.angle || 0;
+            updateRangeFill(curveInput);
+        }
 
         const fillActive = document.getElementById('tt-fill-active-input');
         if (fillActive) fillActive.checked = s.fill.active;
@@ -1499,12 +1620,46 @@
         return state.ctx;
     }
 
+    function createDefaultSettings() {
+        return JSON.parse(JSON.stringify(defaultSettings));
+    }
+
+    // Render to any canvas without mutating the editor UI.  This is shared by
+    // PNG download and the public API, so both outputs have the requested size
+    // and a genuinely transparent background.
+    function renderToCanvas(canvas, settings, options) {
+        const previous = {
+            canvas: state.canvas, ctx: state.ctx, settings: state.settings,
+            scale: state.scale, isRendering: state.isRendering,
+            transparentOutput: state.transparentOutput
+        };
+        try {
+            state.canvas = canvas;
+            state.ctx = canvas.getContext('2d');
+            state.settings = settings;
+            state.scale = 1;
+            state.isRendering = false;
+            state.transparentOutput = Boolean(options && options.transparent);
+            render();
+        } finally {
+            state.canvas = previous.canvas;
+            state.ctx = previous.ctx;
+            state.settings = previous.settings;
+            state.scale = previous.scale;
+            state.isRendering = previous.isRendering;
+            state.transparentOutput = previous.transparentOutput;
+        }
+        return canvas;
+    }
+
     // Export the module
     window.TextEditor = {
         init: init,
         render: render,
         updateSettings: updateSettings,
         loadPreset: loadPreset,
+        createDefaultSettings: createDefaultSettings,
+        renderToCanvas: renderToCanvas,
         getSettings: getSettings,
         getCanvas: getCanvas,
         getCtx: getCtx
