@@ -52,15 +52,15 @@
                                 <div class="tt-column-inner">
                                     <div class="tt-option" style="flex:1">
                                         <textarea id="tt-text-textarea" spellcheck="false" placeholder="Your text..." data-tt-option="text" rows="3" cols="20"></textarea>
-                                        <input type="hidden" id="tt-align-input" data-tt-option="align" />
+                                        <input type="hidden" id="tt-align-input" data-tt-option="align" value="center" />
                                         <ul class="tt-align-list" data-input="tt-align-input">
-                                            <li data-id="left" title="Left alignment"><i class="fas fa-align-left"></i></li>
-                                            <li data-id="center" title="Center alignment"><i class="fas fa-align-center"></i></li>
-                                            <li data-id="right" title="Right alignment"><i class="fas fa-align-right"></i></li>
+                                            <li data-id="left" title="Left alignment"><img src="https://cdn.textstudio.com/asset/editor/align-left-icon.svg" alt="&lt;"></li>
+                                            <li data-id="center" title="Center alignment" class="selected"><img src="https://cdn.textstudio.com/asset/editor/align-center-icon.svg" alt="-"></li>
+                                            <li data-id="right" title="Right alignment"><img src="https://cdn.textstudio.com/asset/editor/align-right-icon.svg" alt="&gt;"></li>
                                         </ul>
                                         <input type="hidden" id="tt-font-weight-input" value="normal" data-tt-option="font.weight" />
                                         <ul class="tt-font-options-list">
-                                            <li data-selected="bold" data-unselected="normal" data-input="tt-font-weight-input" title="Put in bold"><i class="fas fa-bold"></i></li>
+                                            <li data-selected="bold" data-unselected="normal" data-input="tt-font-weight-input" title="Put in bold" style="display: flex;"><img src="https://cdn.textstudio.com/asset/editor/bold-icon.svg" alt="B"></li>
                                         </ul>
                                     </div>
                                     <div class="tt-option">
@@ -91,24 +91,27 @@
                                 </div>
                                 <div class="tt-column-inner" id="tt-column-text-settings">
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-font-size-input"><span>Zoom:</span><span class="tt-undo" data-undo-control="tt-font-size-input"></span></label>
-                                        <input type="range" min="10" max="200" step="1" value="64" id="tt-font-size-input" data-tt-option="canvas.zoom" />
+                                        <label class="tt-label" for="tt-font-size-input"><span>Zoom:</span><span class="tt-undo" data-undo-control="tt-font-size-input" style="display: none;"></span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="12" max="140" step="1" value="64" id="tt-font-size-input" data-tt-option="font.size" data-bubble="Math.round((V-12)/128*100)+'%'"><output style="left: calc(40.625% + 1.90625px);">41%</output></div>
                                     </div>
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-letter-spacing-input"><span>Character spacing:</span><span class="tt-undo" data-undo-control="tt-letter-spacing-input"></span></label>
-                                        <input type="range" min="-50" max="150" step="1" value="0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" />
+                                        <label class="tt-label" for="tt-letter-spacing-input"><span>Character spacing:</span><span class="tt-undo" data-undo-control="tt-letter-spacing-input" style="display: none;"></span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="-0.5" max="1.5" step="0.01" value="0.0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" data-bubble="Math.round(V*100)+'%'"><output style="left: calc(25% + 4.25px); display: none;">0%</output></div>
                                     </div>
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-line-height-input"><span>Line height:</span><span class="tt-undo" data-undo-control="tt-line-height-input"></span></label>
-                                        <input type="range" min="0.1" max="3" step="0.01" value="1" id="tt-line-height-input" data-tt-option="lineHeight" />
+                                        <label class="tt-label" for="tt-line-height-input"><span>Line height:</span><span class="tt-undo" data-undo-control="tt-line-height-input" style="display: none;"></span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="1" max="3" step="0.01" value="1" id="tt-line-height-input" data-tt-option="lineHeight" data-bubble="Math.round(V*100)+'%'"><output style="left: calc(31.0345% + 3.34483px);">100%</output></div>
                                     </div>
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-distort-arc-angle-input"><span>Curve the text:</span><span class="tt-undo" data-undo-control="tt-distort-arc-angle-input"></span></label>
-                                        <input type="range" min="-360" max="360" step="1" value="0" id="tt-distort-arc-angle-input" data-tt-option="distort.arc.angle" />
+                                        <label class="tt-label" for="tt-distort-arc-angle-input"><span>Curve the text:</span><span class="tt-undo" data-undo-control="tt-distort-arc-angle-input" style="display: none;"></span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-distort-arc-angle-input" data-tt-option="distort.arc.angle" data-bubble="V+'°'"><output style="left: calc(50% + 0.5px);">0°</output></div>
                                     </div>
                                     <div class="tt-option">
-                                        <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input"></span></label>
-                                        <input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" />
+                                        <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input" style="display: inline-flex;"></span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" data-bubble="V+'°'"><output style="left: calc(27.0833% + 3.9375px); display: none;">-82.5°</output></div>
+                                    </div>
+                                    <div class="tt-option tt-lettering-inactive" id="tt-merge-gradients-option" style="display: block;">
+                                        <label class="tt-label" for="tt-merge-gradients-input"> <input type="checkbox" class="tt-checkbox" id="tt-merge-gradients-input" data-tt-option="mergeGradients"> <span>Merging styles (multiline)</span></label>
                                     </div>
                                 </div>
                             </div>

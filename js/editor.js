@@ -6,70 +6,121 @@
     // Default settings matching TextStudio's preset structure
     // Conceptual order: TEXT → 3D & FILLING → OUTLINES → SHADOWS → ICON → BACKGROUND → ANIMATION → DOWNLOAD
     const defaultSettings = {
+        editable: 1,
         // ===== TEXT =====
         text: 'TEXT',
-        font: 'Bangers',
-        fontWeight: 'normal',
-        fontSize: 64,
-        letterSpacing: 0,
-        lineHeight: 1,
-        align: 'center',
+        font: {
+            src: 'Bangers',
+            size: 76,
+            weight: 'normal',
+            name: '',
+        },
+        align: 'right',
         rotate: 0,
-        distort: { active: false, arc: { angle: 0 } },
-        mergeGradients: 0,
+        lineHeight: 1,
+        letterSpacing: 0,
+        distort: { arc: { angle: 0 } },
+        mergeGradients: false,
 
         // ===== 3D & FILLING =====
-        // Filling (Relleno principal)
+        // Filling (Relleno principal) - RGB format matching TextStudio
         fill: {
             active: true,
-            color: '#ffffff',
-            gradient: { active: false, startColor: '#ffffff', endColor: '#000000', angle: 0, colors: [] },
             alpha: 1,
-            texture: { active: false, src: null, size: 1, alpha: 1, repeat: 'repeat', position: 'center', blendmode: 'source-over', lettering: false },
+            color: { r: 255, g: 255, b: 255 },
+            texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'left top', size: 1, lettering: false },
+            gradient: { active: false, angle: 0, colors: [] },
             palette: { active: false, lettering: { method: 'letter' }, styles: [] }
         },
 
         // Lettering (Comportamiento tipográfico)
         lettering: {
+            editable: true,
             active: false,
             blendmode: 'over',
-            boggle: { active: false, angle: 0, amplitude: 0.1 },
-            reverseOverlap: { active: false, letters: 0, lines: 0 },
-            shadow: { active: false, size: 0, distance: 0, angle: 0, fill: { color: '#000000', alpha: 1 } }
+            boggle: { active: false, angle: 12, amplitude: 0.1 },
+            reverseOverlap: { letters: 1, lines: 0 },
+            shadow: { active: false, size: 0.04, distance: 0.02, angle: 180, fill: { alpha: 1, color: { r: 0, g: 0, b: 0 } } }
         },
 
-        // 3D Projection #1 (Extrusión tridimensional)
+        // Processing (efectos de procesamiento de imagen)
+        processing: {},
+
+        // 3D Projection #1 (Extrusión tridimensional) - RGB format
         depth: {
             active: false,
-            length: 0.1,
+            length: 0.2,
             angle: 135,
-            fill: { color: '#000000', alpha: 1, mergeAlpha: 0, gradient: { active: false, type: 'depth', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, texture: { active: false, src: null, size: 1, alpha: 1, blendmode: 'source-over', repeat: 'repeat', position: 'center' } }
+            fill: {
+                alpha: 1,
+                color: { r: 255, g: 255, b: 255 },
+                mergeAlpha: false,
+                gradient: { active: true, type: 'depth', angle: 0, colors: [] },
+                texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1 }
+            }
         },
 
-        // 3D Projection #2 (Extrusión tridimensional)
+        // 3D Projection #2 (Extrusión tridimensional) - RGB format
         depth2: {
             active: false,
-            length: 0.1,
+            length: 0.2,
             angle: 135,
-            fill: { color: '#000000', alpha: 1, mergeAlpha: 0, gradient: { active: false, type: 'depth', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, texture: { active: false, src: null, size: 1, alpha: 1, blendmode: 'source-over', repeat: 'repeat', position: 'center' } }
+            fill: {
+                alpha: 1,
+                color: { r: 255, g: 255, b: 255 },
+                mergeAlpha: false,
+                gradient: { active: true, type: 'depth', angle: 0, colors: [] },
+                texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1 }
+            }
         },
 
         // ===== OUTLINES =====
-        // Outline #1 (Trazado plano)
+        // Outline structure matching TextStudio
         outline: {
-            active: false,
-            width: 0.1,
-            color: '#000000',
-            join: 'round',
-            gradient: { active: false, startColor: '#000000', endColor: '#000000', angle: 0, colors: [] },
-            alpha: 1,
-            texture: { active: false, src: null, size: 1, blendmode: 'source-over' },
-            palette: { active: false, method: 'letter', styles: [] },
-            global: { active: false },
-            dash: { active: false, pattern: [] }
+            first: {
+                active: false,
+                width: 0.1,
+                dash: 0,
+                join: 'round',
+                fill: {
+                    alpha: 1,
+                    color: { r: 0, g: 0, b: 0 },
+                    gradient: { active: false, angle: 0, colors: [] },
+                    palette: { active: false, lettering: { method: 'letter' }, styles: [] },
+                    texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1, lettering: false }
+                }
+            },
+            second: {
+                active: false,
+                width: 0.1,
+                dash: 0,
+                join: 'round',
+                fill: {
+                    alpha: 1,
+                    color: { r: 0, g: 0, b: 0 },
+                    gradient: { active: false, angle: 0, colors: [] },
+                    palette: { active: false, lettering: { method: 'letter' }, styles: [] },
+                    texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1, lettering: false }
+                }
+            },
+            global: {
+                active: false,
+                width: 0.1,
+                join: 'round',
+                mask: false,
+                projection: true,
+                vector: true,
+                shadow: { active: false, color: { r: 0, g: 0, b: 0, a: 1 }, size: 0.5 },
+                fill: {
+                    alpha: 1,
+                    color: { r: 255, g: 255, b: 255 },
+                    gradient: { active: false, angle: 0, colors: [] },
+                    texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1 }
+                }
+            }
         },
 
-        // Outline #2 (Trazado plano)
+        // Legacy compatibility - map to outline.first
         outline2: {
             active: false,
             width: 0.1,
@@ -80,19 +131,74 @@
         },
 
         // ===== SHADOWS =====
-        // Inner Bevel (Biselado interno)
+        // Bevel structure matching TextStudio
         bevel: {
-            active: false,
-            size: 0.1,
-            smoothing: 0,
-            soften: 0.1,
-            angle: 135,
-            highlight: { color: '#ffffff', alpha: 1 },
-            shadow: { color: '#000000', alpha: 1 },
-            inner: { active: false }
+            inner: {
+                active: false,
+                size: 0.1,
+                smoothing: 0,
+                soften: 0.1,
+                angle: 135,
+                highlight: { alpha: 1, blendmode: 'over', color: { r: 255, g: 255, b: 255 } },
+                shadow: { alpha: 1, blendmode: 'over', color: { r: 0, g: 0, b: 0 } }
+            }
         },
 
-        // Inner Shadow #1 (Sombra interior)
+        // Shadow structure matching TextStudio
+        shadow: {
+            outer: {
+                active: false,
+                size: 0.2,
+                strength: 0,
+                mask: false,
+                distance: 0.1,
+                angle: 135,
+                fill: {
+                    alpha: 1,
+                    color: { r: 0, g: 0, b: 0 },
+                    gradient: { active: false, angle: 0, colors: [] }
+                }
+            },
+            outer2: {
+                active: false,
+                size: 0.2,
+                strength: 0,
+                mask: false,
+                distance: 0.1,
+                angle: 135,
+                fill: {
+                    alpha: 1,
+                    color: { r: 0, g: 0, b: 255 },
+                    gradient: { active: false, angle: 0, colors: [] }
+                }
+            },
+            inner: {
+                active: false,
+                size: 0.2,
+                strength: 0,
+                alpha: 1,
+                color: { r: 0, g: 0, b: 0 },
+                distance: 0.03,
+                angle: -45,
+                offset: 0,
+                erosion: { size: 0, vector: 1 },
+                blendmode: 'over'
+            },
+            inner2: {
+                active: false,
+                size: 0.2,
+                strength: 0,
+                alpha: 1,
+                color: { r: 255, g: 255, b: 255 },
+                distance: 0.03,
+                angle: 135,
+                offset: 0,
+                erosion: { size: 0, vector: 1 },
+                blendmode: 'over'
+            }
+        },
+
+        // Legacy compatibility
         shadowInner: {
             active: false,
             size: 0,
@@ -103,8 +209,6 @@
             alpha: 1,
             blendmode: 'normal'
         },
-
-        // Inner Shadow #2 (Sombra interior)
         shadowInner2: {
             active: false,
             size: 0,
@@ -115,8 +219,6 @@
             alpha: 1,
             blendmode: 'normal'
         },
-
-        // Outer Shadow #1 (Sombra exterior / Caída)
         shadowOuter: {
             active: false,
             size: 0,
@@ -127,8 +229,6 @@
             mask: false,
             blendmode: 'normal'
         },
-
-        // Outer Shadow #2 (Sombra exterior / Caída)
         shadowOuter2: {
             active: false,
             size: 0,
@@ -142,28 +242,35 @@
 
         // ===== ICON =====
         icon: {
+            editable: true,
             active: false,
-            src: null,
-            position: 'left',
-            size: 1,
             alpha: 1,
+            src: null,
+            size: 1,
             rotate: 0,
+            position: 'center',
             composite: 'source-over',
-            offset: { x: 0, y: 0 },
-            blendmode: 'source-over'
+            offset: { x: 0, y: 0 }
         },
 
         // ===== BACKGROUND =====
         background: {
+            editable: true,
             active: true,
-            fill: { color: '#000000', alpha: 1, gradient: { active: false, type: 'linear', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, image: { active: false, src: null, size: 'cover', sizeCustom: 1, repeat: 'repeat', alpha: 1 } },
-            composite: 'source-over'
+            composite: 'source-over',
+            fill: {
+                alpha: 1,
+                color: { r: 0, g: 0, b: 0 },
+                image: { active: false, alpha: 1, src: null, size: 'cover', repeat: 'repeat' },
+                gradient: { active: false, angle: 0, type: 'radial', colors: [] }
+            }
         },
 
         // ===== ANIMATION =====
         animation: {
-            active: false,
-            id: null,
+            editable: true,
+            active: true,
+            id: '',
             pause: 1000,
             duration: 1000
         },
@@ -249,14 +356,31 @@
     }
 
     // Calculate extra width/height from effects (outline, depth, shadow)
+    // Updated for TextStudio structure (outline.first, outline.second, outline.global, etc.)
     function calcExtraWidth(s, fontSizePx) {
         let extra = 0;
+        
+        // Outline layers
+        if (isActive(s, 'outline.first')) extra += safeGet(s, 'outline.first.width', 0) * fontSizePx * 2;
+        if (isActive(s, 'outline.second')) extra += safeGet(s, 'outline.second.width', 0) * fontSizePx * 2;
+        if (isActive(s, 'outline.global')) extra += safeGet(s, 'outline.global.width', 0) * fontSizePx * 2;
+        
+        // Legacy compatibility
         if (isActive(s, 'outline')) extra += safeGet(s, 'outline.width', 0) * fontSizePx * 2;
         if (isActive(s, 'outline2')) extra += safeGet(s, 'outline2.width', 0) * fontSizePx * 2;
+        
+        // Shadow layers
+        if (isActive(s, 'shadow.outer')) extra += safeGet(s, 'shadow.outer.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadow.outer.size', 0) * fontSizePx * 2;
+        if (isActive(s, 'shadow.outer2')) extra += safeGet(s, 'shadow.outer2.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadow.outer2.size', 0) * fontSizePx * 2;
+        
+        // Legacy compatibility
         if (isActive(s, 'shadowOuter')) extra += safeGet(s, 'shadowOuter.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadowOuter.size', 0) * fontSizePx * 2;
         if (isActive(s, 'shadowOuter2')) extra += safeGet(s, 'shadowOuter2.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadowOuter2.size', 0) * fontSizePx * 2;
+        
+        // Depth layers
         if (isActive(s, 'depth')) extra += safeGet(s, 'depth.length', 0) * fontSizePx * 2;
         if (isActive(s, 'depth2')) extra += safeGet(s, 'depth2.length', 0) * fontSizePx * 2;
+        
         return extra;
     }
 
@@ -275,10 +399,337 @@
         return totalWidth;
     }
 
+    // ===== PER-CHARACTER METRICS SYSTEM =====
+    
+    /**
+     * CharacterMetrics - Stores detailed metrics for a single character
+     * This enables per-character effects and transformations
+     */
+    class CharacterMetrics {
+        constructor(char, index, lineIndex) {
+            this.char = char;
+            this.index = index;
+            this.lineIndex = lineIndex;
+            
+            // Position (relative to line origin)
+            this.x = 0;
+            this.y = 0;
+            
+            // Dimensions
+            this.width = 0;
+            this.height = 0;
+            
+            // Canvas text metrics (actualBoundingBox)
+            this.actualBoundingBoxLeft = 0;
+            this.actualBoundingBoxRight = 0;
+            this.actualBoundingBoxAscent = 0;
+            this.actualBoundingBoxDescent = 0;
+            
+            // Transformations
+            this.transform = {
+                x: 0,
+                y: 0,
+                rotation: 0,
+                scale: 1
+            };
+        }
+    }
+
+    /**
+     * TextLayout - Stores layout information for all text
+     * Organized by lines, with per-character metrics
+     */
+    class TextLayout {
+        constructor() {
+            this.lines = []; // Array of CharacterMetrics[][]
+            this.totalWidth = 0;
+            this.totalHeight = 0;
+            this.baseline = 0;
+            this.fontSize = 0;
+        }
+    }
+
+    /**
+     * Calculate detailed text layout with per-character metrics
+     * This is the foundation for per-character effects
+     */
+    function calculateTextLayout(ctx, text, settings) {
+        const layout = new TextLayout();
+        const s = settings;
+        
+        // Split text into lines
+        const lines = text.split('\n');
+        const fontSizePx = s.font.size;
+        layout.fontSize = fontSizePx;
+        
+        // Set font for measurements
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
+        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        
+        // Calculate metrics for each character in each line
+        const letterSpacing = s.letterSpacing || 0;
+        const spacingPx = letterSpacing * fontSizePx * 0.1;
+        
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            const line = lines[lineIndex];
+            const charMetrics = [];
+            let currentX = 0;
+            
+            for (let charIndex = 0; charIndex < line.length; charIndex++) {
+                const char = line[charIndex];
+                const metrics = new CharacterMetrics(char, charIndex, lineIndex);
+                
+                // Measure character
+                const measure = ctx.measureText(char);
+                metrics.width = measure.width;
+                metrics.actualBoundingBoxLeft = measure.actualBoundingBoxLeft || 0;
+                metrics.actualBoundingBoxRight = measure.actualBoundingBoxRight || 0;
+                metrics.actualBoundingBoxAscent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+                metrics.actualBoundingBoxDescent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+                metrics.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+                
+                // Position character
+                metrics.x = currentX;
+                metrics.y = 0; // Will be adjusted for line alignment
+                
+                currentX += metrics.width + spacingPx;
+                
+                charMetrics.push(metrics);
+            }
+            
+            layout.lines.push(charMetrics);
+        }
+        
+        // Calculate total dimensions
+        let maxWidth = 0;
+        for (const line of layout.lines) {
+            if (line.length > 0) {
+                const lastChar = line[line.length - 1];
+                const lineWidth = lastChar.x + lastChar.width;
+                maxWidth = Math.max(maxWidth, lineWidth);
+            }
+        }
+        layout.totalWidth = maxWidth;
+        
+        const lineHeightPx = fontSizePx * (s.lineHeight || 1);
+        layout.totalHeight = lines.length * lineHeightPx;
+        layout.baseline = fontSizePx * 0.5; // Middle baseline
+        
+        return layout;
+    }
+
+    // ===== PALETTE PER-LETTER SYSTEM =====
+    
+    /**
+     * Apply palette styles to characters based on method
+     * Methods: 'letter' (cycle per character), 'word' (cycle per word), 'line' (cycle per line)
+     */
+    function applyPaletteToLayout(layout, paletteConfig) {
+        if (!paletteConfig || !paletteConfig.active || !paletteConfig.styles || paletteConfig.styles.length === 0) {
+            return layout;
+        }
+        
+        const method = paletteConfig.lettering?.method || 'letter';
+        const styles = paletteConfig.styles;
+        
+        for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
+            const line = layout.lines[lineIndex];
+            
+            for (let charIndex = 0; charIndex < line.length; charIndex++) {
+                const charMetrics = line[charIndex];
+                
+                // Determine style index based on method
+                let styleIndex;
+                if (method === 'letter') {
+                    styleIndex = charIndex % styles.length;
+                } else if (method === 'word') {
+                    // Simple word detection (space-separated)
+                    const charBefore = charIndex > 0 ? line[charIndex - 1].char : '';
+                    const isWordStart = charBefore === ' ' || charBefore === '';
+                    const wordIndex = line.slice(0, charIndex).filter(c => c.char === ' ').length;
+                    styleIndex = wordIndex % styles.length;
+                } else if (method === 'line') {
+                    styleIndex = lineIndex % styles.length;
+                } else {
+                    styleIndex = charIndex % styles.length;
+                }
+                
+                // Apply style to character
+                const style = styles[styleIndex];
+                if (style) {
+                    charMetrics.paletteStyle = style;
+                }
+            }
+        }
+        
+        return layout;
+    }
+
+    /**
+     * Get color for a character considering palette
+     * Returns RGB object {r, g, b}
+     */
+    function getCharacterColor(charMetrics, baseColor, paletteConfig) {
+        if (!paletteConfig || !paletteConfig.active || !charMetrics.paletteStyle) {
+            return baseColor;
+        }
+        
+        const style = charMetrics.paletteStyle;
+        if (style.color) {
+            return style.color;
+        }
+        
+        return baseColor;
+    }
+
+    /**
+     * Get gradient for a character considering palette
+     */
+    function getCharacterGradient(charMetrics, baseGradient, paletteConfig) {
+        if (!paletteConfig || !paletteConfig.active || !charMetrics.paletteStyle) {
+            return baseGradient;
+        }
+        
+        const style = charMetrics.paletteStyle;
+        if (style.gradient) {
+            return style.gradient;
+        }
+        
+        return baseGradient;
+    }
+
+    // ===== LETTERING EFFECTS SYSTEM =====
+    
+    /**
+     * Apply boggle effect - random rotation and offset per character
+     */
+    function applyBoggleEffect(layout, boggleConfig) {
+        if (!boggleConfig || !boggleConfig.active) {
+            return layout;
+        }
+        
+        const angle = boggleConfig.angle || 12;
+        const amplitude = boggleConfig.amplitude || 0.1;
+        const angleRad = angle * Math.PI / 180;
+        
+        for (const line of layout.lines) {
+            for (const charMetrics of line) {
+                // Random rotation within angle range
+                const randomAngle = (Math.random() - 0.5) * 2 * angleRad;
+                charMetrics.transform.rotation = randomAngle;
+                
+                // Random offset within amplitude
+                const offsetX = (Math.random() - 0.5) * 2 * amplitude * layout.fontSize;
+                const offsetY = (Math.random() - 0.5) * 2 * amplitude * layout.fontSize;
+                charMetrics.transform.x = offsetX;
+                charMetrics.transform.y = offsetY;
+            }
+        }
+        
+        return layout;
+    }
+
+    /**
+     * Apply reverse overlap effect - overlap letters in reverse order
+     * This creates a stacked/overlapping effect
+     */
+    function applyReverseOverlapEffect(layout, reverseOverlapConfig) {
+        if (!reverseOverlapConfig) {
+            return layout;
+        }
+        
+        const overlapLetters = reverseOverlapConfig.letters || 0;
+        const overlapLines = reverseOverlapConfig.lines || 0;
+        
+        if (overlapLetters > 0) {
+            for (const line of layout.lines) {
+                // Reverse order for overlap effect
+                for (let i = line.length - 1; i > 0; i--) {
+                    const charMetrics = line[i];
+                    const prevChar = line[i - 1];
+                    
+                    // Overlap with previous character
+                    const overlapAmount = charMetrics.width * 0.3; // 30% overlap
+                    charMetrics.transform.x = -overlapAmount * (line.length - i) * 0.1;
+                }
+            }
+        }
+        
+        if (overlapLines > 0) {
+            // Overlap lines vertically
+            for (let i = 1; i < layout.lines.length; i++) {
+                const line = layout.lines[i];
+                const lineHeightPx = layout.fontSize * 1.2; // Approximate line height
+                
+                for (const charMetrics of line) {
+                    charMetrics.transform.y = -lineHeightPx * 0.2 * i; // 20% overlap per line
+                }
+            }
+        }
+        
+        return layout;
+    }
+
+    /**
+     * Apply lettering shadow effect - individual shadow per character
+     */
+    function applyLetteringShadowEffect(layout, letteringShadowConfig) {
+        if (!letteringShadowConfig || !letteringShadowConfig.active) {
+            return layout;
+        }
+        
+        const size = letteringShadowConfig.size || 0.04;
+        const distance = letteringShadowConfig.distance || 0.02;
+        const angle = (letteringShadowConfig.angle || 180) * Math.PI / 180;
+        
+        const shadowOffsetX = Math.cos(angle) * distance * layout.fontSize;
+        const shadowOffsetY = Math.sin(angle) * distance * layout.fontSize;
+        
+        for (const line of layout.lines) {
+            for (const charMetrics of line) {
+                charMetrics.letteringShadow = {
+                    offsetX: shadowOffsetX,
+                    offsetY: shadowOffsetY,
+                    size: size * layout.fontSize,
+                    fill: letteringShadowConfig.fill
+                };
+            }
+        }
+        
+        return layout;
+    }
+
+    /**
+     * Apply all lettering effects to layout
+     */
+    function applyLetteringEffects(layout, letteringConfig) {
+        if (!letteringConfig || !letteringConfig.active) {
+            return layout;
+        }
+        
+        // Apply boggle effect
+        if (letteringConfig.boggle && letteringConfig.boggle.active) {
+            applyBoggleEffect(layout, letteringConfig.boggle);
+        }
+        
+        // Apply reverse overlap effect
+        if (letteringConfig.reverseOverlap) {
+            applyReverseOverlapEffect(layout, letteringConfig.reverseOverlap);
+        }
+        
+        // Apply lettering shadow effect
+        if (letteringConfig.shadow && letteringConfig.shadow.active) {
+            applyLetteringShadowEffect(layout, letteringConfig.shadow);
+        }
+        
+        return layout;
+    }
+
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
-        const fontWeight = s.fontWeight || 'normal';
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
         const padding = canvasWidth * (s.canvas.padding || 0.05);
         const availW = canvasWidth - padding * 2;
         const availH = canvasHeight - padding * 2;
@@ -346,26 +797,47 @@
         if (s.canvas.autoFit) {
             fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
         } else {
-            // Use zoom system: text always fits canvas, zoom controls margins
-            // Zoom affects padding: higher zoom = less padding (larger text)
-            const zoom = s.canvas.zoom || 0.64;
-            const originalPadding = s.canvas.padding || 0.05;
-            // Adjust padding based on zoom: higher zoom = less padding
-            // Clamp zoom to prevent issues
-            const clampedZoom = Math.max(0.1, Math.min(2.0, zoom));
-            const adjustedPadding = originalPadding / clampedZoom;
-            
-            // Temporarily adjust padding for autoFit calculation
-            const originalPaddingSetting = s.canvas.padding;
-            s.canvas.padding = adjustedPadding;
-            fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
-            s.canvas.padding = originalPaddingSetting; // Restore original padding
+            // Use font.size from TextStudio structure (12-140 range)
+            const font_size = s.font.size || 64;
+            fontSizePx = font_size * state.scale;
         }
 
         // Load custom font if needed
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font) : s.font;
-        const fontWeight = s.fontWeight || 'normal';
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
         ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+
+        // ===== PER-CHARACTER LAYOUT SYSTEM =====
+        // Calculate detailed text layout with per-character metrics
+        const layout = calculateTextLayout(ctx, text, s);
+        
+        // Apply palette effects if active
+        if (s.fill.palette && s.fill.palette.active) {
+            applyPaletteToLayout(layout, s.fill.palette);
+        }
+        if (s.outline.first.fill.palette && s.outline.first.fill.palette.active) {
+            applyPaletteToLayout(layout, s.outline.first.fill.palette);
+        }
+        if (s.outline.second.fill.palette && s.outline.second.fill.palette.active) {
+            applyPaletteToLayout(layout, s.outline.second.fill.palette);
+        }
+        
+        // Apply lettering effects if active
+        if (s.lettering && s.lettering.active) {
+            applyLetteringEffects(layout, s.lettering);
+        }
+        
+        // Store layout in state for use in render functions
+        state.layout = layout;
+        
+        // Calculate dimensions from layout
+        const maxLineWidth = layout.totalWidth;
+        const lineSpacing = fontSizePx * Math.max(0, s.lineHeight - 1);
+        const totalHeight = layout.totalHeight;
+        
+        // Centro del texto total (bounding box completo)
+        const textCenterX = maxLineWidth / 2;
+        const textCenterY = totalHeight / 2;
 
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
@@ -385,16 +857,22 @@
 
         // Draw text effects in order
         ctx.save();
+        
+        // Rotación siguiendo el patrón de TextStudio:
+        // 1. Translate al centro del canvas
+        // 2. Rotar
+        // 3. No translate de vuelta (el texto se dibuja en coordenadas relativas al centro)
         ctx.translate(centerX, centerY);
         ctx.rotate((s.rotate * Math.PI) / 180);
 
-        // 1. Outer shadow 2
-        if (isActive(s, 'shadowOuter2')) {
+        // Render order matching TextStudio pipeline
+        // 1. Outer shadow 2 (TextStudio: shadow.outer2)
+        if (isActive(s, 'shadow.outer2') || isActive(s, 'shadowOuter2')) {
             drawOuterShadow2(ctx, text, lines, fontSizePx, s);
         }
 
-        // 2. Outer shadow
-        if (isActive(s, 'shadowOuter')) {
+        // 2. Outer shadow (TextStudio: shadow.outer)
+        if (isActive(s, 'shadow.outer') || isActive(s, 'shadowOuter')) {
             drawOuterShadow(ctx, text, lines, fontSizePx, s);
         }
 
@@ -413,37 +891,37 @@
             drawFill(ctx, text, lines, fontSizePx, s);
         }
 
-        // 6. Outline 2
-        if (isActive(s, 'outline2')) {
+        // 6. Outline second (TextStudio: outline.second)
+        if (isActive(s, 'outline.second') || isActive(s, 'outline2')) {
             drawOutline2(ctx, text, lines, fontSizePx, s);
         }
 
-        // 7. Outline
-        if (isActive(s, 'outline')) {
+        // 7. Outline first (TextStudio: outline.first)
+        if (isActive(s, 'outline.first') || isActive(s, 'outline')) {
             drawOutline(ctx, text, lines, fontSizePx, s);
         }
 
-        // 8. Bevel
-        if (isActive(s, 'bevel')) {
+        // 8. Outline global (TextStudio: outline.global)
+        if (isActive(s, 'outline.global')) {
+            drawOutlineGlobal(ctx, text, lines, fontSizePx, s);
+        }
+
+        // 9. Bevel inner (TextStudio: bevel.inner)
+        if (isActive(s, 'bevel.inner') || isActive(s, 'bevel')) {
             drawBevel(ctx, text, lines, fontSizePx, s);
         }
 
-        // 8.5 Specular lighting
-        if (isActive(s, 'bevel') && safeGet(s, 'bevel.specular', false)) {
-            drawSpecular(ctx, text, lines, fontSizePx, s);
-        }
-
-        // 9. Inner shadow 2
-        if (isActive(s, 'shadowInner2')) {
+        // 10. Inner shadow 2 (TextStudio: shadow.inner2)
+        if (isActive(s, 'shadow.inner2') || isActive(s, 'shadowInner2')) {
             drawInnerShadow2(ctx, text, lines, fontSizePx, s);
         }
 
-        // 10. Inner shadow
-        if (isActive(s, 'shadowInner')) {
+        // 11. Inner shadow (TextStudio: shadow.inner)
+        if (isActive(s, 'shadow.inner') || isActive(s, 'shadowInner')) {
             drawInnerShadow(ctx, text, lines, fontSizePx, s);
         }
 
-        // 11. Icon
+        // 12. Icon
         if (isActive(s, 'icon') && state.iconImg) {
             drawIcon(ctx, text, lines, fontSizePx, s);
         }
@@ -500,22 +978,27 @@
             ctx.globalCompositeOperation = s.background.composite;
         }
 
-        if (isActive(s, 'background.image') && safeGet(s, 'background.image.src')) {
-            loadBackgroundImage(s.background.image.src);
+        // Support both legacy structure and new TextStudio structure
+        const bgConfig = s.background;
+        const bgFill = bgConfig.fill || bgConfig;
+        const bgImage = bgFill.image || bgConfig.image;
+        const bgGradient = bgFill.gradient || bgConfig.gradient;
+
+        if (bgImage && bgImage.active && bgImage.src) {
+            loadBackgroundImage(bgImage.src);
             if (state.bgImg) {
                 const img = state.bgImg;
-                const size = s.background.image.size;
-                const repeat = s.background.image.repeat || 'repeat';
+                const size = bgImage.size || 'cover';
+                const repeat = bgImage.repeat || 'repeat';
+                const alpha = bgImage.alpha || 1;
 
                 if (repeat === 'repeat') {
-                    ctx.globalAlpha = s.background.alpha;
-                    ctx.createPattern(img, repeat);
-                    // For repeat, draw pattern
+                    ctx.globalAlpha = alpha;
                     const pattern = ctx.createPattern(img, repeat);
                     ctx.fillStyle = pattern;
                     ctx.fillRect(0, 0, width, height);
                 } else {
-                    ctx.globalAlpha = s.background.alpha;
+                    ctx.globalAlpha = alpha;
                     let dw = width, dh = height;
                     if (size === 'contain') {
                         const ratio = Math.min(width / img.width, height / img.height);
@@ -525,7 +1008,6 @@
                         dw = width;
                         dh = height;
                     }
-                    // cover is default
                     ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
                 }
                 ctx.restore();
@@ -533,25 +1015,25 @@
             }
         }
 
-        if (safeGet(s, 'background.gradient') && isActive(s, 'background.gradient')) {
-            const angle = (s.background.gradient.angle * Math.PI) / 180;
+        if (bgGradient && bgGradient.active) {
+            const angle = (bgGradient.angle || 0) * Math.PI / 180;
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
             const grad = ctx.createLinearGradient(
                 width / 2 - cos * width / 2, height / 2 - sin * height / 2,
                 width / 2 + cos * width / 2, height / 2 + sin * height / 2
             );
-            addGradientStops(grad, s.background.gradient);
+            addGradientStops(grad, bgGradient);
             ctx.fillStyle = grad;
-            ctx.globalAlpha = s.background.alpha;
+            ctx.globalAlpha = bgFill.alpha || 1;
             ctx.fillRect(0, 0, width, height);
             ctx.restore();
             return;
         }
 
-        if (isActive(s, 'background') && safeGet(s, 'background.alpha', 0) > 0) {
-            ctx.fillStyle = s.background.color;
-            ctx.globalAlpha = s.background.alpha;
+        if (isActive(s, 'background') && (bgFill.alpha || 0) > 0) {
+            const color = bgFill.color || '#000000';
+            ctx.fillStyle = getColorValue(color, bgFill.alpha || 1);
             ctx.fillRect(0, 0, width, height);
             ctx.restore();
             return;
@@ -593,16 +1075,18 @@
 
     // Draw outer shadow
     function drawOuterShadow(ctx, text, lines, fontSizePx, s) {
-        const distance = s.shadowOuter.distance * fontSizePx;
-        const angle = (s.shadowOuter.angle * Math.PI) / 180;
+        // Support both legacy structure and new TextStudio structure
+        const shadowConfig = s.shadow.outer || s.shadowOuter;
+        const distance = (shadowConfig.distance || 0.1) * fontSizePx;
+        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
-        const blur = s.shadowOuter.size * fontSizePx * 2;
-        const alpha = s.shadowOuter.alpha;
-        const color = hexToRgba(s.shadowOuter.color, alpha);
+        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const alpha = safeGet(shadowConfig, 'fill.alpha', 1);
+        const color = shadowConfig.fill?.color || shadowConfig.color || '#000000';
 
         ctx.save();
-        ctx.shadowColor = color;
+        ctx.shadowColor = getColorValue(color, alpha);
         ctx.shadowOffsetX = offsetX;
         ctx.shadowOffsetY = offsetY;
         ctx.shadowBlur = blur;
@@ -615,41 +1099,36 @@
 
     // Draw 3D depth (extrusion)
     function drawDepth(ctx, text, lines, fontSizePx, s) {
-        const length = s.depth.length * fontSizePx;
-        const angle = (s.depth.angle * Math.PI) / 180;
+        const length = (s.depth.length || 0.2) * fontSizePx;
+        const angle = (s.depth.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * length;
         const offsetY = Math.sin(angle) * length;
-
-        const alpha = s.depth.alpha;
-
-        const steps = Math.max(1, Math.floor(length / 2));
-        const stepX = offsetX / steps;
-        const stepY = offsetY / steps;
+        const alpha = safeGet(s, 'depth.fill.alpha', 1);
+        const color = s.depth.fill?.color || { r: 255, g: 255, b: 255 };
 
         ctx.save();
         
-        // Apply blendmode if set
-        if (s.depth.texture.blendmode) {
-            ctx.globalCompositeOperation = s.depth.texture.blendmode;
-        }
-        
-        // Use gradient if active, otherwise solid color
-        if (isActive(s, 'depth.gradient')) {
-            const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth.gradient, s);
-            ctx.fillStyle = gradient;
-        } else {
-            ctx.fillStyle = hexToRgba(s.depth.color, alpha);
-        }
-        
-        ctx.strokeStyle = 'transparent';
-
-        for (let i = steps; i >= 0; i--) {
-            ctx.save();
-            ctx.translate(stepX * i, stepY * i);
+        // Draw multiple layers for 3D effect
+        const layers = Math.ceil(length / 2);
+        for (let i = 0; i < layers; i++) {
+            const layerOffsetX = (offsetX / layers) * (i + 1);
+            const layerOffsetY = (offsetY / layers) * (i + 1);
+            
+            ctx.translate(layerOffsetX, layerOffsetY);
+            
+            if (isActive(s, 'depth.fill.gradient')) {
+                const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth.fill.gradient, s);
+                ctx.fillStyle = gradient;
+            } else {
+                ctx.fillStyle = getColorValue(color, alpha);
+            }
+            
+            ctx.strokeStyle = 'transparent';
             drawTextLines(ctx, text, lines, fontSizePx, s);
-            ctx.restore();
+            
+            ctx.translate(-layerOffsetX, -layerOffsetY);
         }
-
+        
         ctx.restore();
     }
 
@@ -686,7 +1165,8 @@
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.fill.gradient, s);
             ctx.fillStyle = gradient;
         } else {
-            ctx.fillStyle = hexToRgba(s.fill.color, alpha);
+            const color = s.fill.color || { r: 255, g: 255, b: 255 };
+            ctx.fillStyle = getColorValue(color, alpha);
         }
 
         ctx.strokeStyle = 'transparent';
@@ -696,22 +1176,25 @@
 
     // Draw text outline
     function drawOutline(ctx, text, lines, fontSizePx, s) {
-        const width = s.outline.width * fontSizePx;
-        const alpha = safeGet(s, 'outline.alpha', 1);
+        // Support both legacy structure and new TextStudio structure
+        const outlineConfig = s.outline.first || s.outline;
+        const width = (outlineConfig.width || 0.1) * fontSizePx;
+        const alpha = safeGet(outlineConfig, 'fill.alpha', 1);
+        const join = outlineConfig.join || 'round';
 
         // Check if texture is active
-        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src')) {
-            const textureImg = state.textureImages[s.outline.texture.src];
+        if (isActive(outlineConfig, 'fill.texture') && safeGet(outlineConfig, 'fill.texture.src')) {
+            const textureImg = state.textureImages[outlineConfig.fill.texture.src];
             if (textureImg) {
                 ctx.save();
-                if (s.outline.texture.blendmode) {
-                    ctx.globalCompositeOperation = s.outline.texture.blendmode;
+                if (outlineConfig.fill.texture.blendmode) {
+                    ctx.globalCompositeOperation = outlineConfig.fill.texture.blendmode;
                 }
-                const pattern = ctx.createPattern(textureImg, s.outline.texture.repeat || 'repeat');
+                const pattern = ctx.createPattern(textureImg, outlineConfig.fill.texture.repeat || 'repeat');
                 ctx.globalAlpha = alpha;
                 ctx.strokeStyle = pattern;
                 ctx.lineWidth = width;
-                ctx.lineJoin = s.outline.join || 'round';
+                ctx.lineJoin = join;
                 ctx.lineCap = 'round';
                 ctx.fillStyle = 'transparent';
                 drawTextLines(ctx, text, lines, fontSizePx, s, true);
@@ -721,15 +1204,16 @@
         }
 
         ctx.save();
-        if (isActive(s, 'outline.gradient')) {
-            const gradient = createGradient(ctx, text, lines, fontSizePx, s.outline.gradient, s);
+        if (isActive(outlineConfig, 'fill.gradient')) {
+            const gradient = createGradient(ctx, text, lines, fontSizePx, outlineConfig.fill.gradient, s);
             ctx.strokeStyle = gradient;
         } else {
-            ctx.strokeStyle = hexToRgba(s.outline.color, alpha);
+            const color = outlineConfig.fill?.color || outlineConfig.color || '#000000';
+            ctx.strokeStyle = getColorValue(color, alpha);
         }
 
         ctx.lineWidth = width;
-        ctx.lineJoin = s.outline.join || 'round';
+        ctx.lineJoin = join;
         ctx.lineCap = 'round';
         ctx.fillStyle = 'transparent';
 
@@ -737,16 +1221,27 @@
         ctx.restore();
     }
 
+    // Draw global outline (TextStudio: outline.global)
+    // This renders an outline around the entire text block, not per-character
+    function drawOutlineGlobal(ctx, text, lines, fontSizePx, s) {
+        // Placeholder for global outline implementation
+        // This requires rendering the entire text as a single path
+        // For now, skip to avoid errors
+        console.log('drawOutlineGlobal called - not yet implemented');
+    }
+
     // Draw inner shadow
     function drawInnerShadow(ctx, text, lines, fontSizePx, s) {
-        const distance = s.shadowInner.distance * fontSizePx;
-        const angle = (s.shadowInner.angle * Math.PI) / 180;
+        // Support both legacy structure and new TextStudio structure
+        const shadowConfig = s.shadow.inner || s.shadowInner;
+        const distance = (shadowConfig.distance || 0.03) * fontSizePx;
+        const angle = (shadowConfig.angle || -45) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
-        const offset = (s.shadowInner.offset || 0) * fontSizePx;
-        const blur = s.shadowInner.size * fontSizePx * 2;
-        const alpha = s.shadowInner.alpha;
-        const color = hexToRgba(s.shadowInner.color, alpha);
+        const offset = (shadowConfig.offset || 0) * fontSizePx;
+        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const alpha = shadowConfig.alpha || 1;
+        const color = shadowConfig.color || '#000000';
 
         const canvas = state.canvas;
         const offscreen = document.createElement('canvas');
@@ -758,8 +1253,8 @@
         offCtx.textBaseline = 'middle';
         offCtx.textAlign = 'center';
         offCtx.translate(offscreen.width / 2, offscreen.height / 2);
-        offCtx.fillStyle = color;
-        offCtx.shadowColor = color;
+        offCtx.fillStyle = getColorValue(color, alpha);
+        offCtx.shadowColor = getColorValue(color, alpha);
         offCtx.shadowOffsetX = offsetX + offset;
         offCtx.shadowOffsetY = offsetY + offset;
         offCtx.shadowBlur = blur;
@@ -769,7 +1264,7 @@
         offCtx.restore();
 
         ctx.save();
-        const blendmode = s.shadowInner.blendmode || 'source-atop';
+        const blendmode = shadowConfig.blendmode || 'source-atop';
         ctx.globalCompositeOperation = blendmode;
         ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
         ctx.restore();
@@ -812,12 +1307,12 @@
 
     // Draw 3D depth 2
     function drawDepth2(ctx, text, lines, fontSizePx, s) {
-        const length = s.depth2.length * fontSizePx;
-        const angle = (s.depth2.angle * Math.PI) / 180;
+        const length = (s.depth2.length || 0.2) * fontSizePx;
+        const angle = (s.depth2.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * length;
         const offsetY = Math.sin(angle) * length;
-
-        const alpha = s.depth2.alpha;
+        const alpha = safeGet(s, 'depth2.fill.alpha', 1);
+        const color = s.depth2.fill?.color || { r: 255, g: 255, b: 255 };
 
         const steps = Math.max(1, Math.floor(length / 2));
         const stepX = offsetX / steps;
@@ -826,11 +1321,11 @@
         ctx.save();
         
         // Use gradient if active, otherwise solid color
-        if (isActive(s, 'depth2.gradient')) {
-            const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth2.gradient, s);
+        if (isActive(s, 'depth2.fill.gradient')) {
+            const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth2.fill.gradient, s);
             ctx.fillStyle = gradient;
         } else {
-            ctx.fillStyle = hexToRgba(s.depth2.color, alpha);
+            ctx.fillStyle = getColorValue(color, alpha);
         }
         
         ctx.strokeStyle = 'transparent';
@@ -847,36 +1342,44 @@
 
     // Draw outline 2
     function drawOutline2(ctx, text, lines, fontSizePx, s) {
-        const width = safeGet(s, 'outline2.width', 0) * fontSizePx;
-        const alpha = safeGet(s, 'outline2.alpha', 1);
+        // Support both legacy structure and new TextStudio structure
+        const outlineConfig = s.outline.second || s.outline2;
+        const width = (outlineConfig.width || 0.1) * fontSizePx;
+        const alpha = safeGet(outlineConfig, 'fill.alpha', 1);
+        const join = outlineConfig.join || 'round';
 
-        if (isActive(s, 'outline2.gradient')) {
-            const gradient = createGradient(ctx, text, lines, fontSizePx, s.outline2.gradient, s);
+        ctx.save();
+        if (isActive(outlineConfig, 'fill.gradient')) {
+            const gradient = createGradient(ctx, text, lines, fontSizePx, outlineConfig.fill.gradient, s);
             ctx.strokeStyle = gradient;
         } else {
-            ctx.strokeStyle = hexToRgba(s.outline2.color, alpha);
+            const color = outlineConfig.fill?.color || outlineConfig.color || '#000000';
+            ctx.strokeStyle = getColorValue(color, alpha);
         }
 
         ctx.lineWidth = width;
-        ctx.lineJoin = s.outline2.join || 'round';
+        ctx.lineJoin = join;
         ctx.lineCap = 'round';
         ctx.fillStyle = 'transparent';
 
         drawTextLines(ctx, text, lines, fontSizePx, s, true);
+        ctx.restore();
     }
 
     // Draw outer shadow 2
     function drawOuterShadow2(ctx, text, lines, fontSizePx, s) {
-        const distance = s.shadowOuter2.distance * fontSizePx;
-        const angle = (s.shadowOuter2.angle * Math.PI) / 180;
+        // Support both legacy structure and new TextStudio structure
+        const shadowConfig = s.shadow.outer2 || s.shadowOuter2;
+        const distance = (shadowConfig.distance || 0.1) * fontSizePx;
+        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
-        const blur = s.shadowOuter2.size * fontSizePx * 2;
-        const alpha = s.shadowOuter2.alpha;
-        const color = hexToRgba(s.shadowOuter2.color, alpha);
+        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const alpha = safeGet(shadowConfig, 'fill.alpha', 1);
+        const color = shadowConfig.fill?.color || shadowConfig.color || '#000000';
 
         ctx.save();
-        ctx.shadowColor = color;
+        ctx.shadowColor = getColorValue(color, alpha);
         ctx.shadowOffsetX = offsetX;
         ctx.shadowOffsetY = offsetY;
         ctx.shadowBlur = blur;
@@ -889,14 +1392,16 @@
 
     // Draw inner shadow 2
     function drawInnerShadow2(ctx, text, lines, fontSizePx, s) {
-        const distance = s.shadowInner2.distance * fontSizePx;
-        const angle = (s.shadowInner2.angle * Math.PI) / 180;
+        // Support both legacy structure and new TextStudio structure
+        const shadowConfig = s.shadow.inner2 || s.shadowInner2;
+        const distance = (shadowConfig.distance || 0.03) * fontSizePx;
+        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
-        const offset = (s.shadowInner2.offset || 0) * fontSizePx;
-        const blur = s.shadowInner2.size * fontSizePx * 2;
-        const alpha = s.shadowInner2.alpha;
-        const color = hexToRgba(s.shadowInner2.color, alpha);
+        const offset = (shadowConfig.offset || 0) * fontSizePx;
+        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const alpha = shadowConfig.alpha || 1;
+        const color = shadowConfig.color || '#000000';
 
         const canvas = state.canvas;
         const offscreen = document.createElement('canvas');
@@ -908,8 +1413,8 @@
         offCtx.textBaseline = 'middle';
         offCtx.textAlign = 'center';
         offCtx.translate(offscreen.width / 2, offscreen.height / 2);
-        offCtx.fillStyle = color;
-        offCtx.shadowColor = color;
+        offCtx.fillStyle = getColorValue(color, alpha);
+        offCtx.shadowColor = getColorValue(color, alpha);
         offCtx.shadowOffsetX = offsetX + offset;
         offCtx.shadowOffsetY = offsetY + offset;
         offCtx.shadowBlur = blur;
@@ -919,7 +1424,7 @@
         offCtx.restore();
 
         ctx.save();
-        const blendmode = s.shadowInner2.blendmode || 'source-atop';
+        const blendmode = shadowConfig.blendmode || 'source-atop';
         ctx.globalCompositeOperation = blendmode;
         ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
         ctx.restore();
@@ -1104,9 +1609,16 @@
 
     // Draw text lines helper
     function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke) {
-        const lineHeight = s.lineHeight;
+        const lineHeight = s.lineHeight || 1.2;
         const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
-        const totalHeight = fontSizePx * lineHeight * lines.length;
+        
+        // Calculate total height based on line height (separación entre líneas)
+        // lineHeight: 1 = líneas juntas (sin espacio extra), >1 = más espacio, <1 = menos espacio
+        const lineSpacing = fontSizePx * Math.max(0, lineHeight - 1);
+        const totalHeight = fontSizePx + (lines.length - 1) * lineSpacing;
+        
+        // Centrar el texto verticalmente alrededor de (0,0)
+        // startY es la posición de la primera línea para que el centro del bounding box esté en (0,0)
         const startY = -totalHeight / 2 + fontSizePx / 2;
 
         // Check if curve text is active
@@ -1123,16 +1635,18 @@
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const y = startY + i * fontSizePx * lineHeight;
+            // Calcular posición Y para que el centro del bounding box esté en (0,0)
+            // i=0 es la primera línea, i=lines.length-1 es la última
+            const y = -totalHeight / 2 + fontSizePx / 2 + i * lineSpacing;
             
             // Calculate X offset based on alignment (TextStudio style)
             let xOffset = 0;
             if (s.align === 'left') {
-                xOffset = -maxLineWidth / 2; // Left align relative to center
+                xOffset = -maxLineWidth / 2; // Left align: borde izquierdo del contenedor más ancho
             } else if (s.align === 'right') {
-                xOffset = maxLineWidth / 2 - lineWidths[i]; // Right align relative to center
+                xOffset = maxLineWidth / 2; // Right align: borde derecho del contenedor más ancho
             }
-            // Center is default (xOffset = 0)
+            // Center is default (xOffset = 0): el texto se dibuja centrado en drawTextWithSpacing
             
             if (isCurved) {
                 drawTextCurved(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
@@ -1144,7 +1658,7 @@
 
     // Draw text with palette (per-letter coloring)
     function drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha) {
-        const lineHeight = s.lineHeight;
+        const lineHeight = s.lineHeight || 1;
         const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
         const totalHeight = fontSizePx * lineHeight * lines.length;
         const startY = -totalHeight / 2 + fontSizePx / 2;
@@ -1311,10 +1825,13 @@
         }
         totalWidth += spacing * (text.length - 1);
 
+        // Ajustar posición X según alineación
         if (align === 'center') {
-            startX = x - totalWidth / 2;
+            startX = x - totalWidth / 2; // Centrar el texto en x
+        } else if (align === 'left') {
+            startX = x; // x es el borde izquierdo del contenedor
         } else if (align === 'right') {
-            startX = x - totalWidth;
+            startX = x - totalWidth; // x es el borde derecho del contenedor
         }
 
         let currentX = startX;
@@ -1447,6 +1964,28 @@
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
+    // Convert RGB object to rgba string (TextStudio format)
+    function rgbToRgba(rgb, alpha = 1) {
+        if (!rgb || typeof rgb !== 'object') {
+            return `rgba(255, 255, 255, ${alpha})`;
+        }
+        const r = Math.max(0, Math.min(255, Math.round(rgb.r || 0)));
+        const g = Math.max(0, Math.min(255, Math.round(rgb.g || 0)));
+        const b = Math.max(0, Math.min(255, Math.round(rgb.b || 0)));
+        const a = rgb.a !== undefined ? rgb.a : alpha;
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+
+    // Get color from either hex string or RGB object
+    function getColorValue(color, alpha = 1) {
+        if (typeof color === 'string') {
+            return hexToRgba(color, alpha);
+        } else if (typeof color === 'object' && color !== null) {
+            return rgbToRgba(color, alpha);
+        }
+        return `rgba(255, 255, 255, ${alpha})`;
+    }
+
     // Update settings
     function updateSettings(newSettings) {
         Object.assign(state.settings, newSettings);
@@ -1477,14 +2016,18 @@
         // Basic text properties with validation
         if (preset.text !== undefined) s.text = String(preset.text || 'TEXT');
         if (preset.font) {
-            s.font = preset.font.src || preset.font.name || preset.font;
-            if (preset.font.size) s.fontSize = clampValue(preset.font.size, 8, 400, 64);
-            if (preset.font.weight) s.fontWeight = preset.font.weight;
+            if (!s.font || typeof s.font === 'string') {
+                s.font = { src: preset.font.src || preset.font.name || preset.font, size: 64, weight: 'normal' };
+            }
+            if (preset.font.src) s.font.src = preset.font.src;
+            if (preset.font.name) s.font.src = preset.font.name;
+            if (preset.font.size) s.font.size = clampValue(preset.font.size, 12, 140, 64);
+            if (preset.font.weight) s.font.weight = preset.font.weight;
         }
         if (preset.align) s.align = preset.align;
         if (preset.rotate !== undefined) s.rotate = clampValue(preset.rotate, -180, 180, 0);
-        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0.5, 3, 1);
-        if (preset.letterSpacing !== undefined) s.letterSpacing = clampValue(preset.letterSpacing, -0.5, 2, 0);
+        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0.1, 3, 1);
+        if (preset.letterSpacing !== undefined) s.letterSpacing = clampValue(preset.letterSpacing, -0.5, 1.5, 0);
 
         // Fill with enhanced validation
         if (preset.fill) {
@@ -1783,28 +2326,60 @@
         if (textarea) textarea.value = s.text;
 
         const fontSelect = document.getElementById('tt-font-picker-input');
-        if (fontSelect) fontSelect.value = s.font;
+        if (fontSelect) fontSelect.value = s.font.src || s.font;
+
+        // Update align controls
+        const alignInput = document.getElementById('tt-align-input');
+        const alignList = document.querySelector('.tt-align-list');
+        if (alignInput && alignList) {
+            alignInput.value = s.align || 'center';
+            alignList.querySelectorAll('li').forEach(li => {
+                li.classList.remove('selected');
+                if (li.dataset.id === (s.align || 'center')) {
+                    li.classList.add('selected');
+                }
+            });
+        }
+
+        // Update font weight controls
+        const fontWeightInput = document.getElementById('tt-font-weight-input');
+        const fontOptionsList = document.querySelector('.tt-font-options-list');
+        if (fontWeightInput && fontOptionsList) {
+            fontWeightInput.value = s.font.weight || 'normal';
+            fontOptionsList.querySelectorAll('li').forEach(li => {
+                li.classList.remove('selected');
+                if ((s.font.weight || 'normal') === 'bold') {
+                    li.classList.add('selected');
+                }
+            });
+        }
+
+        // Update line height input
+        const lineHeightInput = document.getElementById('tt-line-height-input');
+        if (lineHeightInput) {
+            lineHeightInput.value = s.lineHeight || 1;
+            updateRangeFill(lineHeightInput);
+        }
+
+        // Update merge gradients checkbox
+        const mergeGradientsInput = document.getElementById('tt-merge-gradients-input');
+        if (mergeGradientsInput) {
+            mergeGradientsInput.checked = s.mergeGradients || false;
+        }
 
         const fontSizeInput = document.getElementById('tt-font-size-input');
         if (fontSizeInput) {
-            // Convert zoom back to slider value (0.1-2.0 -> 10-200)
-            const zoomValue = (s.canvas.zoom || 0.64) * 100;
-            fontSizeInput.value = Math.round(zoomValue);
+            // Use font.size directly from TextStudio structure (12-140 range)
+            fontSizeInput.value = s.font.size || 64;
             // Update range fill visual
             updateRangeFill(fontSizeInput);
         }
 
         const letterSpacingInput = document.getElementById('tt-letter-spacing-input');
         if (letterSpacingInput) {
-            // Convert back from internal value (-0.5 to 1.5) to slider value (-50 to 150)
-            letterSpacingInput.value = s.letterSpacing * 100;
+            // Use letterSpacing directly (already in -0.5 to 1.5 range)
+            letterSpacingInput.value = s.letterSpacing || 0;
             updateRangeFill(letterSpacingInput);
-        }
-
-        const lineHeightInput = document.getElementById('tt-line-height-input');
-        if (lineHeightInput) {
-            lineHeightInput.value = s.lineHeight;
-            updateRangeFill(lineHeightInput);
         }
 
         const rotateInput = document.getElementById('tt-rotate-input');

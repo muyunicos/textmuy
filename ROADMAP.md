@@ -6,7 +6,7 @@
 
 ## Resumen de Progreso
 
-### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL)
+### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz)
 - **Canvas fijo con auto-fit**: El canvas usa dimensiones fijas de `settings.canvas.width/height` y el texto se ajusta automáticamente con `autoFitText()`
 - **Inputs de tamaño custom**: Conectados al editor mediante `bindCanvasDimension()` en `controls.js`
 - **Exportación PNG transparente**: Simplificado en `export.js` con fondo transparente por defecto
@@ -32,6 +32,9 @@
 - **Gradients con N colores**: Mejorada `addGradientStops()` para soportar múltiples formatos y distribución automática de posiciones
 - **Importador TextStudio mejorado**: Mapeo de IDs de fuentes, mejor extracción de presets (window.__PRESET__, JSON-LD), integración con PresetManager
 - **Gestión de fuentes**: Mejorada con fallback a Google Fonts, registro de fuentes personalizadas, listado disponible, eliminación de fuentes custom
+- **Validaciones de seguridad**: Funciones `safeGet()` e `isActive()` para prevenir errores de acceso a propiedades undefined
+- **Interfaz estructurada**: Organización completa según estructura TextStudio (TEXT, STYLES con sub-menus, ICON, BACKGROUND, DOWNLOAD)
+- **Estructura STYLES implementada**: Sub-menus 3D & FILLING, OUTLINES, SHADOWS con jerarquía completa de opciones
 
 ### ⏳ Pendiente (Fases 8 parcial, 9-10)
 - **Limpieza de UI**: Eliminar formatos no deseados, simplificar secciones
@@ -66,7 +69,7 @@ TextMuy será una aplicación web con dos modos de uso:
 - API client-side: función `renderTextToPNG(text, presetName, overrides)`.
 - Canvas de tamaño definido por el usuario (px) con auto-ajuste del texto.
 - Exportación PNG transparente del tamaño exacto.
-- Todas las funcionalidades libres (sin premium).
+- **LA APP ESTÁ COMPLETAMENTE LIBRE (LAS FUNCIONES PREMIUM SON FUNCIONES NORMALES, NO HABRÁ CONCEPTO PREMIUM)**
 
 ### ❌ Lo que NO queremos
 - Headers, footers, navegación del sitio, marketing.
@@ -360,12 +363,32 @@ window.TextMuyAPI = {
 - [ ] **T8.5** Mejorar bevel (highlight/shadow suavizado).
 - [ ] **T8.6** Mejorar distort/arc (per-character).
 
-### Fase 9: Limpieza de UI
-- [ ] **T9.1** Eliminar formatos no deseados de `index.html` (JPG, PDF, .textstudio).
-- [ ] **T9.2** Simplificar sección DOWNLOAD.
-- [ ] **T9.3** Eliminar estilos CSS no usados (header, footer, search).
-- [ ] **T9.4** Añadir sección de gestión de fuentes a la UI.
-- [ ] **T9.5** Añadir sección de gestión de presets (CRUD) a la UI.
+### Fase 9: Completar estructura de interfaz TextStudio
+- [ ] **T9.1** Reorganizar sección TEXT con todos los parámetros: text, align, font.weight, font.src, font.size, letterSpacing, lineHeight, distort.arc.angle, rotate, mergeGradients.
+- [ ] **T9.2** Implementar sub-menú 3D & FILLING completo:
+  - Filling: fill.active, fill.color, fill.alpha, fill.gradient.*, fill.texture.*
+  - Lettering: fill.palette.active, fill.palette.lettering.method
+  - 3D projection #1: depth.* (todos los parámetros)
+  - 3D projection #2: depth2.* (todos los parámetros con tt-show-brother)
+- [ ] **T9.3** Implementar sub-menú OUTLINES completo:
+  - Outline #1: outline.first.* (todos los parámetros incluyendo especular)
+  - Outline #2: outline.second.* (todos los parámetros incluyendo especular)
+  - Contour 3D #1: outline.global.* (todos los parámetros)
+  - Contour 3D #2: outline.global2.* (todos los parámetros con tt-show-brother)
+- [ ] **T9.4** Implementar sub-menú SHADOWS completo:
+  - Inner bevel #1: bevel.inner.* (todos los parámetros highlight/shadow)
+  - Inner bevel #2: bevel.inner2.* (tt-show-brother)
+  - Inner shadow #1: shadow.inner.* (todos los parámetros)
+  - Inner shadow #2: shadow.inner2.* (tt-show-brother)
+  - Outer shadow #1: shadow.outer.* (todos los parámetros)
+  - Outer shadow #2: shadow.outer2.* (tt-show-brother)
+  - Specular inner: specular.inner.* (todos los parámetros)
+  - Lettering options: lettering.* (todos los parámetros)
+- [ ] **T9.5** Implementar funcionalidad tt-show-brother para duplicar efectos (depth2, outline.global2, shadow.inner2, shadow.outer2, bevel.inner2).
+- [ ] **T9.6** Completar sección ICON con todos los controles: icon.active, icon.src, icon.size, icon.position, icon.offset.x/y, icon.rotate, icon.alpha, icon.composite.
+- [ ] **T9.7** Completar sección BACKGROUND con todos los controles: background.active, background.composite, background.fill.color, background.fill.alpha, background.fill.gradient.*, background.fill.image.*.
+- [ ] **T9.8** Simplificar sección DOWNLOAD solo para PNG transparente.
+- [ ] **T9.9** Eliminar estilos CSS no usados (header, footer, search, formatos no deseados).
 
 ### Fase 10: Mejoras opcionales (futuro)
 - [ ] **T10.1** Descarga automática de fuentes de TextStudio.
@@ -415,11 +438,323 @@ window.TextMuyAPI = {
 ```
 text, font{name,size,weight,src}, align, rotate, lineHeight, letterSpacing,
 mergeGradients, lettering{active,blendmode,boggle,reverseOverlap,shadow},
-distort{arc}, processing{active,code}, fill{active,alpha,color,texture,gradient,palette},
-depth{active,length,angle,fill{alpha,color,gradient,texture}},
-depth2{...}, outline{first,second,global}, bevel{inner{...}},
-shadow{outer,outer2,inner,inner2}, icon{...}, background{...}, animation{...}
+distort{arc}, processing{active,code}, 
+fill{active,alpha,color,texture{active,src,blendmode,repeat,position,size,alpha,lettering},gradient{active,colors,angle},palette{active,lettering.method}},
+depth{active,length,angle,fill{alpha,color,gradient{active,colors,type,angle},texture{active,src,blendmode,repeat,position,size,alpha},mergeAlpha}},
+depth2{...},
+outline{first{active,width,fill{alpha,color,gradient{active,colors,angle},palette{active,lettering.method},texture{active,src,blendmode,lettering,position,repeat,size,alpha}},join,dash,specular{active,type,color,blendmode,blur,constant,exponent,azimuth,elevation,point{x,y,z},scale}},
+second{...}, global{active,width,fill{alpha,color,gradient{active,colors,angle},texture{active,src,blendmode,position,repeat,size,alpha}},join,mask,projection,shadow{active}},
+global2{...}},
+bevel{inner{active,size,angle,altitude,smoothing,soften,highlight{color,alpha,blendmode},shadow{color,alpha,blendmode}}, inner2{...}},
+shadow{inner{active,color,alpha,angle,distance,size,strength,offset,blendmode}, inner2{...}, outer{active,fill{color,alpha,gradient{active,colors,angle}},angle,distance,size,strength,mask}, outer2{...}},
+specular{inner{active,type,color,blendmode,blur,constant,exponent,azimuth,elevation,point{x,y,z},scale}},
+icon{active,src,size,position,offset{x,y},rotate,alpha,composite},
+background{active,composite,fill{color,alpha,gradient{active,colors,angle,type},image{active,src,alpha,repeat,size,size.custom}}},
+animation{active,id,duration,pause}
 ```
+
+### Estructura de Interfaz TextStudio (Jerarquía Visual)
+
+**MENÚS PRINCIPALES:**
+- **TEXT**: Configuración de texto, fuente, alineación, espaciado
+- **STYLES**: Efectos de estilo (3D, rellenos, contornos, sombras)
+- **ICON**: Gestión de iconos/logos
+- **BACKGROUND**: Configuración de fondo
+- **ANIMATION**: Animaciones (no implementado en TextMuy)
+- **DOWNLOAD**: Opciones de exportación
+
+**SECCIÓN TEXT:**
+- `text` - Texto principal (textarea)
+- `align` - Alineación (left/center/right)
+- `font.weight` - Peso de fuente (normal/bold)
+- `font.src` - Fuente (font-picker)
+- `font.size` - Zoom (rango: 12-140)
+- `letterSpacing` - Espaciado de caracteres (rango: -0.5 a 1.5)
+- `lineHeight` - Altura de línea (rango: 0.1 a 3)
+- `distort.arc.angle` - Curvar texto (rango: -360° a 360°) ⭐ PREMIUM
+- `rotate` - Rotación (rango: -180° a 180°)
+- `mergeGradients` - Fusionar estilos (multiline)
+
+**SECCIÓN STYLES:**
+
+#### Sub-menú: 3D & FILLING
+- **Filling**:
+  - `fill.active` - Activar relleno
+  - `fill.color` - Color de relleno
+  - `fill.alpha` - Opacidad de color (rango: 0-1)
+  - `fill.gradient.active` - Activar gradiente
+  - `fill.gradient.colors` - Colores del gradiente
+  - `fill.gradient.angle` - Dirección del gradiente (rango: -180° a 180°)
+  - `fill.texture.active` - Activar textura/patrón
+  - `fill.texture.src` - Fuente de textura
+  - `fill.texture.blendmode` - Modo de mezcla
+  - `fill.texture.repeat` - Repetición (repeat/no-repeat)
+  - `fill.texture.position` - Posición (9 opciones)
+  - `fill.texture.size` - Tamaño (múltiples opciones)
+  - `fill.texture.alpha` - Opacidad de patrón (rango: 0-1)
+
+- **Lettering**:
+  - `fill.palette.active` - Activar paleta de estilos
+  - `fill.palette.lettering.method` - Método (1 style/letter, 1 style/line, 1 style/word)
+
+- **3D projection #1 (depth)**:
+  - `depth.active` - Activar proyección 3D
+  - `depth.length` - Longitud (rango: 0.01-1)
+  - `depth.angle` - Orientación (rango: -180° a 180°)
+  - `depth.fill.color` - Color de relleno
+  - `depth.fill.gradient.active` - Activar gradiente
+  - `depth.fill.gradient.colors` - Colores del gradiente
+  - `depth.fill.gradient.type` - Tipo de gradiente (depth/linear)
+  - `depth.fill.gradient.angle` - Dirección del gradiente
+  - `depth.fill.mergeAlpha` - Mezclar con capa superior (rango: 0-1)
+  - `depth.fill.alpha` - Opacidad de color (rango: 0-1)
+  - `depth.fill.texture.active` - Activar textura
+  - `depth.fill.texture.src` - Fuente de textura
+  - `depth.fill.texture.blendmode` - Modo de mezcla
+  - `depth.fill.texture.repeat` - Repetición
+  - `depth.fill.texture.position` - Posición
+  - `depth.fill.texture.size` - Tamaño
+  - `depth.fill.texture.alpha` - Opacidad de patrón
+
+- **3D projection #2 (depth2)** [tt-show-brother]:
+  - `depth2.active` - Activar proyección 3D #2
+  - `depth2.length` - Longitud (rango: 0.01-1)
+  - `depth2.angle` - Orientación (rango: -180° a 180°)
+  - `depth2.fill.color` - Color de relleno
+  - `depth2.fill.gradient.active` - Activar gradiente
+  - `depth2.fill.gradient.colors` - Colores del gradiente
+  - `depth2.fill.gradient.type` - Tipo de gradiente (depth/linear)
+  - `depth2.fill.gradient.angle` - Dirección del gradiente
+  - `depth2.fill.mergeAlpha` - Mezclar con capa superior (rango: 0-1)
+  - `depth2.fill.alpha` - Opacidad de color (rango: 0-1)
+  - `depth2.fill.texture.active` - Activar textura
+  - `depth2.fill.texture.src` - Fuente de textura
+  - `depth2.fill.texture.blendmode` - Modo de mezcla
+  - `depth2.fill.texture.repeat` - Repetición
+  - `depth2.fill.texture.position` - Posición
+  - `depth2.fill.texture.size` - Tamaño
+  - `depth2.fill.texture.alpha` - Opacidad de patrón
+
+#### Sub-menú: OUTLINES
+- **Outline #1**:
+  - `outline.first.active` - Activar contorno #1
+  - `outline.first.width` - Ancho (rango: 0-0.5)
+  - `outline.first.fill.color` - Color de relleno
+  - `outline.first.fill.alpha` - Opacidad de relleno
+  - `outline.first.fill.gradient.active` - Activar gradiente
+  - `outline.first.fill.gradient.colors` - Colores del gradiente
+  - `outline.first.fill.gradient.angle` - Dirección del gradiente
+  - `outline.first.fill.palette.active` - Activar paleta
+  - `outline.first.fill.palette.lettering.method` - Método de lettering
+  - `outline.first.fill.texture.active` - Activar textura
+  - `outline.first.fill.texture.src` - Fuente de textura
+  - `outline.first.fill.texture.blendmode` - Modo de mezcla
+  - `outline.first.fill.texture.lettering` - Lettering de textura
+  - `outline.first.fill.texture.position` - Posición
+  - `outline.first.fill.texture.repeat` - Repetición
+  - `outline.first.fill.texture.size` - Tamaño
+  - `outline.first.fill.texture.alpha` - Opacidad de patrón
+  - `outline.first.join` - Tipo de unión
+  - `outline.first.dash` - Guiones
+  - `outline.first.specular.active` - Activar especular
+  - `outline.first.specular.*` - Parámetros especular (type, color, blendmode, blur, constant, exponent, azimuth, elevation, point.x/y/z, scale)
+
+- **Outline #2**:
+  - `outline.second.active` - Activar contorno #2
+  - `outline.second.width` - Ancho (rango: 0-0.5)
+  - `outline.second.fill.color` - Color de relleno
+  - `outline.second.fill.alpha` - Opacidad de relleno
+  - `outline.second.fill.gradient.active` - Activar gradiente
+  - `outline.second.fill.gradient.colors` - Colores del gradiente
+  - `outline.second.fill.gradient.angle` - Dirección del gradiente
+  - `outline.second.fill.palette.active` - Activar paleta
+  - `outline.second.fill.palette.lettering.method` - Método de lettering
+  - `outline.second.fill.texture.active` - Activar textura
+  - `outline.second.fill.texture.src` - Fuente de textura
+  - `outline.second.fill.texture.blendmode` - Modo de mezcla
+  - `outline.second.fill.texture.lettering` - Lettering de textura
+  - `outline.second.fill.texture.position` - Posición
+  - `outline.second.fill.texture.repeat` - Repetición
+  - `outline.second.fill.texture.size` - Tamaño
+  - `outline.second.fill.texture.alpha` - Opacidad de patrón
+  - `outline.second.join` - Tipo de unión
+  - `outline.second.dash` - Guiones
+  - `outline.second.specular.active` - Activar especular
+  - `outline.second.specular.*` - Parámetros especular (type, color, blendmode, blur, constant, exponent, azimuth, elevation, point.x/y/z, scale)
+
+- **Contour 3D #1 (outline.global)**:
+  - `outline.global.active` - Activar contorno global #1
+  - `outline.global.width` - Ancho
+  - `outline.global.fill.color` - Color de relleno
+  - `outline.global.fill.alpha` - Opacidad de relleno
+  - `outline.global.fill.gradient.active` - Activar gradiente
+  - `outline.global.fill.gradient.colors` - Colores del gradiente
+  - `outline.global.fill.gradient.angle` - Dirección del gradiente
+  - `outline.global.fill.texture.active` - Activar textura
+  - `outline.global.fill.texture.src` - Fuente de textura
+  - `outline.global.fill.texture.blendmode` - Modo de mezcla
+  - `outline.global.fill.texture.position` - Posición
+  - `outline.global.fill.texture.repeat` - Repetición
+  - `outline.global.fill.texture.size` - Tamaño
+  - `outline.global.fill.texture.alpha` - Opacidad de patrón
+  - `outline.global.join` - Tipo de unión
+  - `outline.global.mask` - Hidden by text
+  - `outline.global.projection` - 3D projection
+  - `outline.global.shadow.active` - Projected shadow
+
+- **Contour 3D #2 (outline.global2)** [tt-show-brother]:
+  - `outline.global2.active` - Activar contorno global #2
+  - `outline.global2.width` - Ancho
+  - `outline.global2.fill.color` - Color de relleno
+  - `outline.global2.fill.alpha` - Opacidad de relleno
+  - `outline.global2.fill.gradient.active` - Activar gradiente
+  - `outline.global2.fill.gradient.colors` - Colores del gradiente
+  - `outline.global2.fill.gradient.angle` - Dirección del gradiente
+  - `outline.global2.fill.texture.active` - Activar textura
+  - `outline.global2.fill.texture.src` - Fuente de textura
+  - `outline.global2.fill.texture.blendmode` - Modo de mezcla
+  - `outline.global2.fill.texture.position` - Posición
+  - `outline.global2.fill.texture.repeat` - Repetición
+  - `outline.global2.fill.texture.size` - Tamaño
+  - `outline.global2.fill.texture.alpha` - Opacidad de patrón
+  - `outline.global2.join` - Tipo de unión
+  - `outline.global2.mask` - Hidden by text
+  - `outline.global2.projection` - 3D projection
+  - `outline.global2.shadow.active` - Projected shadow
+
+#### Sub-menú: SHADOWS
+- **Inner bevel #1**:
+  - `bevel.inner.active` - Activar bisel interior #1
+  - `bevel.inner.size` - Tamaño (rango: 0.025-1)
+  - `bevel.inner.angle` - Dirección (rango: -180° a 180°)
+  - `bevel.inner.altitude` - Altitud (rango: 0°-90°)
+  - `bevel.inner.smoothing` - Suavizado del cincel
+  - `bevel.inner.soften` - Suavizar (rango: 0-1)
+  - `bevel.inner.highlight.color` - Color de resaltado
+  - `bevel.inner.highlight.alpha` - Opacidad de resaltado
+  - `bevel.inner.highlight.blendmode` - Modo de mezcla de resaltado
+  - `bevel.inner.shadow.color` - Color de sombra
+  - `bevel.inner.shadow.alpha` - Opacidad de sombra
+  - `bevel.inner.shadow.blendmode` - Modo de mezcla de sombra
+
+- **Inner bevel #2** [tt-show-brother]:
+  - (Mismos parámetros que Inner bevel #1, pero con sufijo diferente)
+
+- **Inner shadow #1**:
+  - `shadow.inner.active` - Activar sombra interior #1
+  - `shadow.inner.color` - Color
+  - `shadow.inner.alpha` - Opacidad (rango: 0-1)
+  - `shadow.inner.angle` - Ángulo (rango: -180° a 180°)
+  - `shadow.inner.distance` - Distancia
+  - `shadow.inner.size` - Tamaño
+  - `shadow.inner.strength` - Fuerza
+  - `shadow.inner.offset` - Desplazamiento
+  - `shadow.inner.blendmode` - Modo de mezcla
+
+- **Inner shadow #2** [tt-show-brother]:
+  - `shadow.inner2.active` - Activar sombra interior #2
+  - `shadow.inner2.color` - Color
+  - `shadow.inner2.alpha` - Opacidad (rango: 0-1)
+  - `shadow.inner2.angle` - Ángulo (rango: -180° a 180°)
+  - `shadow.inner2.distance` - Distancia
+  - `shadow.inner2.size` - Tamaño
+  - `shadow.inner2.strength` - Fuerza
+  - `shadow.inner2.offset` - Desplazamiento
+  - `shadow.inner2.blendmode` - Modo de mezcla
+
+- **Outer shadow #1**:
+  - `shadow.outer.active` - Activar sombra exterior #1
+  - `shadow.outer.fill.color` - Color de relleno
+  - `shadow.outer.fill.alpha` - Opacidad de relleno
+  - `shadow.outer.fill.gradient.active` - Activar gradiente
+  - `shadow.outer.fill.gradient.colors` - Colores del gradiente
+  - `shadow.outer.fill.gradient.angle` - Dirección del gradiente
+  - `shadow.outer.angle` - Ángulo (rango: -180° a 180°)
+  - `shadow.outer.distance` - Distancia
+  - `shadow.outer.size` - Tamaño
+  - `shadow.outer.strength` - Fuerza
+  - `shadow.outer.mask` - Máscara
+
+- **Outer shadow #2** [tt-show-brother]:
+  - `shadow.outer2.active` - Activar sombra exterior #2
+  - `shadow.outer2.fill.color` - Color de relleno
+  - `shadow.outer2.fill.alpha` - Opacidad de relleno
+  - `shadow.outer2.fill.gradient.active` - Activar gradiente
+  - `shadow.outer2.fill.gradient.colors` - Colores del gradiente
+  - `shadow.outer2.fill.gradient.angle` - Dirección del gradiente
+  - `shadow.outer2.angle` - Ángulo (rango: -180° a 180°)
+  - `shadow.outer2.distance` - Distancia
+  - `shadow.outer2.size` - Tamaño
+  - `shadow.outer2.strength` - Fuerza
+  - `shadow.outer2.mask` - Máscara
+
+- **Specular inner**:
+  - `specular.inner.active` - Activar especular interior
+  - `specular.inner.type` - Tipo de especular
+  - `specular.inner.color` - Color especular
+  - `specular.inner.blendmode` - Modo de mezcla
+  - `specular.inner.blur` - Desenfoque
+  - `specular.inner.constant` - Constante
+  - `specular.inner.exponent` - Exponente
+  - `specular.inner.azimuth` - Azimut
+  - `specular.inner.elevation` - Elevación
+  - `specular.inner.point.x` - Punto X
+  - `specular.inner.point.y` - Punto Y
+  - `specular.inner.point.z` - Punto Z
+  - `specular.inner.scale` - Escala
+
+- **Lettering options**:
+  - `lettering.active` - Activar lettering
+  - `lettering.blendmode` - Modo de mezcla
+  - `lettering.boggle.active` - Activar boggle
+  - `lettering.boggle.amplitude` - Amplitud de boggle
+  - `lettering.boggle.angle` - Ángulo de boggle
+  - `lettering.shadow.active` - Activar sombra de lettering
+  - `lettering.shadow.angle` - Ángulo de sombra
+  - `lettering.shadow.distance` - Distancia de sombra
+  - `lettering.shadow.size` - Tamaño de sombra
+  - `lettering.shadow.fill.color` - Color de relleno de sombra
+  - `lettering.shadow.fill.alpha` - Opacidad de relleno de sombra
+  - `lettering.reverseOverlap.letters` - Superposición inversa de letras
+  - `lettering.reverseOverlap.lines` - Superposición inversa de líneas
+
+**SECCIÓN ICON:**
+- `icon.active` - Activar icono
+- `icon.src` - Fuente del icono
+- `icon.size` - Tamaño del icono
+- `icon.position` - Posición del icono
+- `icon.offset.x` - Desplazamiento X
+- `icon.offset.y` - Desplazamiento Y
+- `icon.rotate` - Rotación del icono
+- `icon.alpha` - Opacidad del icono
+- `icon.composite` - Composición del icono
+
+**SECCIÓN BACKGROUND:**
+- `background.active` - Activar fondo
+- `background.composite` - Composición del fondo
+- `background.fill.color` - Color de relleno de fondo
+- `background.fill.alpha` - Opacidad de relleno de fondo
+- `background.fill.gradient.active` - Activar gradiente de fondo
+- `background.fill.gradient.colors` - Colores del gradiente de fondo
+- `background.fill.gradient.angle` - Dirección del gradiente de fondo
+- `background.fill.gradient.type` - Tipo de gradiente de fondo
+- `background.fill.image.active` - Activar imagen de fondo
+- `background.fill.image.src` - Fuente de imagen de fondo
+- `background.fill.image.alpha` - Opacidad de imagen de fondo
+- `background.fill.image.repeat` - Repetición de imagen de fondo
+- `background.fill.image.size` - Tamaño de imagen de fondo
+- `background.fill.image.size.custom` - Tamaño personalizado de imagen de fondo
+
+**SECCIÓN DOWNLOAD:**
+- Opciones de exportación/descarga PNG transparente
+
+**SECCIÓN ANIMATION:** (no implementado en TextMuy)
+- `animation.active` - Activar animación
+- `animation.id` - ID de animación
+- `animation.duration` - Duración de animación
+- `animation.pause` - Pausar animación
+
+**Nota:** Los elementos marcados con `[tt-show-brother]` tienen un botón para mostrar un duplicado de la misma funcionalidad, permitiendo aplicar efectos similares múltiples veces.
 
 ---
 

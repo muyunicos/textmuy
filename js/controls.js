@@ -22,34 +22,93 @@
         const textarea = document.getElementById('tt-text-textarea');
         if (textarea) {
             textarea.addEventListener('input', function() {
-                editor.updateSettings({ text: this.value });
+                setNestedSetting('text', this.value);
             });
         }
 
-        // Font select
+        // Align controls
+        const alignInput = document.getElementById('tt-align-input');
+        const alignList = document.querySelector('.tt-align-list');
+        if (alignList) {
+            alignList.addEventListener('click', function(e) {
+                const li = e.target.closest('li');
+                if (li && li.dataset.id) {
+                    // Update hidden input
+                    alignInput.value = li.dataset.id;
+                    // Update visual selection
+                    alignList.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+                    li.classList.add('selected');
+                    // Update settings
+                    setNestedSetting('align', li.dataset.id);
+                }
+            });
+        }
+
+        // Font weight controls
+        const fontWeightInput = document.getElementById('tt-font-weight-input');
+        const fontOptionsList = document.querySelector('.tt-font-options-list');
+        if (fontOptionsList && fontWeightInput) {
+            // Set initial value to 'normal' (not bold by default)
+            fontWeightInput.value = 'normal';
+            const boldLi = fontOptionsList.querySelector('li');
+            if (boldLi) {
+                boldLi.classList.remove('selected');
+            }
+            
+            fontOptionsList.addEventListener('click', function(e) {
+                const li = e.target.closest('li');
+                const img = e.target.closest('img');
+                // Check if clicked on li or img
+                if (li || img) {
+                    const targetLi = li || img.closest('li');
+                    const input = document.getElementById(targetLi.dataset.input);
+                    if (input) {
+                        // Toggle between bold and normal
+                        const currentValue = input.value;
+                        const newValue = currentValue === 'normal' ? 'bold' : 'normal';
+                        input.value = newValue;
+                        // Update visual selection - always remove first, then add if bold
+                        fontOptionsList.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+                        if (newValue === 'bold') {
+                            targetLi.classList.add('selected');
+                        }
+                        // Update settings
+                        setNestedSetting('font.weight', newValue);
+                    }
+                }
+            });
+        }
+
+        // Merge gradients checkbox
+        const mergeGradientsInput = document.getElementById('tt-merge-gradients-input');
+        if (mergeGradientsInput) {
+            mergeGradientsInput.addEventListener('change', function() {
+                setNestedSetting('mergeGradients', this.checked);
+            });
+        }
+
+        // Font select - actualizado para nueva estructura font.src
         const fontSelect = document.getElementById('tt-font-picker-input');
         if (fontSelect) {
             fontSelect.addEventListener('change', function() {
-                editor.updateSettings({ font: this.value });
+                setNestedSetting('font.src', this.value);
             });
         }
 
-        // Font size (zoom)
+        // Font size (zoom) - actualizado a font.size según TextStudio
         const zoomInput = document.getElementById('tt-font-size-input');
         if (zoomInput) {
             updateRangeFill(zoomInput);
             zoomInput.addEventListener('input', function() {
                 updateRangeFill(this);
-                const value = parseInt(this.value) / 100; // Convert 10-200 range to 0.1-2.0 zoom factor
-                // Clamp value to reasonable range
-                const clampedValue = Math.max(0.1, Math.min(2.0, value));
-                setNestedSetting('canvas.zoom', clampedValue);
+                const value = parseInt(this.value); // 12-140 range según TextStudio
+                setNestedSetting('font.size', value);
             });
         }
 
-        // Letter spacing
+        // Letter spacing - actualizado rango según TextStudio (-0.5 a 1.5)
         bindRange('tt-letter-spacing-input', 'letterSpacing', function(val) {
-            return parseFloat(val) / 100; // Convert -50 to 150 to -0.5 to 1.5
+            return parseFloat(val); // Ya está en rango correcto -0.5 a 1.5
         });
 
         // Line height
@@ -294,51 +353,7 @@
         });
 
         // ===== ALIGNMENT =====
-        const alignList = document.querySelector('.tt-align-list');
-        if (alignList) {
-            alignList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li && li.dataset.id) {
-                    document.querySelectorAll('.tt-align-list li').forEach(el => el.classList.remove('selected'));
-                    li.classList.add('selected');
-                    editor.updateSettings({ align: li.dataset.id });
-                }
-            });
-        }
-
-        // ===== FONT WEIGHT (Bold) =====
-        const fontWeightList = document.querySelector('.tt-font-options-list');
-        if (fontWeightList) {
-            // Initialize first selection
-            const firstLi = fontWeightList.querySelector('li');
-            if (firstLi) {
-                firstLi.classList.add('selected');
-                const input = document.getElementById('tt-font-weight-input');
-                if (input) {
-                    input.value = firstLi.dataset.selected;
-                }
-            }
-            
-            fontWeightList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li) {
-                    const input = document.getElementById('tt-font-weight-input');
-                    if (input) {
-                        // Toggle logic: if already selected, toggle to unselected
-                        if (li.classList.contains('selected')) {
-                            li.classList.remove('selected');
-                            input.value = li.dataset.unselected;
-                            editor.updateSettings({ fontWeight: li.dataset.unselected });
-                        } else {
-                            document.querySelectorAll('.tt-font-options-list li').forEach(el => el.classList.remove('selected'));
-                            li.classList.add('selected');
-                            input.value = li.dataset.selected;
-                            editor.updateSettings({ fontWeight: li.dataset.selected });
-                        }
-                    }
-                }
-            });
-        }
+        // (Align controls already handled above in TEXT section)
 
         // ===== OUTLINE JOIN TYPE =====
         const outlineJoin = document.getElementById('tt-outline-join-input');
@@ -444,6 +459,8 @@
         const val = parseFloat(el.value) || 0;
         const percent = ((val - min) / (max - min)) * 100;
         el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #ddd ' + percent + '%)';
+        // Also update the HTML value attribute to reflect current value
+        el.setAttribute('value', val);
     }
 
     // ===== MENU TAB SWITCHING =====
