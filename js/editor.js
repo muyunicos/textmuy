@@ -4,7 +4,9 @@
     'use strict';
 
     // Default settings matching TextStudio's preset structure
+    // Conceptual order: TEXT → 3D & FILLING → OUTLINES → SHADOWS → ICON → BACKGROUND → ANIMATION → DOWNLOAD
     const defaultSettings = {
+        // ===== TEXT =====
         text: 'TEXT',
         font: 'Bangers',
         fontWeight: 'normal',
@@ -13,15 +15,47 @@
         lineHeight: 1,
         align: 'center',
         rotate: 0,
+        distort: { active: false, arc: { angle: 0 } },
+        mergeGradients: 0,
 
+        // ===== 3D & FILLING =====
+        // Filling (Relleno principal)
         fill: {
             active: true,
             color: '#ffffff',
             gradient: { active: false, startColor: '#ffffff', endColor: '#000000', angle: 0, colors: [] },
             alpha: 1,
-            texture: { active: false, src: null, size: 1, alpha: 1, repeat: 'repeat', position: 'center' }
+            texture: { active: false, src: null, size: 1, alpha: 1, repeat: 'repeat', position: 'center', blendmode: 'source-over', lettering: false },
+            palette: { active: false, lettering: { method: 'letter' }, styles: [] }
         },
 
+        // Lettering (Comportamiento tipográfico)
+        lettering: {
+            active: false,
+            blendmode: 'over',
+            boggle: { active: false, angle: 0, amplitude: 0.1 },
+            reverseOverlap: { active: false, letters: 0, lines: 0 },
+            shadow: { active: false, size: 0, distance: 0, angle: 0, fill: { color: '#000000', alpha: 1 } }
+        },
+
+        // 3D Projection #1 (Extrusión tridimensional)
+        depth: {
+            active: false,
+            length: 0.1,
+            angle: 135,
+            fill: { color: '#000000', alpha: 1, mergeAlpha: 0, gradient: { active: false, type: 'depth', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, texture: { active: false, src: null, size: 1, alpha: 1, blendmode: 'source-over', repeat: 'repeat', position: 'center' } }
+        },
+
+        // 3D Projection #2 (Extrusión tridimensional)
+        depth2: {
+            active: false,
+            length: 0.1,
+            angle: 135,
+            fill: { color: '#000000', alpha: 1, mergeAlpha: 0, gradient: { active: false, type: 'depth', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, texture: { active: false, src: null, size: 1, alpha: 1, blendmode: 'source-over', repeat: 'repeat', position: 'center' } }
+        },
+
+        // ===== OUTLINES =====
+        // Outline #1 (Trazado plano)
         outline: {
             active: false,
             width: 0.1,
@@ -29,10 +63,13 @@
             join: 'round',
             gradient: { active: false, startColor: '#000000', endColor: '#000000', angle: 0, colors: [] },
             alpha: 1,
-            texture: { active: false, src: null, size: 1 },
-            palette: { active: false, method: 'letter', styles: [] }
+            texture: { active: false, src: null, size: 1, blendmode: 'source-over' },
+            palette: { active: false, method: 'letter', styles: [] },
+            global: { active: false },
+            dash: { active: false, pattern: [] }
         },
 
+        // Outline #2 (Trazado plano)
         outline2: {
             active: false,
             width: 0.1,
@@ -42,65 +79,8 @@
             alpha: 1
         },
 
-        depth: {
-            active: false,
-            length: 0.1,
-            angle: 135,
-            color: '#000000',
-            alpha: 1,
-            gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] },
-            texture: { active: false, src: null, size: 1 }
-        },
-
-        depth2: {
-            active: false,
-            length: 0.1,
-            angle: 135,
-            color: '#000000',
-            alpha: 1,
-            gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }
-        },
-
-        shadowInner: {
-            active: false,
-            size: 0,
-            distance: 0,
-            angle: 0,
-            offset: 0,
-            color: '#000000',
-            alpha: 1
-        },
-
-        shadowInner2: {
-            active: false,
-            size: 0,
-            distance: 0,
-            angle: 0,
-            offset: 0,
-            color: '#000000',
-            alpha: 1
-        },
-
-        shadowOuter: {
-            active: false,
-            size: 0,
-            distance: 0,
-            angle: 0,
-            strength: 0,
-            color: '#000000',
-            alpha: 1
-        },
-
-        shadowOuter2: {
-            active: false,
-            size: 0,
-            distance: 0,
-            angle: 0,
-            strength: 0,
-            color: '#000000',
-            alpha: 1
-        },
-
+        // ===== SHADOWS =====
+        // Inner Bevel (Biselado interno)
         bevel: {
             active: false,
             size: 0.1,
@@ -108,22 +88,59 @@
             soften: 0.1,
             angle: 135,
             highlight: { color: '#ffffff', alpha: 1 },
-            shadow: { color: '#000000', alpha: 1 }
+            shadow: { color: '#000000', alpha: 1 },
+            inner: { active: false }
         },
 
-        lettering: {
+        // Inner Shadow #1 (Sombra interior)
+        shadowInner: {
             active: false,
-            blendmode: 'over',
-            boggle: { active: false, angle: 0, amplitude: 0.1 },
-            reverseOverlap: { active: false, letters: 0, lines: 0 },
-            shadow: { active: false, size: 0, distance: 0, angle: 0, color: '#000000', alpha: 1 }
+            size: 0,
+            distance: 0,
+            angle: 0,
+            offset: 0,
+            color: '#000000',
+            alpha: 1,
+            blendmode: 'normal'
         },
 
-        distort: {
+        // Inner Shadow #2 (Sombra interior)
+        shadowInner2: {
             active: false,
-            arc: { angle: 0 }
+            size: 0,
+            distance: 0,
+            angle: 0,
+            offset: 0,
+            color: '#000000',
+            alpha: 1,
+            blendmode: 'normal'
         },
 
+        // Outer Shadow #1 (Sombra exterior / Caída)
+        shadowOuter: {
+            active: false,
+            size: 0,
+            distance: 0,
+            angle: 0,
+            strength: 0,
+            fill: { color: '#000000', alpha: 1, gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] } },
+            mask: false,
+            blendmode: 'normal'
+        },
+
+        // Outer Shadow #2 (Sombra exterior / Caída)
+        shadowOuter2: {
+            active: false,
+            size: 0,
+            distance: 0,
+            angle: 0,
+            strength: 0,
+            fill: { color: '#000000', alpha: 1, gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] } },
+            mask: false,
+            blendmode: 'normal'
+        },
+
+        // ===== ICON =====
         icon: {
             active: false,
             src: null,
@@ -132,18 +149,34 @@
             alpha: 1,
             rotate: 0,
             composite: 'source-over',
-            offset: { x: 0, y: 0 }
+            offset: { x: 0, y: 0 },
+            blendmode: 'source-over'
         },
 
+        // ===== BACKGROUND =====
         background: {
             active: true,
-            color: '#000000',
-            alpha: 1,
-            composite: 'source-over',
-            image: { active: false, src: null, size: 'cover', repeat: 'repeat', alpha: 1 },
-            gradient: { active: false, startColor: '#000000', endColor: '#ffffff', angle: 0, type: 'linear', colors: [] }
+            fill: { color: '#000000', alpha: 1, gradient: { active: false, type: 'linear', startColor: '#000000', endColor: '#ffffff', angle: 0, colors: [] }, image: { active: false, src: null, size: 'cover', sizeCustom: 1, repeat: 'repeat', alpha: 1 } },
+            composite: 'source-over'
         },
 
+        // ===== ANIMATION =====
+        animation: {
+            active: false,
+            id: null,
+            pause: 1000,
+            duration: 1000
+        },
+
+        // ===== DOWNLOAD =====
+        download: {
+            size: 'medium',
+            format: 'png',
+            ratio: 'fit',
+            spacing: 0.05
+        },
+
+        // ===== CANVAS =====
         canvas: {
             width: 1920,
             height: 1080,
@@ -152,32 +185,31 @@
             padding: 0.05
         },
 
-        distort: {
-            active: false,
-            arc: { angle: 0 }
-        },
-
-        download: {
-            size: 'medium',
-            format: 'png',
-            ratio: 'fit',
-            spacing: 0.05
-        },
-
+        // ===== PROCESSING =====
         processing: {
             active: false,
             code: null
-        },
-
-        animation: {
-            active: false,
-            id: null,
-            pause: 1000,
-            duration: 1000
-        },
-
-        mergeGradients: 0
+        }
     };
+
+    // Helper function for safe property access
+    function safeGet(obj, path, defaultValue) {
+        if (!obj) return defaultValue;
+        const keys = path.split('.');
+        let current = obj;
+        for (const key of keys) {
+            if (current === null || current === undefined) {
+                return defaultValue;
+            }
+            current = current[key];
+        }
+        return current !== undefined ? current : defaultValue;
+    }
+
+    // Helper function to safely check if property is active
+    function isActive(obj, path) {
+        return safeGet(obj, path + '.active', false);
+    }
 
     // Editor state
     const state = {
@@ -188,7 +220,8 @@
         isRendering: false,
         iconImg: null,
         bgImg: null,
-        transparentOutput: false
+        transparentOutput: false,
+        textureImages: {} // Store loaded texture images by src
     };
 
     // Initialize the editor
@@ -218,12 +251,12 @@
     // Calculate extra width/height from effects (outline, depth, shadow)
     function calcExtraWidth(s, fontSizePx) {
         let extra = 0;
-        if (s.outline.active) extra += s.outline.width * fontSizePx * 2;
-        if (s.outline2.active) extra += s.outline2.width * fontSizePx * 2;
-        if (s.shadowOuter.active) extra += s.shadowOuter.distance * fontSizePx * 2 + s.shadowOuter.size * fontSizePx * 2;
-        if (s.shadowOuter2.active) extra += s.shadowOuter2.distance * fontSizePx * 2 + s.shadowOuter2.size * fontSizePx * 2;
-        if (s.depth.active) extra += s.depth.length * fontSizePx * 2;
-        if (s.depth2.active) extra += s.depth2.length * fontSizePx * 2;
+        if (isActive(s, 'outline')) extra += safeGet(s, 'outline.width', 0) * fontSizePx * 2;
+        if (isActive(s, 'outline2')) extra += safeGet(s, 'outline2.width', 0) * fontSizePx * 2;
+        if (isActive(s, 'shadowOuter')) extra += safeGet(s, 'shadowOuter.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadowOuter.size', 0) * fontSizePx * 2;
+        if (isActive(s, 'shadowOuter2')) extra += safeGet(s, 'shadowOuter2.distance', 0) * fontSizePx * 2 + safeGet(s, 'shadowOuter2.size', 0) * fontSizePx * 2;
+        if (isActive(s, 'depth')) extra += safeGet(s, 'depth.length', 0) * fontSizePx * 2;
+        if (isActive(s, 'depth2')) extra += safeGet(s, 'depth2.length', 0) * fontSizePx * 2;
         return extra;
     }
 
@@ -338,8 +371,16 @@
         const centerY = canvasHeight / 2;
 
         // Load icon image if needed
-        if (s.icon.active && s.icon.src) {
+        if (isActive(s, 'icon') && safeGet(s, 'icon.src')) {
             loadIconImage(s.icon.src);
+        }
+
+        // Load texture images if needed
+        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src')) {
+            loadTextureImage(s.fill.texture.src);
+        }
+        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src')) {
+            loadTextureImage(s.outline.texture.src);
         }
 
         // Draw text effects in order
@@ -347,69 +388,64 @@
         ctx.translate(centerX, centerY);
         ctx.rotate((s.rotate * Math.PI) / 180);
 
-        // Apply distort/arc if active
-        if (s.distort && s.distort.arc && s.distort.arc.angle !== 0) {
-            ctx.save();
-            applyDistort(ctx, s.distort.arc.angle, fontSizePx);
-        }
-
         // 1. Outer shadow 2
-        if (s.shadowOuter2.active) {
+        if (isActive(s, 'shadowOuter2')) {
             drawOuterShadow2(ctx, text, lines, fontSizePx, s);
         }
 
         // 2. Outer shadow
-        if (s.shadowOuter.active) {
+        if (isActive(s, 'shadowOuter')) {
             drawOuterShadow(ctx, text, lines, fontSizePx, s);
         }
 
         // 3. 3D depth 2
-        if (s.depth2.active) {
+        if (isActive(s, 'depth2')) {
             drawDepth2(ctx, text, lines, fontSizePx, s);
         }
 
         // 4. 3D depth
-        if (s.depth.active) {
+        if (isActive(s, 'depth')) {
             drawDepth(ctx, text, lines, fontSizePx, s);
         }
 
         // 5. Fill
-        if (s.fill.active) {
+        if (isActive(s, 'fill')) {
             drawFill(ctx, text, lines, fontSizePx, s);
         }
 
         // 6. Outline 2
-        if (s.outline2.active) {
+        if (isActive(s, 'outline2')) {
             drawOutline2(ctx, text, lines, fontSizePx, s);
         }
 
         // 7. Outline
-        if (s.outline.active) {
+        if (isActive(s, 'outline')) {
             drawOutline(ctx, text, lines, fontSizePx, s);
         }
 
         // 8. Bevel
-        if (s.bevel.active) {
+        if (isActive(s, 'bevel')) {
             drawBevel(ctx, text, lines, fontSizePx, s);
         }
 
+        // 8.5 Specular lighting
+        if (isActive(s, 'bevel') && safeGet(s, 'bevel.specular', false)) {
+            drawSpecular(ctx, text, lines, fontSizePx, s);
+        }
+
         // 9. Inner shadow 2
-        if (s.shadowInner2.active) {
+        if (isActive(s, 'shadowInner2')) {
             drawInnerShadow2(ctx, text, lines, fontSizePx, s);
         }
 
         // 10. Inner shadow
-        if (s.shadowInner.active) {
+        if (isActive(s, 'shadowInner')) {
             drawInnerShadow(ctx, text, lines, fontSizePx, s);
         }
 
         // 11. Icon
-        if (s.icon.active && state.iconImg) {
+        if (isActive(s, 'icon') && state.iconImg) {
             drawIcon(ctx, text, lines, fontSizePx, s);
-        }
-
-        if (s.distort.active && s.distort.arc.angle !== 0) {
-            ctx.restore();
         }
 
         ctx.restore();
@@ -421,6 +457,7 @@
     function loadIconImage(src) {
         if (state.iconImg && state.iconImg.src === src) return;
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.onload = function() {
             state.iconImg = img;
             render();
@@ -431,11 +468,39 @@
         img.src = src;
     }
 
+    // Load texture image
+    function loadTextureImage(src, callback) {
+        if (!src) {
+            if (callback) callback(null);
+            return;
+        }
+        if (state.textureImages[src]) {
+            if (callback) callback(state.textureImages[src]);
+            return;
+        }
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            state.textureImages[src] = img;
+            if (callback) callback(img);
+        };
+        img.onerror = function() {
+            state.textureImages[src] = null;
+            if (callback) callback(null);
+        };
+        img.src = src;
+    }
+
     // Draw background
     function drawBackground(ctx, width, height) {
         const s = state.settings;
 
-        if (s.background.image.active && s.background.image.src) {
+        ctx.save();
+        if (safeGet(s, 'background.composite')) {
+            ctx.globalCompositeOperation = s.background.composite;
+        }
+
+        if (isActive(s, 'background.image') && safeGet(s, 'background.image.src')) {
             loadBackgroundImage(s.background.image.src);
             if (state.bgImg) {
                 const img = state.bgImg;
@@ -463,18 +528,39 @@
                     // cover is default
                     ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
                 }
-                ctx.globalAlpha = 1;
+                ctx.restore();
                 return;
             }
         }
 
-        if (s.background.active && s.background.alpha > 0) {
+        if (safeGet(s, 'background.gradient') && isActive(s, 'background.gradient')) {
+            const angle = (s.background.gradient.angle * Math.PI) / 180;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const grad = ctx.createLinearGradient(
+                width / 2 - cos * width / 2, height / 2 - sin * height / 2,
+                width / 2 + cos * width / 2, height / 2 + sin * height / 2
+            );
+            addGradientStops(grad, s.background.gradient);
+            ctx.fillStyle = grad;
+            ctx.globalAlpha = s.background.alpha;
+            ctx.fillRect(0, 0, width, height);
+            ctx.restore();
+            return;
+        }
+
+        if (isActive(s, 'background') && safeGet(s, 'background.alpha', 0) > 0) {
             ctx.fillStyle = s.background.color;
             ctx.globalAlpha = s.background.alpha;
             ctx.fillRect(0, 0, width, height);
-            ctx.globalAlpha = 1;
-        } else {
-            // Checkered background for transparency
+            ctx.restore();
+            return;
+        }
+
+        ctx.restore();
+
+        if (!state.transparentOutput) {
+            // Checkered background for transparency preview only
             const size = 20 * state.scale;
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, width, height);
@@ -542,8 +628,13 @@
 
         ctx.save();
         
+        // Apply blendmode if set
+        if (s.depth.texture.blendmode) {
+            ctx.globalCompositeOperation = s.depth.texture.blendmode;
+        }
+        
         // Use gradient if active, otherwise solid color
-        if (s.depth.gradient.active) {
+        if (isActive(s, 'depth.gradient')) {
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth.gradient, s);
             ctx.fillStyle = gradient;
         } else {
@@ -564,9 +655,34 @@
 
     // Draw text fill
     function drawFill(ctx, text, lines, fontSizePx, s) {
-        const alpha = s.fill.alpha;
+        const alpha = safeGet(s, 'fill.alpha', 1);
 
-        if (s.fill.gradient.active) {
+        // Check if palette is active (per-letter coloring)
+        if (isActive(s, 'fill.palette') && safeGet(s, 'fill.palette.styles') && s.fill.palette.styles.length > 0) {
+            drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha);
+            return;
+        }
+
+        // Check if texture is active
+        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src')) {
+            const textureImg = state.textureImages[s.fill.texture.src];
+            if (textureImg) {
+                ctx.save();
+                if (s.fill.texture.blendmode) {
+                    ctx.globalCompositeOperation = s.fill.texture.blendmode;
+                }
+                const pattern = ctx.createPattern(textureImg, s.fill.texture.repeat || 'repeat');
+                ctx.globalAlpha = alpha * s.fill.texture.alpha;
+                ctx.fillStyle = pattern;
+                ctx.strokeStyle = 'transparent';
+                drawTextLines(ctx, text, lines, fontSizePx, s);
+                ctx.restore();
+                return;
+            }
+        }
+
+        ctx.save();
+        if (isActive(s, 'fill.gradient')) {
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.fill.gradient, s);
             ctx.fillStyle = gradient;
         } else {
@@ -575,14 +691,37 @@
 
         ctx.strokeStyle = 'transparent';
         drawTextLines(ctx, text, lines, fontSizePx, s);
+        ctx.restore();
     }
 
     // Draw text outline
     function drawOutline(ctx, text, lines, fontSizePx, s) {
         const width = s.outline.width * fontSizePx;
-        const alpha = s.outline.alpha;
+        const alpha = safeGet(s, 'outline.alpha', 1);
 
-        if (s.outline.gradient.active) {
+        // Check if texture is active
+        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src')) {
+            const textureImg = state.textureImages[s.outline.texture.src];
+            if (textureImg) {
+                ctx.save();
+                if (s.outline.texture.blendmode) {
+                    ctx.globalCompositeOperation = s.outline.texture.blendmode;
+                }
+                const pattern = ctx.createPattern(textureImg, s.outline.texture.repeat || 'repeat');
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = pattern;
+                ctx.lineWidth = width;
+                ctx.lineJoin = s.outline.join || 'round';
+                ctx.lineCap = 'round';
+                ctx.fillStyle = 'transparent';
+                drawTextLines(ctx, text, lines, fontSizePx, s, true);
+                ctx.restore();
+                return;
+            }
+        }
+
+        ctx.save();
+        if (isActive(s, 'outline.gradient')) {
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.outline.gradient, s);
             ctx.strokeStyle = gradient;
         } else {
@@ -595,6 +734,7 @@
         ctx.fillStyle = 'transparent';
 
         drawTextLines(ctx, text, lines, fontSizePx, s, true);
+        ctx.restore();
     }
 
     // Draw inner shadow
@@ -617,6 +757,7 @@
         offCtx.font = ctx.font;
         offCtx.textBaseline = 'middle';
         offCtx.textAlign = 'center';
+        offCtx.translate(offscreen.width / 2, offscreen.height / 2);
         offCtx.fillStyle = color;
         offCtx.shadowColor = color;
         offCtx.shadowOffsetX = offsetX + offset;
@@ -628,8 +769,9 @@
         offCtx.restore();
 
         ctx.save();
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.drawImage(offscreen, 0, 0);
+        const blendmode = s.shadowInner.blendmode || 'source-atop';
+        ctx.globalCompositeOperation = blendmode;
+        ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
         ctx.restore();
     }
 
@@ -657,6 +799,13 @@
         y = -iconSize * 0.2 + offsetY;
 
         ctx.save();
+        ctx.globalAlpha = s.icon.alpha;
+        if (s.icon.blendmode) {
+            ctx.globalCompositeOperation = s.icon.blendmode;
+        }
+        if (s.icon.composite) {
+            ctx.globalCompositeOperation = s.icon.composite;
+        }
         ctx.drawImage(icon, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
         ctx.restore();
     }
@@ -677,7 +826,7 @@
         ctx.save();
         
         // Use gradient if active, otherwise solid color
-        if (s.depth2.gradient.active) {
+        if (isActive(s, 'depth2.gradient')) {
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.depth2.gradient, s);
             ctx.fillStyle = gradient;
         } else {
@@ -698,10 +847,10 @@
 
     // Draw outline 2
     function drawOutline2(ctx, text, lines, fontSizePx, s) {
-        const width = s.outline2.width * fontSizePx;
-        const alpha = s.outline2.alpha;
+        const width = safeGet(s, 'outline2.width', 0) * fontSizePx;
+        const alpha = safeGet(s, 'outline2.alpha', 1);
 
-        if (s.outline2.gradient.active) {
+        if (isActive(s, 'outline2.gradient')) {
             const gradient = createGradient(ctx, text, lines, fontSizePx, s.outline2.gradient, s);
             ctx.strokeStyle = gradient;
         } else {
@@ -758,6 +907,7 @@
         offCtx.font = ctx.font;
         offCtx.textBaseline = 'middle';
         offCtx.textAlign = 'center';
+        offCtx.translate(offscreen.width / 2, offscreen.height / 2);
         offCtx.fillStyle = color;
         offCtx.shadowColor = color;
         offCtx.shadowOffsetX = offsetX + offset;
@@ -769,28 +919,90 @@
         offCtx.restore();
 
         ctx.save();
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.drawImage(offscreen, 0, 0);
+        const blendmode = s.shadowInner2.blendmode || 'source-atop';
+        ctx.globalCompositeOperation = blendmode;
+        ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
         ctx.restore();
     }
 
     // Draw bevel effect
     function drawBevel(ctx, text, lines, fontSizePx, s) {
         const size = s.bevel.size * fontSizePx;
-        const angle = (s.bevel.angle * Math.PI) / 180;
-        const smoothing = s.bevel.smoothing;
+        const angle = s.bevel.angle;
+        const smoothing = s.bevel.smoothing || s.bevel.soften || 0.1;
+        const soften = s.bevel.soften || 0.1;
 
         const highlightColor = hexToRgba(s.bevel.highlight.color, s.bevel.highlight.alpha);
         const shadowColor = hexToRgba(s.bevel.shadow.color, s.bevel.shadow.alpha);
 
-        // Simple bevel simulation using offset strokes
+        // Try WebGL bevel if available
+        if (typeof BevelWebGLEngine !== 'undefined' && !state.bevelEngine) {
+            state.bevelEngine = new BevelWebGLEngine();
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            if (!state.bevelEngine.init(tempCanvas)) {
+                state.bevelEngine = null;
+            }
+        }
+
+        if (state.bevelEngine && size > 0) {
+            // Create temporary canvas with just the text
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCtx.save();
+            tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+            tempCtx.font = ctx.font;
+            tempCtx.textBaseline = 'middle';
+            tempCtx.textAlign = 'center';
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.strokeStyle = '#ffffff';
+            tempCtx.lineWidth = size;
+            tempCtx.lineCap = 'round';
+            tempCtx.lineJoin = 'round';
+            drawTextLines(tempCtx, text, lines, fontSizePx, s, true);
+            tempCtx.restore();
+
+            // Apply WebGL bevel
+            const bevelCanvas = state.bevelEngine.apply(tempCanvas, {
+                bevelSize: size / fontSizePx,
+                bevelAngle: angle,
+                lightColor: [
+                    parseInt(s.bevel.highlight.color.slice(1,3), 16) / 255,
+                    parseInt(s.bevel.highlight.color.slice(3,5), 16) / 255,
+                    parseInt(s.bevel.highlight.color.slice(5,7), 16) / 255
+                ],
+                shadowColor: [
+                    parseInt(s.bevel.shadow.color.slice(1,3), 16) / 255,
+                    parseInt(s.bevel.shadow.color.slice(3,5), 16) / 255,
+                    parseInt(s.bevel.shadow.color.slice(5,7), 16) / 255
+                ],
+                highlightIntensity: s.bevel.highlight.alpha,
+                shadowIntensity: s.bevel.shadow.alpha,
+                softness: soften
+            });
+
+            if (bevelCanvas) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.drawImage(bevelCanvas, 0, 0);
+                ctx.restore();
+                return;
+            }
+        }
+
+        // Fallback: Simple bevel simulation using offset strokes
+        const angleRad = (angle * Math.PI) / 180;
         const highlightOffset = size * 0.5;
         const shadowOffset = size * 0.5;
 
-        const highlightX = Math.cos(angle) * highlightOffset;
-        const highlightY = Math.sin(angle) * highlightOffset;
-        const shadowX = -Math.cos(angle) * shadowOffset;
-        const shadowY = -Math.sin(angle) * shadowOffset;
+        const highlightX = Math.cos(angleRad) * highlightOffset;
+        const highlightY = Math.sin(angleRad) * highlightOffset;
+        const shadowX = -Math.cos(angleRad) * shadowOffset;
+        const shadowY = -Math.sin(angleRad) * shadowOffset;
 
         // Draw highlight
         ctx.save();
@@ -813,9 +1025,70 @@
         ctx.restore();
     }
 
+    // Draw specular lighting effect
+    function drawSpecular(ctx, text, lines, fontSizePx, s) {
+        // Try WebGL specular if available
+        if (typeof SpecularWebGLEngine !== 'undefined' && !state.specularEngine) {
+            state.specularEngine = new SpecularWebGLEngine();
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            if (!state.specularEngine.init(tempCanvas)) {
+                state.specularEngine = null;
+            }
+        }
+
+        if (state.specularEngine) {
+            // Create temporary canvas with current state
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.canvas.width;
+            tempCanvas.height = state.canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(state.canvas, 0, 0);
+
+            // Apply WebGL specular
+            const specularCanvas = state.specularEngine.apply(tempCanvas, {
+                surfaceScale: 1.0,
+                specularConstant: 0.5,
+                specularExponent: 32.0,
+                lightColor: [1.0, 1.0, 1.0],
+                lightDirection: [0.5, 0.5, 1.0],
+                ambientIntensity: 0.3,
+                diffuseIntensity: 0.5
+            });
+
+            if (specularCanvas) {
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.drawImage(specularCanvas, 0, 0);
+                ctx.restore();
+            }
+        }
+    }
+
     // Apply distort/arc effect (TextStudio-style curve with per-character positioning)
-    function applyDistort(ctx, arcAngle, fontSizePx) {
-        // TextStudio-style arc distortion with per-character positioning along a curve
+    function applyDistort(ctx, text, fontSizePx, settings) {
+        // Initialize distort engine if available
+        if (typeof DistortEngine !== 'undefined' && !state.distortEngine) {
+            state.distortEngine = new DistortEngine();
+        }
+
+        const distortSettings = settings.distort || {};
+        const arcAngle = distortSettings.arc ? distortSettings.arc.angle : 0;
+        const amplitude = distortSettings.arc ? distortSettings.arc.amplitude : 0;
+        const type = distortSettings.arc ? distortSettings.arc.type : 'arc';
+
+        // Try DistortEngine if available and distortion is active
+        if (state.distortEngine && (Math.abs(arcAngle) > 0 || Math.abs(amplitude) > 0.01)) {
+            const applied = state.distortEngine.applyDistort(ctx, text, fontSizePx, {
+                angle: arcAngle,
+                amplitude: amplitude,
+                type: type
+            });
+            if (applied) return;
+        }
+
+        // Fallback: Simple transformation matrix for arc effect
         const angleRad = (arcAngle * Math.PI) / 180;
         
         if (Math.abs(arcAngle) > 0) {
@@ -862,16 +1135,105 @@
             // Center is default (xOffset = 0)
             
             if (isCurved) {
-                // Curve text: apply effect but simpler version
-                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s);
+                drawTextCurved(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
             } else {
-                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s);
+                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
+            }
+        }
+    }
+
+    // Draw text with palette (per-letter coloring)
+    function drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha) {
+        const lineHeight = s.lineHeight;
+        const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
+        const totalHeight = fontSizePx * lineHeight * lines.length;
+        const startY = -totalHeight / 2 + fontSizePx / 2;
+        const styles = s.fill.palette.styles;
+        const method = s.fill.palette.method || 'letter';
+
+        // Calculate widths for alignment
+        const lineWidths = [];
+        let maxLineWidth = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            lineWidths.push(lineWidth);
+            if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
+        }
+
+        let charIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const y = startY + i * fontSizePx * lineHeight;
+            
+            // Calculate X offset based on alignment
+            let xOffset = 0;
+            if (s.align === 'left') {
+                xOffset = -maxLineWidth / 2;
+            } else if (s.align === 'right') {
+                xOffset = maxLineWidth / 2 - lineWidths[i];
+            }
+
+            let currentX = xOffset;
+            for (let j = 0; j < line.length; j++) {
+                const char = line[j];
+                const charWidth = ctx.measureText(char).width;
+                
+                // Get color from palette based on method
+                let color;
+                if (method === 'letter') {
+                    // Color per letter
+                    color = styles[charIndex % styles.length];
+                } else if (method === 'word') {
+                    // Color per word (space resets index)
+                    if (char === ' ') charIndex = 0;
+                    color = styles[charIndex % styles.length];
+                    if (char !== ' ') charIndex++;
+                } else {
+                    // Default to letter method
+                    color = styles[charIndex % styles.length];
+                    charIndex++;
+                }
+
+                // Convert color to rgba
+                let fillColor;
+                if (typeof color === 'string' && color.startsWith('#')) {
+                    fillColor = hexToRgba(color, alpha);
+                } else if (color && color.r !== undefined) {
+                    fillColor = `rgba(${color.r},${color.g},${color.b},${alpha})`;
+                } else {
+                    fillColor = hexToRgba(s.fill.color, alpha);
+                }
+
+                ctx.fillStyle = fillColor;
+                ctx.strokeStyle = 'transparent';
+                ctx.fillText(char, currentX, y);
+                
+                currentX += charWidth + spacing;
+            }
+
+            if (method === 'letter') {
+                charIndex += line.length;
             }
         }
     }
 
     // Draw text with curve effect (per-character positioning)
     function drawTextCurved(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
+        // Try DistortEngine if available
+        if (typeof DistortEngine !== 'undefined' && !state.distortEngine) {
+            state.distortEngine = new DistortEngine();
+        }
+
+        if (state.distortEngine) {
+            const applied = state.distortEngine.applyDistort(ctx, text, fontSizePx, {
+                angle: s.distort.arc.angle,
+                amplitude: s.distort.arc.amplitude || 0,
+                type: s.distort.arc.type || 'arc'
+            });
+            if (applied) return;
+        }
+
+        // Fallback: Original curve implementation
         const arcAngle = s.distort.arc.angle;
         const angleRad = (arcAngle * Math.PI) / 180;
         
@@ -931,11 +1293,11 @@
     }
 
     // Draw text with manual letter spacing and boggle
-    function drawTextWithSpacing(ctx, text, x, y, spacing, isStroke, s) {
-        const align = s.align;
-        const boggle = s.lettering && s.lettering.boggle && s.lettering.boggle.active;
-        const boggleAngle = boggle ? s.lettering.boggle.angle : 0;
-        const boggleAmp = boggle ? s.lettering.boggle.amplitude : 0;
+    function drawTextWithSpacing(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
+        const align = safeGet(s, 'align', 'center');
+        const boggle = isActive(s, 'lettering.boggle');
+        const boggleAngle = boggle ? safeGet(s, 'lettering.boggle.angle', 0) : 0;
+        const boggleAmp = boggle ? safeGet(s, 'lettering.boggle.amplitude', 0) : 0;
 
         let startX = x;
         const chars = [];
@@ -988,6 +1350,70 @@
         }
     }
 
+    // Add color stops to a canvas gradient from settings
+    function addGradientStops(gradientObj, gradient) {
+        let stops;
+        
+        // Handle different gradient formats
+        if (gradient.colors && gradient.colors.length >= 2) {
+            stops = gradient.colors;
+        } else if (gradient.startColor && gradient.endColor) {
+            // Legacy 2-color format
+            stops = [
+                { color: gradient.startColor, pos: 0 },
+                { color: gradient.endColor, pos: 1 }
+            ];
+        } else if (Array.isArray(gradient)) {
+            // Simple array of colors
+            stops = gradient.map((color, index) => ({
+                color: color,
+                pos: index / (gradient.length - 1)
+            }));
+        } else {
+            // Fallback to default
+            stops = [
+                { color: '#ffffff', pos: 0 },
+                { color: '#000000', pos: 1 }
+            ];
+        }
+
+        // Process stops and add to gradient
+        stops.forEach(function(stop, index) {
+            let color;
+            let pos;
+            
+            // Determine color
+            if (stop.color) {
+                color = stop.color;
+            } else if (stop.r !== undefined) {
+                const a = stop.a !== undefined ? stop.a : 1;
+                color = 'rgba(' + Math.round(stop.r) + ',' + Math.round(stop.g) + ',' + Math.round(stop.b) + ',' + a + ')';
+            } else if (typeof stop === 'string') {
+                color = stop;
+            } else {
+                color = '#ffffff';
+            }
+
+            // Determine position
+            if (stop.pos !== undefined) {
+                pos = stop.pos;
+            } else {
+                // Auto-distribute positions if not defined
+                pos = index / (stops.length - 1);
+            }
+
+            // Convert hex to rgba if needed
+            if (typeof color === 'string' && color.startsWith('#')) {
+                color = hexToRgba(color, 1);
+            }
+
+            // Clamp position to [0, 1]
+            pos = Math.max(0, Math.min(1, pos));
+            
+            gradientObj.addColorStop(pos, color);
+        });
+    }
+
     // Create gradient
     function createGradient(ctx, text, lines, fontSizePx, gradient, s) {
         const metrics = ctx.measureText(text.replace(/\n/g, ' '));
@@ -1004,8 +1430,7 @@
         const y2 = -textHeight / 2 - sin * textWidth / 2 - cos * textHeight / 2;
 
         const gradientObj = ctx.createLinearGradient(x1, y1, x2, y2);
-        gradientObj.addColorStop(0, gradient.startColor);
-        gradientObj.addColorStop(1, gradient.endColor);
+        addGradientStops(gradientObj, gradient);
 
         return gradientObj;
     }
@@ -1077,13 +1502,27 @@
             if (preset.fill.texture) {
                 if (preset.fill.texture.active !== undefined) s.fill.texture.active = Boolean(preset.fill.texture.active);
                 if (preset.fill.texture.src) s.fill.texture.src = preset.fill.texture.src;
-                if (preset.fill.texture.size !== undefined) s.fill.texture.size = clampValue(preset.fill.texture.size, 0.1, 5, 1);
                 if (preset.fill.texture.alpha !== undefined) s.fill.texture.alpha = clampValue(preset.fill.texture.alpha, 0, 1, 1);
+                if (preset.fill.texture.size !== undefined) s.fill.texture.size = preset.fill.texture.size;
+                if (preset.fill.texture.blendmode) s.fill.texture.blendmode = preset.fill.texture.blendmode;
+            }
+            if (preset.fill.palette) {
+                if (preset.fill.palette.active !== undefined) s.fill.palette.active = Boolean(preset.fill.palette.active);
+                if (preset.fill.palette.styles && Array.isArray(preset.fill.palette.styles)) {
+                    s.fill.palette.styles = preset.fill.palette.styles;
+                }
             }
         }
 
         // Outline with enhanced validation
         if (preset.outline) {
+            if (preset.outline.global) {
+                s.outline.global.active = Boolean(preset.outline.global.active);
+            }
+            if (preset.outline.dash) {
+                s.outline.dash.active = Boolean(preset.outline.dash.active);
+                if (preset.outline.dash.pattern) s.outline.dash.pattern = preset.outline.dash.pattern;
+            }
             if (preset.outline.first) {
                 if (preset.outline.first.active !== undefined) s.outline.active = Boolean(preset.outline.first.active);
                 if (preset.outline.first.width !== undefined) s.outline.width = clampValue(preset.outline.first.width, 0, 1, 0.1);
@@ -1148,6 +1587,7 @@
             if (preset.shadow.outer.strength !== undefined) s.shadowOuter.strength = clampValue(preset.shadow.outer.strength, 0, 1, 0);
             if (preset.shadow.outer.fill && preset.shadow.outer.fill.color) s.shadowOuter.color = rgbToHex(preset.shadow.outer.fill.color);
             if (preset.shadow.outer.fill && preset.shadow.outer.fill.alpha !== undefined) s.shadowOuter.alpha = clampValue(preset.shadow.outer.fill.alpha, 0, 1, 1);
+            if (preset.shadow.outer.blendmode) s.shadowOuter.blendmode = preset.shadow.outer.blendmode;
         }
 
         // Shadow Outer 2 with enhanced validation
@@ -1158,6 +1598,7 @@
             if (preset.shadow.outer2.angle !== undefined) s.shadowOuter2.angle = clampValue(preset.shadow.outer2.angle, -180, 180, 135);
             if (preset.shadow.outer2.fill && preset.shadow.outer2.fill.color) s.shadowOuter2.color = rgbToHex(preset.shadow.outer2.fill.color);
             if (preset.shadow.outer2.fill && preset.shadow.outer2.fill.alpha !== undefined) s.shadowOuter2.alpha = clampValue(preset.shadow.outer2.fill.alpha, 0, 1, 1);
+            if (preset.shadow.outer2.blendmode) s.shadowOuter2.blendmode = preset.shadow.outer2.blendmode;
         } else {
             s.shadowOuter2.active = false;
         }
@@ -1171,6 +1612,7 @@
             if (preset.shadow.inner2.offset !== undefined) s.shadowInner2.offset = clampValue(preset.shadow.inner2.offset, 0, 1, 0);
             if (preset.shadow.inner2.color) s.shadowInner2.color = rgbToHex(preset.shadow.inner2.color);
             if (preset.shadow.inner2.alpha !== undefined) s.shadowInner2.alpha = clampValue(preset.shadow.inner2.alpha, 0, 1, 1);
+            if (preset.shadow.inner2.blendmode) s.shadowInner2.blendmode = preset.shadow.inner2.blendmode;
         } else {
             s.shadowInner2.active = false;
         }
@@ -1189,6 +1631,9 @@
                     s.depth.gradient.startColor = rgbToHex(preset.depth.fill.gradient.colors[0]);
                     s.depth.gradient.endColor = rgbToHex(preset.depth.fill.gradient.colors[1]);
                 }
+            }
+            if (preset.depth.fill && preset.depth.fill.texture) {
+                if (preset.depth.fill.texture.blendmode) s.depth.texture.blendmode = preset.depth.fill.texture.blendmode;
             }
         } else {
             s.depth.active = false;
@@ -1275,6 +1720,7 @@
             if (preset.icon.rotate !== undefined) s.icon.rotate = clampValue(preset.icon.rotate, -180, 180, 0);
             if (preset.icon.alpha !== undefined) s.icon.alpha = clampValue(preset.icon.alpha, 0, 1, 1);
             if (preset.icon.composite) s.icon.composite = preset.icon.composite;
+            if (preset.icon.blendmode) s.icon.blendmode = preset.icon.blendmode;
             if (preset.icon.offset) {
                 s.icon.offset.x = clampValue(preset.icon.offset.x || 0, -2, 2, 0);
                 s.icon.offset.y = clampValue(preset.icon.offset.y || 0, -2, 2, 0);

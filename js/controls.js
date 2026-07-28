@@ -598,157 +598,182 @@
 
     function convertSettingsToPreset(settings) {
         // Convert internal settings format to TextStudio preset format
+        // Use optional chaining and default values to handle undefined properties
+        const s = settings || {};
         return {
             editable: 1,
-            text: settings.text,
+            text: s.text || 'TEXT',
             font: {
-                size: settings.fontSize,
-                weight: settings.fontWeight,
-                name: settings.font,
-                src: settings.font
+                size: s.canvas?.width ? 64 : (s.fontSize || 64),
+                weight: s.fontWeight || 'normal',
+                name: s.font || 'Bangers',
+                src: s.font || 'Bangers'
             },
-            align: settings.align,
-            rotate: settings.rotate,
-            lineHeight: settings.lineHeight,
-            letterSpacing: settings.letterSpacing,
+            align: s.align || 'center',
+            rotate: s.rotate || 0,
+            lineHeight: s.lineHeight || 1,
+            letterSpacing: s.letterSpacing || 0,
             mergeGradients: 0,
             lettering: {
                 editable: 1,
-                active: settings.lettering.active ? 1 : 0,
-                blendmode: settings.lettering.blendmode || 'over',
+                active: s.lettering?.active ? 1 : 0,
+                blendmode: s.lettering?.blendmode || 'over',
                 boggle: {
-                    active: settings.lettering.boggle.active ? 1 : 0,
-                    angle: settings.lettering.boggle.angle,
-                    amplitude: settings.lettering.boggle.amplitude
+                    active: s.lettering?.boggle?.active ? 1 : 0,
+                    angle: s.lettering?.boggle?.angle || 0,
+                    amplitude: s.lettering?.boggle?.amplitude || 0.1
                 },
                 reverseOverlap: {
-                    letters: settings.lettering.reverseOverlap.letters,
-                    lines: settings.lettering.reverseOverlap.lines
+                    letters: s.lettering?.reverseOverlap?.letters || 0,
+                    lines: s.lettering?.reverseOverlap?.lines || 0
                 },
                 shadow: {
-                    active: settings.lettering.shadow.active ? 1 : 0,
-                    size: settings.lettering.shadow.size,
-                    distance: settings.lettering.shadow.distance,
-                    angle: settings.lettering.shadow.angle,
+                    active: s.lettering?.shadow?.active ? 1 : 0,
+                    size: s.lettering?.shadow?.size || 0,
+                    distance: s.lettering?.shadow?.distance || 0,
+                    angle: s.lettering?.shadow?.angle || 0,
                     fill: {
-                        alpha: settings.lettering.shadow.alpha,
-                        color: hexToRgb(settings.lettering.shadow.color)
+                        alpha: s.lettering?.shadow?.alpha || 1,
+                        color: hexToRgb(s.lettering?.shadow?.color || '#000000')
                     }
                 }
             },
             distort: {
                 arc: {
-                    angle: settings.distort.arc.angle
+                    angle: s.distort?.arc?.angle || 0
                 }
             },
             processing: {
-                active: settings.processing.active ? 1 : 0,
-                code: settings.processing.code
+                active: s.processing?.active ? 1 : 0,
+                code: s.processing?.code || null
             },
             fill: {
                 editable: 1,
-                active: settings.fill.active ? 1 : 0,
-                alpha: settings.fill.alpha,
-                color: hexToRgb(settings.fill.color),
+                active: s.fill?.active ? 1 : 0,
+                alpha: s.fill?.alpha || 1,
+                color: hexToRgb(s.fill?.color || '#ffffff'),
                 texture: {
-                    active: settings.fill.texture.active ? 1 : 0,
-                    alpha: settings.fill.texture.alpha,
-                    src: settings.fill.texture.src,
-                    size: settings.fill.texture.size,
+                    active: s.fill?.texture?.active ? 1 : 0,
+                    alpha: s.fill?.texture?.alpha || 1,
+                    src: s.fill?.texture?.src || null,
+                    size: s.fill?.texture?.size || 1,
                     repeat: 'repeat',
-                    position: 'center'
+                    position: 'center',
+                    blendmode: s.fill?.texture?.blendmode || 'source-over'
                 },
                 gradient: {
-                    active: settings.fill.gradient.active ? 1 : 0,
-                    angle: settings.fill.gradient.angle,
+                    active: s.fill?.gradient?.active ? 1 : 0,
+                    angle: s.fill?.gradient?.angle || 0,
                     colors: [
-                        hexToRgb(settings.fill.gradient.startColor),
-                        hexToRgb(settings.fill.gradient.endColor)
+                        hexToRgb(s.fill?.gradient?.startColor || '#ffffff'),
+                        hexToRgb(s.fill?.gradient?.endColor || '#000000')
                     ]
+                },
+                palette: {
+                    active: s.fill?.palette?.active ? 1 : 0,
+                    lettering: {
+                        method: s.fill?.palette?.lettering?.method || 'letter'
+                    },
+                    styles: s.fill?.palette?.styles || []
                 }
             },
             depth: {
                 editable: 1,
-                active: settings.depth.active ? 1 : 0,
-                length: settings.depth.length,
-                angle: settings.depth.angle,
+                active: s.depth?.active ? 1 : 0,
+                length: s.depth?.length || 0.1,
+                angle: s.depth?.angle || 135,
                 fill: {
-                    alpha: settings.depth.alpha,
-                    color: hexToRgb(settings.depth.color),
+                    alpha: s.depth?.alpha || 1,
+                    color: hexToRgb(s.depth?.color || '#000000'),
                     gradient: {
-                        active: settings.depth.gradient.active ? 1 : 0,
+                        active: s.depth?.gradient?.active ? 1 : 0,
                         type: 'depth',
-                        angle: settings.depth.gradient.angle,
+                        angle: s.depth?.gradient?.angle || 0,
                         colors: [
-                            hexToRgb(settings.depth.gradient.startColor),
-                            hexToRgb(settings.depth.gradient.endColor)
+                            hexToRgb(s.depth?.gradient?.startColor || '#000000'),
+                            hexToRgb(s.depth?.gradient?.endColor || '#ffffff')
                         ]
+                    },
+                    texture: {
+                        active: s.depth?.texture?.active ? 1 : 0,
+                        src: s.depth?.texture?.src || null,
+                        size: s.depth?.texture?.size || 1,
+                        blendmode: s.depth?.texture?.blendmode || 'source-over'
                     }
                 }
             },
             depth2: {
                 editable: 1,
-                active: settings.depth2.active ? 1 : 0,
-                length: settings.depth2.length,
-                angle: settings.depth2.angle,
+                active: s.depth2?.active ? 1 : 0,
+                length: s.depth2?.length || 0.1,
+                angle: s.depth2?.angle || 135,
                 fill: {
-                    alpha: settings.depth2.alpha,
-                    color: hexToRgb(settings.depth2.color),
+                    alpha: s.depth2?.alpha || 1,
+                    color: hexToRgb(s.depth2?.color || '#000000'),
                     gradient: {
-                        active: settings.depth2.gradient.active ? 1 : 0,
+                        active: s.depth2?.gradient?.active ? 1 : 0,
                         type: 'depth',
-                        angle: settings.depth2.gradient.angle,
+                        angle: s.depth2?.gradient?.angle || 0,
                         colors: [
-                            hexToRgb(settings.depth2.gradient.startColor),
-                            hexToRgb(settings.depth2.gradient.endColor)
+                            hexToRgb(s.depth2?.gradient?.startColor || '#000000'),
+                            hexToRgb(s.depth2?.gradient?.endColor || '#ffffff')
                         ]
                     }
                 }
             },
             outline: {
+                global: {
+                    active: s.outline?.global?.active ? 1 : 0
+                },
+                dash: {
+                    active: s.outline?.dash?.active ? 1 : 0,
+                    pattern: s.outline?.dash?.pattern || []
+                },
                 first: {
                     editable: 1,
-                    active: settings.outline.active ? 1 : 0,
-                    width: settings.outline.width,
-                    join: settings.outline.join,
+                    active: s.outline?.active ? 1 : 0,
+                    width: s.outline?.width || 0.1,
+                    join: s.outline?.join || 'round',
                     fill: {
-                        alpha: settings.outline.alpha,
-                        color: hexToRgb(settings.outline.color),
+                        alpha: s.outline?.alpha || 1,
+                        color: hexToRgb(s.outline?.color || '#000000'),
                         gradient: {
-                            active: settings.outline.gradient.active ? 1 : 0,
-                            angle: settings.outline.gradient.angle,
+                            active: s.outline?.gradient?.active ? 1 : 0,
+                            angle: s.outline?.gradient?.angle || 0,
                             colors: [
-                                hexToRgb(settings.outline.gradient.startColor),
-                                hexToRgb(settings.outline.gradient.endColor)
+                                hexToRgb(s.outline?.gradient?.startColor || '#000000'),
+                                hexToRgb(s.outline?.gradient?.endColor || '#000000')
                             ]
                         },
                         texture: {
-                            active: settings.outline.texture.active ? 1 : 0,
-                            src: settings.outline.texture.src,
-                            size: settings.outline.texture.size
+                            active: s.outline?.texture?.active ? 1 : 0,
+                            src: s.outline?.texture?.src || null,
+                            size: s.outline?.texture?.size || 1,
+                            blendmode: s.outline?.texture?.blendmode || 'source-over'
                         },
                         palette: {
-                            active: settings.outline.palette.active ? 1 : 0,
+                            active: s.outline?.palette?.active ? 1 : 0,
                             lettering: {
-                                method: settings.outline.palette.method
-                            }
+                                method: s.outline?.palette?.method || 'letter'
+                            },
+                            styles: s.outline?.palette?.styles || []
                         }
                     }
                 },
                 second: {
                     editable: 1,
-                    active: settings.outline2.active ? 1 : 0,
-                    width: settings.outline2.width,
-                    join: settings.outline2.join,
+                    active: s.outline2?.active ? 1 : 0,
+                    width: s.outline2?.width || 0.1,
+                    join: s.outline2?.join || 'round',
                     fill: {
-                        alpha: settings.outline2.alpha,
-                        color: hexToRgb(settings.outline2.color),
+                        alpha: s.outline2?.alpha || 1,
+                        color: hexToRgb(s.outline2?.color || '#000000'),
                         gradient: {
-                            active: settings.outline2.gradient.active ? 1 : 0,
-                            angle: settings.outline2.gradient.angle,
+                            active: s.outline2?.gradient?.active ? 1 : 0,
+                            angle: s.outline2?.gradient?.angle || 0,
                             colors: [
-                                hexToRgb(settings.outline2.gradient.startColor),
-                                hexToRgb(settings.outline2.gradient.endColor)
+                                hexToRgb(s.outline2?.gradient?.startColor || '#000000'),
+                                hexToRgb(s.outline2?.gradient?.endColor || '#000000')
                             ]
                         }
                     }
@@ -757,112 +782,116 @@
             bevel: {
                 inner: {
                     editable: 1,
-                    active: settings.bevel.active ? 1 : 0,
-                    size: settings.bevel.size,
-                    smoothing: settings.bevel.smoothing,
-                    soften: settings.bevel.soften,
-                    angle: settings.bevel.angle,
+                    active: s.bevel?.active ? 1 : 0,
+                    size: s.bevel?.size || 0.1,
+                    smoothing: s.bevel?.smoothing || 0,
+                    soften: s.bevel?.soften || 0.1,
+                    angle: s.bevel?.angle || 135,
                     highlight: {
-                        alpha: settings.bevel.highlight.alpha,
-                        color: hexToRgb(settings.bevel.highlight.color)
+                        alpha: s.bevel?.highlight?.alpha || 1,
+                        color: hexToRgb(s.bevel?.highlight?.color || '#ffffff')
                     },
                     shadow: {
-                        alpha: settings.bevel.shadow.alpha,
-                        color: hexToRgb(settings.bevel.shadow.color)
+                        alpha: s.bevel?.shadow?.alpha || 1,
+                        color: hexToRgb(s.bevel?.shadow?.color || '#000000')
                     }
                 }
             },
             shadow: {
                 outer: {
                     editable: 1,
-                    active: settings.shadowOuter.active ? 1 : 0,
-                    size: settings.shadowOuter.size,
-                    distance: settings.shadowOuter.distance,
-                    angle: settings.shadowOuter.angle,
-                    strength: settings.shadowOuter.strength,
+                    active: s.shadowOuter?.active ? 1 : 0,
+                    size: s.shadowOuter?.size || 0,
+                    distance: s.shadowOuter?.distance || 0,
+                    angle: s.shadowOuter?.angle || 0,
+                    strength: s.shadowOuter?.strength || 0,
                     fill: {
-                        alpha: settings.shadowOuter.alpha,
-                        color: hexToRgb(settings.shadowOuter.color)
-                    }
+                        alpha: s.shadowOuter?.alpha || 1,
+                        color: hexToRgb(s.shadowOuter?.color || '#000000')
+                    },
+                    blendmode: s.shadowOuter?.blendmode || 'normal'
                 },
                 outer2: {
                     editable: 1,
-                    active: settings.shadowOuter2.active ? 1 : 0,
-                    size: settings.shadowOuter2.size,
-                    distance: settings.shadowOuter2.distance,
-                    angle: settings.shadowOuter2.angle,
+                    active: s.shadowOuter2?.active ? 1 : 0,
+                    size: s.shadowOuter2?.size || 0,
+                    distance: s.shadowOuter2?.distance || 0,
+                    angle: s.shadowOuter2?.angle || 0,
                     fill: {
-                        alpha: settings.shadowOuter2.alpha,
-                        color: hexToRgb(settings.shadowOuter2.color)
-                    }
+                        alpha: s.shadowOuter2?.alpha || 1,
+                        color: hexToRgb(s.shadowOuter2?.color || '#000000')
+                    },
+                    blendmode: s.shadowOuter2?.blendmode || 'normal'
                 },
                 inner: {
                     editable: 1,
-                    active: settings.shadowInner.active ? 1 : 0,
-                    size: settings.shadowInner.size,
-                    distance: settings.shadowInner.distance,
-                    angle: settings.shadowInner.angle,
-                    offset: settings.shadowInner.offset,
-                    alpha: settings.shadowInner.alpha,
-                    color: hexToRgb(settings.shadowInner.color),
-                    blendmode: settings.shadowInner.blendmode
+                    active: s.shadowInner?.active ? 1 : 0,
+                    size: s.shadowInner?.size || 0,
+                    distance: s.shadowInner?.distance || 0,
+                    angle: s.shadowInner?.angle || 0,
+                    offset: s.shadowInner?.offset || 0,
+                    alpha: s.shadowInner?.alpha || 1,
+                    color: hexToRgb(s.shadowInner?.color || '#000000'),
+                    blendmode: s.shadowInner?.blendmode || 'normal'
                 },
                 inner2: {
                     editable: 1,
-                    active: settings.shadowInner2.active ? 1 : 0,
-                    size: settings.shadowInner2.size,
-                    distance: settings.shadowInner2.distance,
-                    angle: settings.shadowInner2.angle,
-                    offset: settings.shadowInner2.offset,
-                    alpha: settings.shadowInner2.alpha,
-                    color: hexToRgb(settings.shadowInner2.color)
+                    active: s.shadowInner2?.active ? 1 : 0,
+                    size: s.shadowInner2?.size || 0,
+                    distance: s.shadowInner2?.distance || 0,
+                    angle: s.shadowInner2?.angle || 0,
+                    offset: s.shadowInner2?.offset || 0,
+                    alpha: s.shadowInner2?.alpha || 1,
+                    color: hexToRgb(s.shadowInner2?.color || '#000000'),
+                    blendmode: s.shadowInner2?.blendmode || 'normal'
                 }
             },
             icon: {
                 editable: 1,
-                active: settings.icon.active ? 1 : 0,
-                alpha: settings.icon.alpha,
-                src: settings.icon.src,
-                size: settings.icon.size,
-                rotate: settings.icon.rotate,
-                position: settings.icon.position,
-                composite: settings.icon.composite,
+                active: s.icon?.active ? 1 : 0,
+                alpha: s.icon?.alpha || 1,
+                src: s.icon?.src || null,
+                size: s.icon?.size || 1,
+                rotate: s.icon?.rotate || 0,
+                position: s.icon?.position || 'left',
+                composite: s.icon?.composite || 'source-over',
+                blendmode: s.icon?.blendmode || 'source-over',
                 offset: {
-                    x: settings.icon.offset.x,
-                    y: settings.icon.offset.y
+                    x: s.icon?.offset?.x || 0,
+                    y: s.icon?.offset?.y || 0
                 }
             },
             background: {
                 editable: 1,
-                active: settings.background.active ? 1 : 0,
-                composite: settings.background.composite,
+                active: s.background?.active ? 1 : 0,
+                composite: s.background?.composite || 'source-over',
                 fill: {
-                    alpha: settings.background.alpha,
-                    color: hexToRgb(settings.background.color),
+                    alpha: s.background?.alpha || 1,
+                    color: hexToRgb(s.background?.color || '#000000'),
                     image: {
-                        active: settings.background.image.active ? 1 : 0,
-                        alpha: settings.background.image.alpha,
-                        src: settings.background.image.src,
-                        size: settings.background.image.size,
-                        repeat: settings.background.image.repeat
+                        active: s.background?.image?.active ? 1 : 0,
+                        alpha: s.background?.image?.alpha || 1,
+                        src: s.background?.image?.src || null,
+                        size: s.background?.image?.size || 'cover',
+                        repeat: s.background?.image?.repeat || 'repeat'
                     },
                     gradient: {
-                        active: settings.background.gradient.active ? 1 : 0,
-                        angle: settings.background.gradient.angle,
-                        type: settings.background.gradient.type,
+                        active: s.background?.gradient?.active ? 1 : 0,
+                        angle: s.background?.gradient?.angle || 0,
+                        type: s.background?.gradient?.type || 'linear',
                         colors: [
-                            hexToRgb(settings.background.gradient.startColor),
-                            hexToRgb(settings.background.gradient.endColor)
+                            hexToRgb(s.background?.gradient?.startColor || '#000000'),
+                            hexToRgb(s.background?.gradient?.endColor || '#ffffff')
                         ]
                     }
                 }
             },
             animation: {
                 editable: 1,
-                active: settings.animation.active ? 1 : 0,
-                id: settings.animation.id,
-                pause: settings.animation.pause,
-                duration: settings.animation.duration
+                active: s.animation?.active ? 1 : 0,
+                id: s.animation?.id || null,
+                pause: s.animation?.pause || 1000,
+                duration: s.animation?.duration || 1000
             }
         };
     }
@@ -988,32 +1017,267 @@
     function bindPresets() {
         const presetList = document.getElementById('tt-preset-list');
         if (presetList) {
+            // Load presets dynamically
+            loadPresetList();
+            
             presetList.addEventListener('click', function(e) {
                 const li = e.target.closest('li');
                 if (li && li.dataset.preset) {
-                    loadPresetFile(li.dataset.preset);
+                    loadPreset(li.dataset.preset, li.dataset.source);
                 }
+            });
+        }
+
+        // Bind preset management buttons
+        bindPresetButtons();
+    }
+
+    async function loadPresetList() {
+        const presetList = document.getElementById('tt-preset-list');
+        if (!presetList) return;
+
+        presetList.innerHTML = '';
+
+        try {
+            // Get all presets from PresetManager
+            const presets = typeof PresetManager !== 'undefined' ? PresetManager.getPresetList() : [];
+            
+            // Add base presets from filesystem
+            const basePresets = ['fire-free', 'nintendo', 'looney-tunes'];
+            
+            // Combine base presets with user presets
+            const allPresets = new Set([...basePresets, ...presets.map(p => p.name)]);
+            
+            allPresets.forEach(presetName => {
+                const li = document.createElement('li');
+                li.dataset.preset = presetName;
+                
+                // Determine source
+                const preset = presets.find(p => p.name === presetName);
+                const source = preset ? preset.source : 'base';
+                li.dataset.source = source;
+                
+                // Display name
+                const displayName = presetName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                li.innerHTML = `<span>${displayName}</span>`;
+                
+                // Add source indicator
+                if (source === 'local') {
+                    li.classList.add('tt-preset-local');
+                } else if (source === 'imported') {
+                    li.classList.add('tt-preset-imported');
+                }
+                
+                presetList.appendChild(li);
+            });
+
+            // Add "New Preset" option
+            const newPresetLi = document.createElement('li');
+            newPresetLi.className = 'tt-preset-new';
+            newPresetLi.innerHTML = '<span>+ New Preset</span>';
+            newPresetLi.addEventListener('click', function(e) {
+                e.stopPropagation();
+                createNewPreset();
+            });
+            presetList.appendChild(newPresetLi);
+
+        } catch (e) {
+            console.error('Failed to load preset list:', e);
+        }
+    }
+
+    async function loadPreset(presetName, source) {
+        try {
+            let preset;
+            
+            if (source === 'base') {
+                // Load from filesystem
+                preset = await PresetManager.loadPresetFromFile(presetName);
+            } else {
+                // Load from PresetManager
+                preset = PresetManager.getPreset(presetName);
+            }
+
+            if (preset) {
+                editor.loadPreset(preset);
+            }
+        } catch (e) {
+            console.error('Failed to load preset:', e);
+        }
+    }
+
+    function bindPresetButtons() {
+        // Save current settings as preset
+        const savePresetBtn = document.getElementById('tt-save-preset-btn');
+        if (savePresetBtn) {
+            savePresetBtn.addEventListener('click', function() {
+                saveCurrentAsPreset();
+            });
+        }
+
+        // Duplicate current preset
+        const duplicatePresetBtn = document.getElementById('tt-duplicate-preset-btn');
+        if (duplicatePresetBtn) {
+            duplicatePresetBtn.addEventListener('click', function() {
+                duplicateCurrentPreset();
+            });
+        }
+
+        // Delete current preset
+        const deletePresetBtn = document.getElementById('tt-delete-preset-btn');
+        if (deletePresetBtn) {
+            deletePresetBtn.addEventListener('click', function() {
+                deleteCurrentPreset();
+            });
+        }
+
+        // Export preset
+        const exportPresetBtn = document.getElementById('tt-export-preset-btn');
+        if (exportPresetBtn) {
+            exportPresetBtn.addEventListener('click', function() {
+                exportCurrentPreset();
+            });
+        }
+
+        // Import preset
+        const importPresetBtn = document.getElementById('tt-import-preset-btn');
+        if (importPresetBtn) {
+            importPresetBtn.addEventListener('click', function() {
+                importPresetFromFile();
             });
         }
     }
 
-    function loadPresetFile(presetName) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', 'presets/' + presetName + '.json', true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4 && xhr.status === 200) {
+    function saveCurrentAsPreset() {
+        const settings = editor.getSettings();
+        const presetName = prompt('Enter preset name:', 'my-preset');
+        
+        if (!presetName) return;
+        
+        try {
+            const preset = convertSettingsToPreset(settings);
+            const safeName = PresetManager.createPreset(presetName, preset);
+            alert('Preset saved: ' + safeName);
+            loadPresetList(); // Refresh list
+        } catch (e) {
+            alert('Error saving preset: ' + e.message);
+        }
+    }
+
+    function duplicateCurrentPreset() {
+        const settings = editor.getSettings();
+        const currentPreset = settings.presetName || 'current';
+        const newName = prompt('Enter new preset name:', currentPreset + '-copy');
+        
+        if (!newName) return;
+        
+        try {
+            const preset = convertSettingsToPreset(settings);
+            const safeName = PresetManager.duplicatePreset(currentPreset, newName);
+            alert('Preset duplicated: ' + safeName);
+            loadPresetList(); // Refresh list
+        } catch (e) {
+            alert('Error duplicating preset: ' + e.message);
+        }
+    }
+
+    function deleteCurrentPreset() {
+        const settings = editor.getSettings();
+        const currentPreset = settings.presetName;
+        
+        if (!currentPreset) {
+            alert('No preset loaded');
+            return;
+        }
+        
+        if (!confirm('Delete preset: ' + currentPreset + '?')) return;
+        
+        try {
+            PresetManager.deletePreset(currentPreset);
+            alert('Preset deleted: ' + currentPreset);
+            loadPresetList(); // Refresh list
+        } catch (e) {
+            alert('Error deleting preset: ' + e.message);
+        }
+    }
+
+    function exportCurrentPreset() {
+        const settings = editor.getSettings();
+        const currentPreset = settings.presetName || 'preset';
+        
+        try {
+            PresetManager.exportPreset(currentPreset);
+        } catch (e) {
+            alert('Error exporting preset: ' + e.message);
+        }
+    }
+
+    function importPresetFromFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
                 try {
-                    const preset = JSON.parse(xhr.responseText);
-                    editor.loadPreset(preset);
-                } catch (e) {
-                    console.error('Failed to load preset:', e);
+                    const jsonString = e.target.result;
+                    const name = PresetManager.importPreset(jsonString);
+                    alert('Preset imported: ' + name);
+                    loadPresetList(); // Refresh list
+                } catch (err) {
+                    alert('Error importing preset: ' + err.message);
                 }
-            }
-        };
-        xhr.send();
+            };
+            reader.readAsText(file);
+        });
+        
+        input.click();
+    }
+
+    function createNewPreset() {
+        const settings = editor.createDefaultSettings();
+        const presetName = prompt('Enter preset name:', 'new-preset');
+        
+        if (!presetName) return;
+        
+        try {
+            const preset = convertSettingsToPreset(settings);
+            const safeName = PresetManager.createPreset(presetName, preset);
+            editor.loadPreset(preset);
+            alert('Preset created: ' + safeName);
+            loadPresetList(); // Refresh list
+        } catch (e) {
+            alert('Error creating preset: ' + e.message);
+        }
     }
 
     // ===== IMPORT FROM TEXTSTUDIO =====
+    
+    // Font ID mapping for TextStudio fonts
+    const fontIdMap = {
+        '832': 'Bangers',
+        '833': 'Permanent Marker',
+        '834': 'Rock Salt',
+        '835': 'Anton',
+        '836': 'Oswald',
+        '837': 'Montserrat',
+        '838': 'Pacifico',
+        '839': 'Press Start 2P',
+        '840': 'Creepster',
+        '841': 'Share Tech Mono',
+        '842': 'Rubik Wet Paint',
+        '843': 'Carter One',
+        '844': 'Fascinate',
+        '845': 'Kanit',
+        '846': 'Bebas Neue',
+        '847': 'Freckle Dragon'
+    };
+
     function bindImportControls() {
         const importBtn = document.getElementById('tt-import-btn');
         const importUrlInput = document.getElementById('tt-import-url-input');
@@ -1064,9 +1328,10 @@
                     if (xhr.status === 200) {
                         try {
                             const preset = JSON.parse(xhr.responseText);
-                            editor.loadPreset(preset);
-                            cachePreset(presetId, preset);
-                            resolve(preset);
+                            const mappedPreset = mapFontIds(preset);
+                            editor.loadPreset(mappedPreset);
+                            cachePreset(presetId, mappedPreset);
+                            resolve(mappedPreset);
                         } catch (e) {
                             console.error('Failed to parse preset:', e);
                             reject(e);
@@ -1108,10 +1373,11 @@
                                 const html = xhr.responseText;
                                 const preset = extractPresetFromHTML(html);
                                 if (preset) {
-                                    editor.loadPreset(preset);
+                                    const mappedPreset = mapFontIds(preset);
+                                    editor.loadPreset(mappedPreset);
                                     const presetId = extractPresetIdFromURL(url);
-                                    cachePreset(presetId, preset);
-                                    resolve(preset);
+                                    cachePreset(presetId, mappedPreset);
+                                    resolve(mappedPreset);
                                 } else {
                                     proxyIndex++;
                                     tryNextProxy();
@@ -1138,7 +1404,31 @@
         });
     }
 
+    function mapFontIds(preset) {
+        // Map TextStudio font IDs to actual font names
+        if (preset.font && preset.font.src) {
+            const fontId = preset.font.src.toString();
+            if (fontIdMap[fontId]) {
+                preset.font.src = fontIdMap[fontId];
+                preset.font.name = fontIdMap[fontId];
+            }
+        }
+        return preset;
+    }
+
     function extractPresetFromHTML(html) {
+        // Try to find preset data in window.__PRESET__ or similar
+        const windowPresetRegex = /window\.__PRESET__\s*=\s*(\{[\s\S]*?\});/i;
+        const windowMatch = windowPresetRegex.exec(html);
+        
+        if (windowMatch) {
+            try {
+                return JSON.parse(windowMatch[1]);
+            } catch (e) {
+                console.error('Failed to parse window.__PRESET__:', e);
+            }
+        }
+
         // Try to find preset data in script tags
         const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
         let match;
@@ -1175,6 +1465,21 @@
                 }
             }
         }
+
+        // Try to find in JSON-LD or other structured data
+        const jsonLdRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i;
+        const jsonLdMatch = jsonLdRegex.exec(html);
+        
+        if (jsonLdMatch) {
+            try {
+                const data = JSON.parse(jsonLdMatch[1]);
+                if (data && (data.preset || data.settings)) {
+                    return data.preset || data.settings;
+                }
+            } catch (e) {
+                console.error('Failed to parse JSON-LD:', e);
+            }
+        }
         
         return null;
     }
@@ -1186,12 +1491,16 @@
 
     function cachePreset(presetId, preset) {
         try {
-            const cache = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
-            cache[presetId] = {
-                preset: preset,
-                timestamp: Date.now()
-            };
-            localStorage.setItem('textstudio_presets', JSON.stringify(cache));
+            if (typeof PresetManager !== 'undefined') {
+                PresetManager.createPreset(presetId, preset);
+            } else {
+                const cache = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
+                cache[presetId] = {
+                    preset: preset,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('textstudio_presets', JSON.stringify(cache));
+            }
         } catch (e) {
             console.error('Failed to cache preset:', e);
         }
@@ -1199,6 +1508,9 @@
 
     function getCachedPreset(presetId) {
         try {
+            if (typeof PresetManager !== 'undefined') {
+                return PresetManager.getPreset(presetId);
+            }
             const cache = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
             if (cache[presetId]) {
                 // Check if cache is not too old (7 days)
