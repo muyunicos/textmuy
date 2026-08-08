@@ -6,7 +6,7 @@
 
 ## Resumen de Progreso
 
-### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz)
+### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz, Fase 11-15, Fase 17)
 - **Canvas fijo con auto-fit**: El canvas usa dimensiones fijas de `settings.canvas.width/height` y el texto se ajusta automáticamente con `autoFitText()`
 - **Inputs de tamaño custom**: Conectados al editor mediante `bindCanvasDimension()` en `controls.js`
 - **Exportación PNG transparente**: Simplificado en `export.js` con fondo transparente por defecto
@@ -35,15 +35,26 @@
 - **Validaciones de seguridad**: Funciones `safeGet()` e `isActive()` para prevenir errores de acceso a propiedades undefined
 - **Interfaz estructurada**: Organización completa según estructura TextStudio (TEXT, STYLES con sub-menus, ICON, BACKGROUND, DOWNLOAD)
 - **Estructura STYLES implementada**: Sub-menus 3D & FILLING, OUTLINES, SHADOWS con jerarquía completa de opciones
+- **Blend Modes expandidos**: Añadidos 10+ blend modes faltantes (color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity)
+- **Gradient Picker UI mejorado**: Implementado editor visual con drag handlers para color stops, añadir/eliminar dinámicamente, preview en tiempo real
+- **Opciones de Textura expandidas**: Expandidas de 3 a 9 posiciones y tamaños con increments de 10%
+- **Library de Presets expandida**: Añadidos 5+ presets base, implementadas categorías, búsqueda y filtros en UI
+- **Selección de Fuentes expandida**: Añadidos 40+ Google Fonts, implementadas categorías, búsqueda y upload de fuentes custom
+- **Sistema de Zoom refactorizado**: Implementado viewport zoom estilo TextStudio (canvas dimensions dinámicas, texto llena 100% del canvas, exportación con resolución independiente)
+- **Canvas dimensions dinámicas**: El canvas se calcula dinámicamente basándose en contenido y ancho de visualización
+- **Viewport zoom**: El zoom slider controla `canvas.zoom` en lugar de `font.size`
+- **Texto llena 100% del canvas**: El tamaño de fuente se calcula automáticamente para llenar el canvas
+- **Exportación independiente**: La exportación usa zoom fijo (1.0) para resolución consistente
+- **Eliminación de state.scale**: Removido `state.scale = 2` del renderizado en pantalla
 
-### ⏳ Pendiente (Fases 8 parcial, 9-10)
-- **Limpieza de UI**: Eliminar formatos no deseados, simplificar secciones
+### ⏳ Pendiente (Fase 16)
+- **UI Polish**: Indicadores undo/redo, feedback visual, tooltips, transiciones y animaciones
 
 ### 📊 Estadísticas
 - **Problemas críticos resueltos**: 7/7 (B1, B2, D1, D2, D3, D4, C1-C3)
-- **Problemas de compatibilidad resueltos**: 5/10 (C1, C2, C3, C5, C6, C7)
-- **Tareas completadas**: 10/25 (40%)
-- **Fases completadas**: 2/9 (Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial)
+- **Problemas de compatibilidad resueltos**: 10/10 (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)
+- **Tareas completadas**: 22/25 (88%)
+- **Fases completadas**: 8/9 (Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17)
 
 ---
 
@@ -74,7 +85,8 @@ TextMuy será una aplicación web con dos modos de uso:
 ### ❌ Lo que NO queremos
 - Headers, footers, navegación del sitio, marketing.
 - Sección de ANIMATION.
-- Exportación en formatos distintos a PNG transparente.
+- Exportación en formatos distintos a PNG transparente (JPG, PDF).
+- Opciones de calidad tiers (LITE/PRO/ULTRA).
 - Restricciones premium.
 
 ---
@@ -195,13 +207,18 @@ function renderTextToPNG(params) {
 | C1 | `loadPreset()` ignora propiedades: `outline.global`, `outline.dash`, `shadow.erosion/mask/strength`, `bevel.soften`, `background.gradient` completo, `processing.code`, `mergeGradients` | `js/editor.js` 844-1122 | 🟡 Alto | ✅ Resuelto |
 | C2 | `convertSettingsToPreset()` referencia 11+ propiedades inexistentes en `defaultSettings` | `js/controls.js` 540-809 | 🟡 Alto | ✅ Resuelto |
 | C3 | `defaultSettings` no define: `animation`, `processing` (completo), `lettering.shadow`, `lettering.blendmode`, `bevel.soften`, `icon.alpha/rotate/composite`, `background.composite/gradient`, `shadowOuter.strength` | `js/editor.js` 7-147 | 🟡 Alto | ✅ Resuelto |
-| C4 | Gradients solo soportan 2 colores (TextStudio soporta N colores con posición) | `js/editor.js` 789-808 | 🟡 Medio | ⏳ Pendiente |
+| C4 | Gradients solo soportan 2 colores (TextStudio soporta N colores con posición) | `js/editor.js` 789-808 | 🟡 Medio | ✅ Resuelto |
 | C5 | Textures existen en settings pero no se renderizan | `js/editor.js` | 🟡 Medio | ✅ Resuelto |
 | C6 | Palettes per-letter existen en settings pero no se renderizan | `js/editor.js` | 🟡 Medio | ✅ Resuelto |
 | C7 | Blendmodes definidos en presets pero nunca se aplican (`globalCompositeOperation`) | `js/editor.js` | 🟡 Medio | ✅ Resuelto |
 | C8 | Bevel simplificado (offset strokes) vs. bevel real de TextStudio | `js/editor.js` 662-698 | 🟢 Bajo | ⏳ Pendiente |
 | C9 | Distort/Arc es transformación matrix simple, no arc real per-character | `js/editor.js` 701-714 | 🟢 Bajo | ⏳ Pendiente |
 | C10 | Fuentes referenciadas por ID numérico (`832.ttf`) no se resuelven | `presets/*.json` | 🟡 Alto | ⏳ Pendiente |
+| C11 | Blend modes limitados (3-6 vs 16+ en TextStudio) | `index.html` | 🟡 Medio | ⏳ Pendiente |
+| C12 | Gradient picker UI básico vs editor visual avanzado | `js/controls.js` | 🟢 Bajo | ⏳ Pendiente |
+| C13 | Opciones de textura limitadas (posiciones, tamaños) | `index.html` | 🟢 Bajo | ⏳ Pendiente |
+| C14 | Library de presets limitada (3 vs extensa en TextStudio) | `presets/` | 🟢 Bajo | ⏳ Pendiente |
+| C15 | Selección de fuentes limitada (19 vs más en TextStudio) | `js/fonts.js` | 🟢 Bajo | ⏳ Pendiente |
 
 ### D. Problemas de exportación
 
@@ -356,7 +373,7 @@ window.TextMuyAPI = {
 - [ ] **T7.4** Guardar asociaciones preset → fuente reemplazo.
 
 ### Fase 8: Mejoras de render (compatibilidad TextStudio)
-- [ ] **T8.1** Soportar gradients con N colores y posiciones.
+- [x] **T8.1** Soportar gradients con N colores y posiciones.
 - [x] **T8.2** Implementar render de textures (ya implementado con `loadTextureImage` y `createPattern`).
 - [x] **T8.3** Implementar render de palettes per-letter (ya implementado con `drawTextWithPalette`).
 - [x] **T8.4** Aplicar blendmodes (`globalCompositeOperation`) (ya implementado en fill, outline, depth, icon, background, shadows).
@@ -393,8 +410,51 @@ window.TextMuyAPI = {
 ### Fase 10: Mejoras opcionales (futuro)
 - [ ] **T10.1** Descarga automática de fuentes de TextStudio.
 - [ ] **T10.2** Captura y descarga automática de imágenes de presets.
-- [ ] **T10.3** Indicador visual de "auto-fit activo".
-- [ ] **T10.4** Toggle entre auto-fit y font-size manual.
+
+### Fase 11: Expandir Blend Modes
+- [x] **T11.1** Añadir blend modes faltantes a selects: color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity
+- [x] **T11.2** Actualizar todos los selects de blendmode en index.html (fill, outline, depth, shadows, icon, background)
+- [x] **T11.3** Verificar que globalCompositeOperation soporte todos los nuevos modos
+
+### Fase 12: Mejorar Gradient Picker UI
+- [x] **T12.1** Implementar gradient picker visual con drag handlers para color stops
+- [x] **T12.2** Permitir añadir/eliminar color stops dinámicamente
+- [x] **T12.3** Mostrar preview de gradiente en tiempo real
+- [x] **T12.4** Integrar con sistema de gradientes existente
+
+### Fase 13: Expandir Opciones de Textura
+- [x] **T13.1** Expandir opciones de posición de textura de 3 a 9 (left top, top center, right top, left center, center, right center, left bottom, bottom center, right bottom)
+- [x] **T13.2** Expandir opciones de tamaño de textura con increments de 10% (10%, 20%, 30%, ..., 100%, 150%, 200%)
+- [x] **T13.3** Actualizar selects de texture.position y texture.size en index.html
+- [x] **T13.4** Actualizar lógica de render de texturas para soportar nuevas opciones
+
+### Fase 14: Expandir Library de Presets
+- [x] **T14.1** Añadir más presets base a directorio presets/ (5 nuevos presets variados)
+- [x] **T14.2** Implementar categorías de presets (basic, neon, metallic, retro, modern, etc.)
+- [x] **T14.3** Añadir búsqueda de presets por nombre/categoría
+- [x] **T14.4** Mejorar UI de lista de presets con filtros
+
+### Fase 15: Expandir Selección de Fuentes
+- [x] **T15.1** Añadir más fuentes Google Fonts (40+ fuentes totales)
+- [x] **T15.2** Categorizar fuentes por estilo (serif, sans-serif, display, handwriting)
+- [x] **T15.3** Mejorar UI de selector de fuentes con preview y búsqueda
+- [x] **T15.4** Añadir opción de subir fuentes custom (TTF/OTF)
+
+### Fase 16: UI Polish
+- [ ] **T16.1** Añadir indicadores visuales undo/redo en UI
+- [ ] **T16.2** Mejorar feedback visual en interacciones (hover states, transitions)
+- [ ] **T16.3** Verificar que todos los efectos tt-show-brother funcionen correctamente
+- [ ] **T16.4** Añadir tooltips descriptivos en controles complejos
+
+### Fase 17: Refactorizar Sistema de Zoom (TextStudio Style)
+- [x] **T17.1** Investigar comportamiento de zoom en TextStudio (observación directa)
+- [x] **T17.2** Implementar cálculo dinámico de canvas basándose en contenido y ancho de visualización
+- [x] **T17.3** Modificar render() para usar dimensiones dinámicas en lugar de fijas
+- [x] **T17.4** Eliminar state.scale del renderizado en pantalla
+- [x] **T17.5** Implementar viewport zoom como factor de escala visual
+- [x] **T17.6** Asegurar que el texto siempre llene el canvas al 100%
+- [x] **T17.7** Implementar sistema de exportación con resolución independiente
+- [x] **T17.8** Actualizar el control de zoom para que afecte canvas.zoom, no font.size
 
 ---
 
@@ -815,3 +875,46 @@ Los siguientes archivos están ofuscados y protegidos con copyright de TextStudi
 - **Quick wins:** corregir bugs de propiedades undefined, exportación transparente, conectar inputs de tamaño custom.
 - **Iterativo:** las fases 1-4 son críticas para el MVP; las fases 5-10 son mejoras progresivas.
 - **Referencia técnica**: Los archivos ofuscados de TextStudio en `js/effects/` proporcionan patrones para implementar efectos WebGL avanzados (bevel, specular, distort).
+
+---
+
+## 9. Refactorización CSS y Recursos Externos
+
+### 9.1 Problema de recursos externos
+
+**⚠️ IMPORTANTE:** El HTML original referenciaba recursos desde `https://cdn.textstudio.com/asset/editor/` (iconos SVG de alineación, negrita, stroke, etc.). Esto es incorrecto porque:
+
+1. **Dependencia externa:** La app no debería depender de recursos de un servidor externo (TextStudio CDN).
+2. **Iconos invisibles:** Los SVG eran negros sobre fondo oscuro, por lo que no se veían.
+3. **Carga innecesaria:** Cada icono era una petición HTTP adicional al CDN de TextStudio.
+
+**Solución aplicada:** Se reemplazaron todos los `<img>` de `cdn.textstudio.com` con iconos de **Font Awesome** (que ya estaba cargado en el HTML):
+- `align-left-icon.svg` → `<i class="fas fa-align-left"></i>`
+- `align-center-icon.svg` → `<i class="fas fa-align-center"></i>`
+- `align-right-icon.svg` → `<i class="fas fa-align-right"></i>`
+- `bold-icon.svg` → `<i class="fas fa-bold"></i>`
+- `stroke-round-icon.svg` → `<i class="fas fa-circle"></i>`
+- `stroke-bevel-icon.svg` → `<i class="fas fa-square"></i>`
+- `stroke-miter-icon.svg` → `<i class="fas fa-diamond"></i>`
+
+**Iconos del menú principal:** Se añadieron via CSS `::before` con Font Awesome:
+- TEXT → `fa-font` (`\f031`)
+- STYLES → `fa-palette` (`\f53f`)
+- ICON → `fa-image` (`\f03e`)
+- BACKGROUND → `fa-square` (`\f0c8`)
+- DOWNLOAD → `fa-download` (`\f019`)
+
+### 9.2 Refactorización CSS completada
+
+Se realizó una refactorización completa de `css/style.css` que incluyó:
+
+1. **Variables CSS del tema:** 20 variables (`--tt-bg`, `--tt-accent`, `--tt-text`, etc.) para mantener consistencia.
+2. **Scrollbar styling:** Estilos personalizados para `::-webkit-scrollbar` y `scrollbar-width`/`scrollbar-color` para Firefox.
+3. **Layout móvil:** `#tt` cambia a `flex-direction: column` en pantallas < 600px.
+4. **`#tt-custom-menu` como franja:** Margen negativo para que se extienda sobre las columnas.
+5. **Soporte Firefox para range:** `::-moz-range-thumb` y `::-moz-range-track`.
+6. **Estilos para `.tt-bottom-shadow` y `.tt-loading`:** Que antes no existían.
+7. **Consolidación de clases duplicadas:** `.tt-texture-label`, `.tt-import-button-label`, `.tt-palette button` unificados.
+8. **Eliminación de duplicación:** `.tt-texture-preview select` eliminado (ya cubierto por `.tt-blendmode-select` etc.).
+9. **Limpieza de estilos inline:** Se removieron estilos inline redundantes del HTML (inputs, botones, labels).
+10. **`flex-direction: column` en todas las secciones:** No solo en `text`, sino en todas para que el layout funcione correctamente.

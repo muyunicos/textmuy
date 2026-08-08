@@ -4,6 +4,19 @@
 
     const STORAGE_KEY = 'textmuy_presets';
     const IMPORTED_KEY = 'textstudio_presets';
+    
+    // Preset categories
+    const CATEGORIES = {
+        basic: 'Basic',
+        gaming: 'Gaming',
+        brands: 'Brands',
+        artistic: 'Artistic',
+        retro: 'Retro',
+        modern: 'Modern',
+        neon: 'Neon',
+        metallic: 'Metallic',
+        custom: 'Custom'
+    };
 
     /**
      * Get all presets (local + imported)
@@ -19,6 +32,7 @@
                     name: name,
                     data: local[name],
                     source: 'local',
+                    category: local[name].category || 'custom',
                     timestamp: local[name].timestamp || Date.now()
                 };
             });
@@ -35,6 +49,7 @@
                         name: name,
                         data: imported[name].preset || imported[name],
                         source: 'imported',
+                        category: (imported[name].preset || imported[name]).category || 'custom',
                         timestamp: imported[name].timestamp || Date.now()
                     };
                 }
@@ -44,6 +59,46 @@
         }
 
         return presets;
+    }
+
+    /**
+     * Get presets by category
+     */
+    function getPresetsByCategory(category) {
+        const presets = getAllPresets();
+        const filtered = {};
+        
+        Object.keys(presets).forEach(name => {
+            if (presets[name].category === category) {
+                filtered[name] = presets[name];
+            }
+        });
+        
+        return filtered;
+    }
+
+    /**
+     * Search presets by name
+     */
+    function searchPresets(query) {
+        const presets = getAllPresets();
+        const filtered = {};
+        const lowerQuery = query.toLowerCase();
+        
+        Object.keys(presets).forEach(name => {
+            if (name.toLowerCase().includes(lowerQuery)) {
+                filtered[name] = presets[name];
+            }
+        });
+        
+        return filtered;
+    }
+
+    /**
+     * Get all categories
+     */
+    function getCategories() {
+        return CATEGORIES;
     }
 
     /**
@@ -57,7 +112,7 @@
     /**
      * Create new preset
      */
-    function createPreset(name, settings) {
+    function createPreset(name, settings, category = 'custom') {
         if (!name || typeof name !== 'string') {
             throw new Error('Preset name is required');
         }
@@ -73,6 +128,7 @@
 
             presets[safeName] = {
                 ...settings,
+                category: category,
                 timestamp: Date.now()
             };
 
@@ -236,7 +292,7 @@
         return Object.keys(presets).length;
     }
 
-    // Export API
+    // Expose API
     window.PresetManager = {
         getAllPresets,
         getPreset,
@@ -247,6 +303,9 @@
         exportPreset,
         importPreset,
         loadPresetFromFile,
+        getPresetsByCategory,
+        searchPresets,
+        getCategories,
         getPresetList,
         clearLocalPresets,
         clearImportedPresets,

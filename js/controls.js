@@ -1,4 +1,4 @@
-/* ===== TEXTSTUDIO CONTROLS - UI Event Handlers ===== */
+﻿/* ===== TEXTSTUDIO CONTROLS - UI Event Handlers ===== */
 
 (function() {
     'use strict';
@@ -13,545 +13,837 @@
         bindDownloadControls();
         bindPresets();
         bindImportControls();
-        initGradientPickers();
+        initShowBrotherTabs();
+        initTextureUploads();
+        initIconGallery();
+        initBackgroundGallery();
+        initRangeSliders();
+        initPresetFilters();
+        initFontFilters();
+        initActiveFieldsets();
+        initUndoRedo();
+    }
+
+    // Helper: set nested setting and trigger render
+    function setNestedSetting(path, value) {
+        if (!editor) return;
+        const settings = editor.getSettings();
+        const keys = path.split('.');
+        let obj = settings;
+        for (let i = 0; i < keys.length - 1; i++) {
+            if (!obj[keys[i]]) obj[keys[i]] = {};
+            obj = obj[keys[i]];
+        }
+        obj[keys[keys.length - 1]] = value;
+        editor.render();
+    }
+
+    // Bind canvas size inputs with bidirectional logic
+    function bindCanvasSizeInputs() {
+        const widthInput = document.getElementById('tt-canvas-width-input');
+        const heightInput = document.getElementById('tt-canvas-height-input');
+        const ratioInput = document.getElementById('tt-canvas-ratio-input');
+
+        if (!widthInput || !heightInput || !ratioInput) return;
+
+        // Width input change
+        widthInput.addEventListener('input', function() {
+            const width = parseInt(this.value) || 240;
+            const ratio = parseFloat(ratioInput.value) || 2.5;
+            const height = Math.round(width * ratio);
+            heightInput.value = height;
+            setNestedSetting('canvas.width', width);
+            setNestedSetting('canvas.height', height);
+        });
+
+        // Height input change
+        heightInput.addEventListener('input', function() {
+            const height = parseInt(this.value) || 600;
+            const ratio = parseFloat(ratioInput.value) || 2.5;
+            const width = Math.round(height / ratio);
+            widthInput.value = width;
+            setNestedSetting('canvas.width', width);
+            setNestedSetting('canvas.height', height);
+        });
+
+        // Ratio input change
+        ratioInput.addEventListener('input', function() {
+            const ratio = parseFloat(this.value) || 2.5;
+            const width = parseInt(widthInput.value) || 240;
+            const height = Math.round(width * ratio);
+            heightInput.value = height;
+            setNestedSetting('canvas.ratio', ratio);
+            setNestedSetting('canvas.height', height);
+        });
+
+        // Initialize from settings
+        const settings = editor.getSettings();
+        if (settings.canvas) {
+            if (settings.canvas.width) widthInput.value = settings.canvas.width;
+            if (settings.canvas.height) heightInput.value = settings.canvas.height;
+            if (settings.canvas.ratio) ratioInput.value = settings.canvas.ratio;
+        }
+    }
+
+    // Helper: get nested setting
+    function getNestedSetting(path) {
+        if (!editor) return undefined;
+        const settings = editor.getSettings();
+        const keys = path.split('.');
+        let obj = settings;
+        for (const key of keys) {
+            if (obj === undefined || obj === null) return undefined;
+            obj = obj[key];
+        }
+        return obj;
+    }
+
+    // Bind a range input
+    function bindRange(id, settingPath, transformFn) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', function() {
+            const val = transformFn ? transformFn(this.value) : this.value;
+            setNestedSetting(settingPath, val);
+        });
+    }
+
+    // Bind a checkbox
+    function bindCheckbox(id, settingPath) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function() {
+            setNestedSetting(settingPath, this.checked);
+        });
+    }
+
+    // Bind a color input
+    function bindColor(id, settingPath) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', function() {
+            setNestedSetting(settingPath, this.value);
+        });
+    }
+
+    // Bind a select
+    function bindSelect(id, settingPath) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function() {
+            setNestedSetting(settingPath, this.value);
+        });
+    }
+
+    // Update range fill (bubble)
+    function updateRangeFill(input) {
+        const bubble = input.parentElement?.querySelector('output');
+        if (bubble && input.dataset.bubble) {
+            try {
+                const val = eval(input.dataset.bubble.replace(/V/g, input.value));
+                bubble.textContent = val;
+                const pct = (input.value - input.min) / (input.max - input.min) * 100;
+                bubble.style.left = `calc(${pct}% + ${0.5 - pct * 0.01}px)`;
+            } catch(e) {}
+        }
     }
 
     // Bind all form controls to editor settings
     function bindControls() {
-        // Text textarea
-        const textarea = document.getElementById('tt-text-textarea');
-        if (textarea) {
-            textarea.addEventListener('input', function() {
-                setNestedSetting('text', this.value);
-            });
-        }
+        // TEXT
+        bindCanvasSizeInputs();
+        bindTextarea('tt-text-textarea', 'text');
+        bindAlignList('tt-align-input', 'align');
+        bindFontWeight('tt-font-weight-input');
+        bindCheckbox('tt-merge-gradients-input', 'mergeGradients');
+        bindSelect('tt-font-picker-input', 'font.src');
+        bindRangeWithRender('tt-font-size-input', 'font.size', parseInt);
+        bindRange('tt-letter-spacing-input', 'letterSpacing', parseFloat);
+        bindRange('tt-line-height-input', 'lineHeight', parseFloat);
+        bindRange('tt-rotate-input', 'rotate', parseFloat);
+        bindRange('tt-distort-arc-angle-input', 'distort.arc.angle', parseFloat);
 
-        // Align controls
-        const alignInput = document.getElementById('tt-align-input');
-        const alignList = document.querySelector('.tt-align-list');
-        if (alignList) {
-            alignList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li && li.dataset.id) {
-                    // Update hidden input
-                    alignInput.value = li.dataset.id;
-                    // Update visual selection
-                    alignList.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
-                    li.classList.add('selected');
-                    // Update settings
-                    setNestedSetting('align', li.dataset.id);
-                }
-            });
-        }
-
-        // Font weight controls
-        const fontWeightInput = document.getElementById('tt-font-weight-input');
-        const fontOptionsList = document.querySelector('.tt-font-options-list');
-        if (fontOptionsList && fontWeightInput) {
-            // Set initial value to 'normal' (not bold by default)
-            fontWeightInput.value = 'normal';
-            const boldLi = fontOptionsList.querySelector('li');
-            if (boldLi) {
-                boldLi.classList.remove('selected');
-            }
-            
-            fontOptionsList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                const img = e.target.closest('img');
-                // Check if clicked on li or img
-                if (li || img) {
-                    const targetLi = li || img.closest('li');
-                    const input = document.getElementById(targetLi.dataset.input);
-                    if (input) {
-                        // Toggle between bold and normal
-                        const currentValue = input.value;
-                        const newValue = currentValue === 'normal' ? 'bold' : 'normal';
-                        input.value = newValue;
-                        // Update visual selection - always remove first, then add if bold
-                        fontOptionsList.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
-                        if (newValue === 'bold') {
-                            targetLi.classList.add('selected');
-                        }
-                        // Update settings
-                        setNestedSetting('font.weight', newValue);
-                    }
-                }
-            });
-        }
-
-        // Merge gradients checkbox
-        const mergeGradientsInput = document.getElementById('tt-merge-gradients-input');
-        if (mergeGradientsInput) {
-            mergeGradientsInput.addEventListener('change', function() {
-                setNestedSetting('mergeGradients', this.checked);
-            });
-        }
-
-        // Font select - actualizado para nueva estructura font.src
-        const fontSelect = document.getElementById('tt-font-picker-input');
-        if (fontSelect) {
-            fontSelect.addEventListener('change', function() {
-                setNestedSetting('font.src', this.value);
-            });
-        }
-
-        // Font size (zoom) - actualizado a font.size según TextStudio
-        const zoomInput = document.getElementById('tt-font-size-input');
-        if (zoomInput) {
-            updateRangeFill(zoomInput);
-            zoomInput.addEventListener('input', function() {
-                updateRangeFill(this);
-                const value = parseInt(this.value); // 12-140 range según TextStudio
-                setNestedSetting('font.size', value);
-            });
-        }
-
-        // Letter spacing - actualizado rango según TextStudio (-0.5 a 1.5)
-        bindRange('tt-letter-spacing-input', 'letterSpacing', function(val) {
-            return parseFloat(val); // Ya está en rango correcto -0.5 a 1.5
-        });
-
-        // Line height
-        bindRange('tt-line-height-input', 'lineHeight', function(val) {
-            return parseFloat(val);
-        });
-
-        // Rotation
-        bindRange('tt-rotate-input', 'rotate', function(val) {
-            return parseFloat(val);
-        });
-
-        // Curve the text (arc) - moved to TEXT section
-        const curveInput = document.getElementById('tt-distort-arc-angle-input');
-        if (curveInput) {
-            curveInput.addEventListener('input', function() {
-                const value = parseFloat(this.value);
-                setNestedSetting('distort.arc.angle', value);
-                // Auto-activate distort when curve is changed
-                if (value !== 0) {
-                    setNestedSetting('distort.active', true);
-                }
-            });
-        }
-
-        // ===== FILL CONTROLS =====
+        // FILL
         bindCheckbox('tt-fill-active-input', 'fill.active');
         bindColor('tt-fill-color-input', 'fill.color');
         bindCheckbox('tt-fill-gradient-active-input', 'fill.gradient.active');
-        bindRange('tt-fill-gradient-angle-input', 'fill.gradient.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-fill-alpha-input', 'fill.alpha', function(val) {
-            return parseFloat(val);
-        });
+        bindRange('tt-fill-gradient-angle-input', 'fill.gradient.angle', parseFloat);
+        bindRange('tt-fill-alpha-input', 'fill.alpha', parseFloat);
         bindCheckbox('tt-fill-texture-active-input', 'fill.texture.active');
-        const fillTextureSrc = document.getElementById('tt-fill-texture-src-input');
-        if (fillTextureSrc) {
-            fillTextureSrc.addEventListener('input', function() {
-                setNestedSetting('fill.texture.src', this.value);
-            });
-        }
-        bindRange('tt-fill-texture-size-input', 'fill.texture.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-fill-texture-alpha-input', 'fill.texture.alpha', function(val) {
-            return parseFloat(val);
-        });
+        bindSelect('tt-fill-texture-blendmode-input', 'fill.texture.blendmode');
+        bindSelect('tt-fill-texture-repeat-input', 'fill.texture.repeat');
+        bindSelect('tt-fill-texture-position-input', 'fill.texture.position');
+        bindSelect('tt-fill-texture-size-input', 'fill.texture.size');
+        bindRange('tt-fill-texture-alpha-input', 'fill.texture.alpha', parseFloat);
+        bindCheckbox('tt-fill-texture-lettering-input', 'fill.texture.lettering');
+        bindCheckbox('tt-fill-palette-active-input', 'fill.palette.active');
+        bindSelect('tt-fill-palette-lettering-method-input', 'fill.palette.lettering.method');
 
-        // ===== OUTLINE CONTROLS =====
-        bindCheckbox('tt-outline-active-input', 'outline.active');
-        bindRange('tt-outline-width-input', 'outline.width', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-outline-fill-color-input', 'outline.color');
-        bindCheckbox('tt-outline-fill-gradient-active-input', 'outline.gradient.active');
-        bindRange('tt-outline-fill-gradient-angle-input', 'outline.gradient.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-outline-fill-alpha-input', 'outline.alpha', function(val) {
-            return parseFloat(val);
-        });
-        bindCheckbox('tt-outline-texture-active-input', 'outline.texture.active');
-        const outlineTextureSrc = document.getElementById('tt-outline-texture-src-input');
-        if (outlineTextureSrc) {
-            outlineTextureSrc.addEventListener('input', function() {
-                setNestedSetting('outline.texture.src', this.value);
-            });
-        }
-        bindRange('tt-outline-texture-size-input', 'outline.texture.size', function(val) {
-            return parseFloat(val);
-        });
-        bindCheckbox('tt-outline-palette-active-input', 'outline.palette.active');
-        const outlinePaletteMethod = document.getElementById('tt-outline-palette-method-input');
-        if (outlinePaletteMethod) {
-            outlinePaletteMethod.addEventListener('change', function() {
-                setNestedSetting('outline.palette.method', this.value);
-            });
-        }
-
-        // ===== OUTLINE 2 CONTROLS =====
-        bindCheckbox('tt-outline2-active-input', 'outline2.active');
-        bindRange('tt-outline2-width-input', 'outline2.width', function(val) {
-            return parseFloat(val);
-        });
-        const outline2Join = document.getElementById('tt-outline2-join-input');
-        if (outline2Join) {
-            outline2Join.addEventListener('change', function() {
-                setNestedSetting('outline2.join', this.value);
-            });
-        }
-        bindColor('tt-outline2-fill-color-input', 'outline2.color');
-        bindCheckbox('tt-outline2-fill-gradient-active-input', 'outline2.gradient.active');
-        bindRange('tt-outline2-fill-gradient-angle-input', 'outline2.gradient.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-outline2-fill-alpha-input', 'outline2.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== DEPTH (3D) CONTROLS =====
-        bindCheckbox('tt-depth-active-input', 'depth.active');
-        bindRange('tt-depth-length-input', 'depth.length', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-depth-angle-input', 'depth.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-depth-color-input', 'depth.color');
-        bindRange('tt-depth-alpha-input', 'depth.alpha', function(val) {
-            return parseFloat(val);
-        });
-        bindCheckbox('tt-depth-gradient-active-input', 'depth.gradient.active');
-        bindRange('tt-depth-gradient-angle-input', 'depth.gradient.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindCheckbox('tt-depth-texture-active-input', 'depth.texture.active');
-        const depthTextureSrc = document.getElementById('tt-depth-texture-src-input');
-        if (depthTextureSrc) {
-            depthTextureSrc.addEventListener('input', function() {
-                setNestedSetting('depth.texture.src', this.value);
-            });
-        }
-        bindRange('tt-depth-texture-size-input', 'depth.texture.size', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== INNER SHADOW CONTROLS =====
-        bindCheckbox('tt-shadow-inner-active-input', 'shadowInner.active');
-        bindRange('tt-shadow-inner-size-input', 'shadowInner.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-inner-distance-input', 'shadowInner.distance', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-inner-angle-input', 'shadowInner.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-shadow-inner-color-input', 'shadowInner.color');
-        bindRange('tt-shadow-inner-alpha-input', 'shadowInner.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== OUTER SHADOW CONTROLS =====
-        bindCheckbox('tt-shadow-outer-active-input', 'shadowOuter.active');
-        bindRange('tt-shadow-outer-size-input', 'shadowOuter.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-outer-distance-input', 'shadowOuter.distance', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-outer-angle-input', 'shadowOuter.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-shadow-outer-fill-color-input', 'shadowOuter.color');
-        bindRange('tt-shadow-outer-fill-alpha-input', 'shadowOuter.fill.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== SECOND SHADOW CONTROLS =====
-        bindCheckbox('tt-shadow-outer2-active-input', 'shadowOuter2.active');
-        bindRange('tt-shadow-outer2-size-input', 'shadowOuter2.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-outer2-distance-input', 'shadowOuter2.distance', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-outer2-angle-input', 'shadowOuter2.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-shadow-outer2-fill-color-input', 'shadowOuter2.color');
-        bindRange('tt-shadow-outer2-fill-alpha-input', 'shadowOuter2.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        bindCheckbox('tt-shadow-inner2-active-input', 'shadowInner2.active');
-        bindRange('tt-shadow-inner2-size-input', 'shadowInner2.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-inner2-distance-input', 'shadowInner2.distance', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-inner2-angle-input', 'shadowInner2.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-shadow-inner2-offset-input', 'shadowInner2.offset', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-shadow-inner2-color-input', 'shadowInner2.color');
-        bindRange('tt-shadow-inner2-alpha-input', 'shadowInner2.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== BEVEL CONTROLS =====
-        bindCheckbox('tt-bevel-active-input', 'bevel.active');
-        bindRange('tt-bevel-size-input', 'bevel.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-bevel-smoothing-input', 'bevel.smoothing', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-bevel-angle-input', 'bevel.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-bevel-highlight-color-input', 'bevel.highlight.color');
-        bindRange('tt-bevel-highlight-alpha-input', 'bevel.highlight.alpha', function(val) {
-            return parseFloat(val);
-        });
-        bindColor('tt-bevel-shadow-color-input', 'bevel.shadow.color');
-        bindRange('tt-bevel-shadow-alpha-input', 'bevel.shadow.alpha', function(val) {
-            return parseFloat(val);
-        });
-
-        // ===== LETTERING CONTROLS =====
+        // LETTERING
         bindCheckbox('tt-lettering-active-input', 'lettering.active');
         bindCheckbox('tt-lettering-boggle-active-input', 'lettering.boggle.active');
-        bindRange('tt-lettering-boggle-angle-input', 'lettering.boggle.angle', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-lettering-boggle-amplitude-input', 'lettering.boggle.amplitude', function(val) {
-            return parseFloat(val);
-        });
-        bindCheckbox('tt-lettering-reverse-active-input', 'lettering.reverseOverlap.active');
-        bindRange('tt-lettering-reverse-letters-input', 'lettering.reverseOverlap.letters', function(val) {
-            return parseInt(val);
-        });
-        bindRange('tt-lettering-reverse-lines-input', 'lettering.reverseOverlap.lines', function(val) {
-            return parseInt(val);
-        });
+        bindRange('tt-lettering-boggle-angle-input', 'lettering.boggle.angle', parseFloat);
+        bindRange('tt-lettering-boggle-amplitude-input', 'lettering.boggle.amplitude', parseFloat);
+        bindCheckbox('tt-lettering-shadow-active-input', 'lettering.shadow.active');
+        bindRange('tt-lettering-shadow-size-input', 'lettering.shadow.size', parseFloat);
+        bindRange('tt-lettering-shadow-fill-alpha-input', 'lettering.shadow.fill.alpha', parseFloat);
+        bindRange('tt-lettering-shadow-distance-input', 'lettering.shadow.distance', parseFloat);
+        bindRange('tt-lettering-shadow-angle-input', 'lettering.shadow.angle', parseFloat);
+        bindColor('tt-lettering-shadow-fill-color-input', 'lettering.shadow.fill.color');
+        bindCheckbox('tt-lettering-reverse-overlap-letters-input', 'lettering.reverseOverlap.letters');
+        bindCheckbox('tt-lettering-reverse-overlap-lines-input', 'lettering.reverseOverlap.lines');
+        bindSelect('tt-lettering-blendmode-input', 'lettering.blendmode');
 
-        // ===== DISTORT CONTROLS =====
-        bindCheckbox('tt-distort-active-input', 'distort.active');
-        bindRange('tt-distort-arc-input', 'distort.arc.angle', function(val) {
-            return parseFloat(val);
-        });
+        // DEPTH #1
+        bindCheckbox('tt-depth-active-input', 'depth.active');
+        bindRange('tt-depth-length-input', 'depth.length', parseFloat);
+        bindRange('tt-depth-angle-input', 'depth.angle', parseFloat);
+        bindColor('tt-depth-fill-color-input', 'depth.fill.color');
+        bindCheckbox('tt-depth-fill-gradient-active-input', 'depth.fill.gradient.active');
+        bindRange('tt-depth-fill-merge-alpha-input', 'depth.fill.mergeAlpha', parseFloat);
+        bindRange('tt-depth-fill-alpha-input', 'depth.fill.alpha', parseFloat);
+        bindCheckbox('tt-depth-fill-texture-active-input', 'depth.fill.texture.active');
+        bindSelect('tt-depth-fill-texture-blendmode-input', 'depth.fill.texture.blendmode');
+        bindSelect('tt-depth-fill-texture-repeat-input', 'depth.fill.texture.repeat');
+        bindSelect('tt-depth-fill-texture-position-input', 'depth.fill.texture.position');
+        bindSelect('tt-depth-fill-texture-size-input', 'depth.fill.texture.size');
+        bindRange('tt-depth-fill-texture-alpha-input', 'depth.fill.texture.alpha', parseFloat);
+        bindCheckbox('tt-depth2-active-input', 'depth2.active');
+        bindRange('tt-depth2-length-input', 'depth2.length', parseFloat);
+        bindRange('tt-depth2-angle-input', 'depth2.angle', parseFloat);
+        bindColor('tt-depth2-fill-color-input', 'depth2.fill.color');
+        bindCheckbox('tt-depth2-fill-gradient-active-input', 'depth2.fill.gradient.active');
+        bindRange('tt-depth2-fill-merge-alpha-input', 'depth2.fill.mergeAlpha', parseFloat);
+        bindRange('tt-depth2-fill-alpha-input', 'depth2.fill.alpha', parseFloat);
 
-        // ===== BACKGROUND CONTROLS =====
-        bindCheckbox('tt-background-active-input', 'background.active');
-        bindColor('tt-background-fill-color-input', 'background.color');
-        bindRange('tt-background-fill-alpha-input', 'background.alpha', function(val) {
-            return parseFloat(val);
-        });
+        // OUTLINE #1
+        bindCheckbox('tt-outline-first-active-input', 'outline.first.active');
+        bindRange('tt-outline-first-width-input', 'outline.first.width', parseFloat);
+        bindColor('tt-outline-first-fill-color-input', 'outline.first.fill.color');
+        bindCheckbox('tt-outline-first-fill-gradient-active-input', 'outline.first.fill.gradient.active');
+        bindRange('tt-outline-first-fill-gradient-angle-input', 'outline.first.fill.gradient.angle', parseFloat);
+        bindCheckbox('tt-outline-first-fill-palette-active-input', 'outline.first.fill.palette.active');
+        bindSelect('tt-outline-first-fill-palette-lettering-method-input', 'outline.first.fill.palette.lettering.method');
+        bindRange('tt-outline-first-dash-input', 'outline.first.dash', parseFloat);
+        bindRange('tt-outline-first-fill-alpha-input', 'outline.first.fill.alpha', parseFloat);
+        bindCheckbox('tt-outline-first-fill-texture-active-input', 'outline.first.fill.texture.active');
+        bindSelect('tt-outline-first-fill-texture-blendmode-input', 'outline.first.fill.texture.blendmode');
+        bindSelect('tt-outline-first-fill-texture-repeat-input', 'outline.first.fill.texture.repeat');
+        bindSelect('tt-outline-first-fill-texture-position-input', 'outline.first.fill.texture.position');
+        bindSelect('tt-outline-first-fill-texture-size-input', 'outline.first.fill.texture.size');
+        bindRange('tt-outline-first-fill-texture-alpha-input', 'outline.first.fill.texture.alpha', parseFloat);
+        bindCheckbox('tt-outline-first-fill-texture-lettering-input', 'outline.first.fill.texture.lettering');
+        bindCheckbox('tt-outline-first-specular-active-input', 'outline.first.specular.active');
+        bindRange('tt-outline-first-specular-blur-input', 'outline.first.specular.blur', parseFloat);
+        bindRange('tt-outline-first-specular-scale-input', 'outline.first.specular.scale', parseFloat);
+        bindRange('tt-outline-first-specular-constant-input', 'outline.first.specular.constant', parseFloat);
+        bindRange('tt-outline-first-specular-exponent-input', 'outline.first.specular.exponent', parseFloat);
+        bindRange('tt-outline-first-specular-azimuth-input', 'outline.first.specular.azimuth', parseFloat);
+        bindRange('tt-outline-first-specular-elevation-input', 'outline.first.specular.elevation', parseFloat);
+        bindColor('tt-outline-first-specular-color-input', 'outline.first.specular.color');
+        bindSelect('tt-outline-first-specular-blendmode-input', 'outline.first.specular.blendmode');
+        bindCheckbox('tt-outline-first-specular-type-input', 'outline.first.specular.type');
+        bindRange('tt-outline-first-specular-point-x-input', 'outline.first.specular.point.x', parseFloat);
+        bindRange('tt-outline-first-specular-point-y-input', 'outline.first.specular.point.y', parseFloat);
+        bindRange('tt-outline-first-specular-point-z-input', 'outline.first.specular.point.z', parseFloat);
+        bindJoinRadio('tt-outline-first-join-input', 'outline.first.join');
 
-        // ===== ALIGNMENT =====
-        // (Align controls already handled above in TEXT section)
+        // OUTLINE #2
+        bindCheckbox('tt-outline-second-active-input', 'outline.second.active');
+        bindRange('tt-outline-second-width-input', 'outline.second.width', parseFloat);
+        bindColor('tt-outline-second-fill-color-input', 'outline.second.fill.color');
+        bindCheckbox('tt-outline-second-fill-gradient-active-input', 'outline.second.fill.gradient.active');
+        bindRange('tt-outline-second-dash-input', 'outline.second.dash', parseFloat);
+        bindRange('tt-outline-second-fill-alpha-input', 'outline.second.fill.alpha', parseFloat);
+        bindCheckbox('tt-outline-second-fill-texture-active-input', 'outline.second.fill.texture.active');
+        bindCheckbox('tt-outline-second-specular-active-input', 'outline.second.specular.active');
+        bindRange('tt-outline-second-specular-blur-input', 'outline.second.specular.blur', parseFloat);
+        bindRange('tt-outline-second-specular-scale-input', 'outline.second.specular.scale', parseFloat);
+        bindRange('tt-outline-second-specular-constant-input', 'outline.second.specular.constant', parseFloat);
+        bindRange('tt-outline-second-specular-exponent-input', 'outline.second.specular.exponent', parseFloat);
+        bindRange('tt-outline-second-specular-azimuth-input', 'outline.second.specular.azimuth', parseFloat);
+        bindRange('tt-outline-second-specular-elevation-input', 'outline.second.specular.elevation', parseFloat);
+        bindColor('tt-outline-second-specular-color-input', 'outline.second.specular.color');
+        bindJoinRadio('tt-outline-second-join-input', 'outline.second.join');
 
-        // ===== OUTLINE JOIN TYPE =====
-        const outlineJoin = document.getElementById('tt-outline-join-input');
-        if (outlineJoin) {
-            outlineJoin.addEventListener('change', function() {
-                setNestedSetting('outline.join', this.value);
-            });
-        }
+        // CONTOUR 3D
+        bindCheckbox('tt-outline-global-active-input', 'outline.global.active');
+        bindRange('tt-outline-global-width-input', 'outline.global.width', parseFloat);
+        bindColor('tt-outline-global-fill-color-input', 'outline.global.fill.color');
+        bindCheckbox('tt-outline-global-fill-gradient-active-input', 'outline.global.fill.gradient.active');
+        bindRange('tt-outline-global-fill-alpha-input', 'outline.global.fill.alpha', parseFloat);
+        bindCheckbox('tt-outline-global-shadow-active-input', 'outline.global.shadow.active');
+        bindCheckbox('tt-outline-global-mask-input', 'outline.global.mask');
+        bindCheckbox('tt-outline-global-projection-input', 'outline.global.projection');
+        bindCheckbox('tt-outline-global2-active-input', 'outline.global2.active');
+        bindRange('tt-outline-global2-width-input', 'outline.global2.width', parseFloat);
+        bindColor('tt-outline-global2-fill-color-input', 'outline.global2.fill.color');
+        bindRange('tt-outline-global2-fill-alpha-input', 'outline.global2.fill.alpha', parseFloat);
+        bindCheckbox('tt-outline-global2-shadow-active-input', 'outline.global2.shadow.active');
+        bindCheckbox('tt-outline-global2-mask-input', 'outline.global2.mask');
 
-        // ===== INNER SHADOW OFFSET =====
-        bindRange('tt-shadow-inner-offset-input', 'shadowInner.offset', function(val) {
-            return parseFloat(val);
-        });
+        // BEVEL INNER
+        bindCheckbox('tt-bevel-inner-active-input', 'bevel.inner.active');
+        bindRange('tt-bevel-inner-size-input', 'bevel.inner.size', parseFloat);
+        bindRange('tt-bevel-inner-soften-input', 'bevel.inner.soften', parseFloat);
+        bindRange('tt-bevel-inner-angle-input', 'bevel.inner.angle', parseFloat);
+        bindRange('tt-bevel-inner-altitude-input', 'bevel.inner.altitude', parseFloat);
+        bindColor('tt-bevel-inner-highlight-color-input', 'bevel.inner.highlight.color');
+        bindSelect('tt-bevel-inner-highlight-blendmode-input', 'bevel.inner.highlight.blendmode');
+        bindRange('tt-bevel-inner-highlight-alpha-input', 'bevel.inner.highlight.alpha', parseFloat);
+        bindColor('tt-bevel-inner-shadow-color-input', 'bevel.inner.shadow.color');
+        bindSelect('tt-bevel-inner-shadow-blendmode-input', 'bevel.inner.shadow.blendmode');
+        bindRange('tt-bevel-inner-shadow-alpha-input', 'bevel.inner.shadow.alpha', parseFloat);
 
-        // ===== ICON CONTROLS =====
+        // SPECULAR
+        bindCheckbox('tt-specular-inner-active-input', 'specular.inner.active');
+        bindRange('tt-specular-inner-blur-input', 'specular.inner.blur', parseFloat);
+        bindRange('tt-specular-inner-scale-input', 'specular.inner.scale', parseFloat);
+        bindRange('tt-specular-inner-constant-input', 'specular.inner.constant', parseFloat);
+        bindRange('tt-specular-inner-exponent-input', 'specular.inner.exponent', parseFloat);
+        bindRange('tt-specular-inner-azimuth-input', 'specular.inner.azimuth', parseFloat);
+        bindRange('tt-specular-inner-elevation-input', 'specular.inner.elevation', parseFloat);
+        bindColor('tt-specular-inner-color-input', 'specular.inner.color');
+
+        // INNER SHADOW #1
+        bindCheckbox('tt-shadow-inner-active-input', 'shadow.inner.active');
+        bindRange('tt-shadow-inner-size-input', 'shadow.inner.size', parseFloat);
+        bindRange('tt-shadow-inner-strength-input', 'shadow.inner.strength', parseFloat);
+        bindRange('tt-shadow-inner-alpha-input', 'shadow.inner.alpha', parseFloat);
+        bindRange('tt-shadow-inner-distance-input', 'shadow.inner.distance', parseFloat);
+        bindRange('tt-shadow-inner-angle-input', 'shadow.inner.angle', parseFloat);
+        bindRange('tt-shadow-inner-offset-input', 'shadow.inner.offset', parseFloat);
+        bindColor('tt-shadow-inner-color-input', 'shadow.inner.color');
+        bindSelect('tt-shadow-inner-blendmode-input', 'shadow.inner.blendmode');
+
+        // INNER SHADOW #2
+        bindCheckbox('tt-shadow-inner2-active-input', 'shadow.inner2.active');
+        bindRange('tt-shadow-inner2-size-input', 'shadow.inner2.size', parseFloat);
+        bindRange('tt-shadow-inner2-strength-input', 'shadow.inner2.strength', parseFloat);
+        bindRange('tt-shadow-inner2-alpha-input', 'shadow.inner2.alpha', parseFloat);
+        bindRange('tt-shadow-inner2-distance-input', 'shadow.inner2.distance', parseFloat);
+        bindRange('tt-shadow-inner2-angle-input', 'shadow.inner2.angle', parseFloat);
+        bindRange('tt-shadow-inner2-offset-input', 'shadow.inner2.offset', parseFloat);
+        bindColor('tt-shadow-inner2-color-input', 'shadow.inner2.color');
+
+        // OUTER SHADOW #1
+        bindCheckbox('tt-shadow-outer-active-input', 'shadow.outer.active');
+        bindRange('tt-shadow-outer-size-input', 'shadow.outer.size', parseFloat);
+        bindRange('tt-shadow-outer-strength-input', 'shadow.outer.strength', parseFloat);
+        bindRange('tt-shadow-outer-fill-alpha-input', 'shadow.outer.fill.alpha', parseFloat);
+        bindRange('tt-shadow-outer-distance-input', 'shadow.outer.distance', parseFloat);
+        bindRange('tt-shadow-outer-angle-input', 'shadow.outer.angle', parseFloat);
+        bindCheckbox('tt-shadow-outer-mask-input', 'shadow.outer.mask');
+        bindColor('tt-shadow-outer-fill-color-input', 'shadow.outer.fill.color');
+        bindCheckbox('tt-shadow-outer-fill-gradient-active-input', 'shadow.outer.fill.gradient.active');
+
+        // OUTER SHADOW #2
+        bindCheckbox('tt-shadow-outer2-active-input', 'shadow.outer2.active');
+        bindRange('tt-shadow-outer2-size-input', 'shadow.outer2.size', parseFloat);
+        bindRange('tt-shadow-outer2-strength-input', 'shadow.outer2.strength', parseFloat);
+        bindRange('tt-shadow-outer2-fill-alpha-input', 'shadow.outer2.fill.alpha', parseFloat);
+        bindRange('tt-shadow-outer2-distance-input', 'shadow.outer2.distance', parseFloat);
+        bindRange('tt-shadow-outer2-angle-input', 'shadow.outer2.angle', parseFloat);
+        bindCheckbox('tt-shadow-outer2-mask-input', 'shadow.outer2.mask');
+        bindColor('tt-shadow-outer2-fill-color-input', 'shadow.outer2.fill.color');
+
+        // ICON
         bindCheckbox('tt-icon-active-input', 'icon.active');
-        const iconSrc = document.getElementById('tt-icon-src-input');
-        if (iconSrc) {
-            iconSrc.addEventListener('input', function() {
-                setNestedSetting('icon.src', this.value);
-            });
-        }
-        const iconPosition = document.getElementById('tt-icon-position-input');
-        if (iconPosition) {
-            iconPosition.addEventListener('change', function() {
-                setNestedSetting('icon.position', this.value);
-            });
-        }
-        bindRange('tt-icon-size-input', 'icon.size', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-icon-offset-x-input', 'icon.offset.x', function(val) {
-            return parseFloat(val);
-        });
-        bindRange('tt-icon-offset-y-input', 'icon.offset.y', function(val) {
-            return parseFloat(val);
-        });
+        bindRange('tt-icon-size-input', 'icon.size', parseFloat);
+        bindSelect('tt-icon-position-input', 'icon.position');
+        bindRange('tt-icon-offset-x-input', 'icon.offset.x', parseFloat);
+        bindRange('tt-icon-offset-y-input', 'icon.offset.y', parseFloat);
+        bindRange('tt-icon-rotate-input', 'icon.rotate', parseFloat);
+        bindRange('tt-icon-alpha-input', 'icon.alpha', parseFloat);
+        bindSelect('tt-icon-composite-input', 'icon.composite');
 
-        // ===== BACKGROUND IMAGE CONTROLS =====
-        bindCheckbox('tt-background-image-active-input', 'background.image.active');
-        const bgImageSrc = document.getElementById('tt-background-image-input');
-        if (bgImageSrc) {
-            bgImageSrc.addEventListener('input', function() {
-                setNestedSetting('background.image.src', this.value);
-            });
-        }
-        const bgImageSize = document.getElementById('tt-background-image-size-input');
-        if (bgImageSize) {
-            bgImageSize.addEventListener('change', function() {
-                setNestedSetting('background.image.size', this.value);
+        // BACKGROUND
+        bindCheckbox('tt-background-active-input', 'background.active');
+        bindColor('tt-background-fill-color-input', 'background.fill.color');
+        bindCheckbox('tt-background-fill-gradient-active-input', 'background.fill.gradient.active');
+        bindSelect('tt-background-fill-gradient-type-input', 'background.fill.gradient.type');
+        bindRange('tt-background-fill-gradient-angle-input', 'background.fill.gradient.angle', parseFloat);
+        bindRange('tt-background-fill-alpha-input', 'background.fill.alpha', parseFloat);
+        bindCheckbox('tt-background-fill-image-active-input', 'background.fill.image.active');
+        bindSelect('tt-background-fill-image-repeat-input', 'background.fill.image.repeat');
+        bindRange('tt-background-fill-image-alpha-input', 'background.fill.image.alpha', parseFloat);
+        bindRange('tt-background-fill-image-size-custom-input', 'background.fill.image.size.custom', parseFloat);
+        bindSelect('tt-background-composite-input', 'background.composite');
+
+        // Background image size type controls visibility of custom size option
+        const bgSizeType = document.getElementById('tt-background-fill-image-size-type-input');
+        const bgSizeCustom = document.getElementById('tt-background-fill-image-size-custom-option');
+        if (bgSizeType && bgSizeCustom) {
+            bgSizeType.addEventListener('change', function() {
+                setNestedSetting('background.fill.image.size', this.value);
+                bgSizeCustom.style.display = this.value === 'custom' ? 'block' : 'none';
             });
         }
     }
 
-    // Helper: Bind range input
-    function bindRange(id, path, transform) {
+    // Helper: bind textarea
+    function bindTextarea(id, settingPath) {
         const el = document.getElementById(id);
         if (!el) return;
+        el.addEventListener('input', function() {
+            setNestedSetting(settingPath, this.value);
+        });
+    }
 
+    // Helper: bind align list (icon-based selection)
+    function bindAlignList(inputId, settingPath) {
+        const input = document.getElementById(inputId);
+        const list = input?.parentElement?.querySelector('.tt-align-list');
+        if (!list || !input) return;
+        list.addEventListener('click', function(e) {
+            const li = e.target.closest('li');
+            if (!li || !li.dataset.id) return;
+            input.value = li.dataset.id;
+            this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+            li.classList.add('selected');
+            setNestedSetting(settingPath, li.dataset.id);
+        });
+    }
+
+    // Helper: bind font weight toggle
+    function bindFontWeight(inputId) {
+        const input = document.getElementById(inputId);
+        const list = document.querySelector('.tt-font-options-list');
+        if (!input || !list) return;
+        list.addEventListener('click', function(e) {
+            const li = e.target.closest('li');
+            if (!li) return;
+            const newValue = input.value === 'normal' ? 'bold' : 'normal';
+            input.value = newValue;
+            this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+            if (newValue === 'bold') li.classList.add('selected');
+            setNestedSetting('font.weight', newValue);
+        });
+    }
+
+    // Helper: bind range input with render trigger
+    function bindRangeWithRender(id, settingPath, transformFn) {
+        const el = document.getElementById(id);
+        if (!el) return;
         updateRangeFill(el);
-
         el.addEventListener('input', function() {
-            updateRangeFill(el);
-            const value = transform ? transform(this.value) : this.value;
-            setNestedSetting(path, value);
+            updateRangeFill(this);
+            const val = transformFn ? transformFn(this.value) : this.value;
+            setNestedSetting(settingPath, val);
         });
     }
 
-    // Helper: Bind checkbox
-    function bindCheckbox(id, path) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('change', function() {
-            setNestedSetting(path, this.checked);
+    // Helper: bind join/vertices radio-style list
+    function bindJoinRadio(inputId, settingPath) {
+        const input = document.getElementById(inputId);
+        const list = input?.parentElement?.querySelector('.tt-outline-join-list');
+        if (!list || !input) return;
+        list.addEventListener('click', function(e) {
+            const li = e.target.closest('li');
+            if (!li || !li.dataset.id) return;
+            input.value = li.dataset.id;
+            this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+            li.classList.add('selected');
+            setNestedSetting(settingPath, li.dataset.id);
         });
     }
 
-    // Helper: Bind color input
-    function bindColor(id, path) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('input', function() {
-            setNestedSetting(path, this.value);
-        });
-    }
-
-    // Helper: Set nested setting
-    function setNestedSetting(path, value) {
-        const parts = path.split('.');
-        const settings = editor.getSettings();
-        let obj = settings;
-        for (let i = 0; i < parts.length - 1; i++) {
-            obj = obj[parts[i]];
-        }
-        obj[parts[parts.length - 1]] = value;
-        editor.render();
-    }
-
-    // Helper: Update range slider fill
-    function updateRangeFill(el) {
-        const min = parseFloat(el.min) || 0;
-        const max = parseFloat(el.max) || 1;
-        const val = parseFloat(el.value) || 0;
-        const percent = ((val - min) / (max - min)) * 100;
-        el.style.background = 'linear-gradient(90deg, #4a90d9 ' + percent + '%, #ddd ' + percent + '%)';
-        // Also update the HTML value attribute to reflect current value
-        el.setAttribute('value', val);
-    }
-
-    // ===== MENU TAB SWITCHING =====
-    function bindMenuTabs() {
-        const menuItems = document.querySelectorAll('#tt-options-menu li');
-        const sections = document.querySelectorAll('#tt-options section');
-
-        menuItems.forEach(item => {
-            item.addEventListener('click', function() {
-                menuItems.forEach(el => el.classList.remove('selected'));
-                this.classList.add('selected');
-
-                const name = this.dataset.name;
-                sections.forEach(section => {
-                    section.classList.remove('active');
-                    if (section.dataset.name === name) {
-                        section.classList.add('active');
-                    }
-                });
+    // ===== TT-SHOW-BROTHER TABS =====
+    function initShowBrotherTabs() {
+        document.querySelectorAll('.tt-show-brother').forEach(function(tabList) {
+            tabList.addEventListener('click', function(e) {
+                const li = e.target.closest('li');
+                if (!li || !li.dataset.show) return;
+                this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+                li.classList.add('selected');
+                const parent = this.closest('.tt-column-inner');
+                if (parent) {
+                    parent.querySelectorAll('fieldset').forEach(fs => {
+                        fs.style.display = fs.id === li.dataset.show ? 'block' : 'none';
+                    });
+                }
             });
         });
     }
 
-    // ===== CUSTOM MENU (Fill, Outline, Shadow, Bevel, Lettering, Distort) =====
+    // ===== TEXTURE UPLOADS =====
+    function initTextureUploads() {
+        document.querySelectorAll('input[type="file"][accept="image/*"]').forEach(function(input) {
+            input.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const dataUrl = ev.target.result;
+                    const settingPath = input.dataset.ttOption;
+                    if (settingPath) setNestedSetting(settingPath, dataUrl);
+                    const preview = input.parentElement.nextElementSibling;
+                    if (preview && preview.classList.contains('tt-texture-preview')) {
+                        preview.style.display = 'block';
+                        const img = preview.querySelector('.tt-texture-preview-image');
+                        if (img) img.src = dataUrl;
+                    }
+                    const previewContainer = input.closest('.tt-option')?.querySelector('[id$="preview-container"]');
+                    if (previewContainer) {
+                        previewContainer.style.display = 'block';
+                        const img = previewContainer.querySelector('img');
+                        if (img) img.src = dataUrl;
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        // Delete texture buttons
+        document.querySelectorAll('.tt-texture-delete-icon, [id$="preview-delete-icon"]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const preview = this.closest('.tt-texture-preview, [id$="preview-container"]');
+                if (preview) preview.style.display = 'none';
+                const option = this.closest('.tt-option, fieldset');
+                if (option) {
+                    const fileInput = option.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.value = '';
+                        const settingPath = fileInput.dataset.ttOption;
+                        if (settingPath) setNestedSetting(settingPath, null);
+                    }
+                }
+            });
+        });
+    }
+
+    // ===== ICON GALLERY =====
+    function initIconGallery() {
+        const gallery = document.getElementById('tt-icon-gallery');
+        const searchInput = document.getElementById('tt-icon-search-input');
+        if (!gallery) return;
+
+        function loadIcons() {
+            return [
+                {id:'96', file:'https://cdn.textstudio.com/output/clipart/0/0/6/9/96_c0d92.svg', title:'Fire'},
+                {id:'352', file:'https://cdn.textstudio.com/output/clipart/0/2/5/3/352_36130.svg', title:'Youtube Logo'},
+                {id:'376', file:'https://cdn.textstudio.com/output/clipart/0/6/7/3/376_6456f.svg', title:'Instagram Logo'},
+                {id:'528', file:'https://cdn.textstudio.com/output/clipart/0/8/2/5/528_5ff44.svg', title:'Heart'},
+                {id:'1320', file:'https://cdn.textstudio.com/output/clipart/0/2/3/1/1320_65c7f.svg', title:'Discord Logo'},
+                {id:'1541', file:'https://cdn.textstudio.com/output/clipart/1/4/5/1/1541_4cdae.svg', title:'Whatsapp Logo'},
+                {id:'2636', file:'https://cdn.textstudio.com/output/clipart/6/3/6/2/2636_7808e.svg', title:'Tiktok Logo'},
+                {id:'2853', file:'https://cdn.textstudio.com/output/clipart/3/5/8/2/2853_f15fb.svg', title:'Rating Star'},
+                {id:'4433', file:'https://cdn.textstudio.com/output/clipart/3/3/4/4/4433_e32f1.svg', title:'Stars'},
+                {id:'5159', file:'https://cdn.textstudio.com/output/clipart/9/5/1/5/5159_4f0f9.svg', title:'Black Roblox Logo'},
+                {id:'6470', file:'https://cdn.textstudio.com/output/clipart/0/7/4/6/6470_efb84.svg', title:'Instagram'},
+                {id:'6706', file:'https://cdn.textstudio.com/output/clipart/6/0/7/6/6706_2c9d7.svg', title:'Youtube Logo'},
+                {id:'8238', file:'https://cdn.textstudio.com/output/clipart/8/3/2/8/8238_e8654.svg', title:'Onlyfans Logo'},
+                {id:'8449', file:'https://cdn.textstudio.com/output/clipart/9/4/4/8/8449_3847a.svg', title:'Butterflies'},
+                {id:'9472', file:'https://cdn.textstudio.com/output/clipart/2/7/4/9/9472_4bfce.svg', title:'Cartoon Eyes Wink'},
+                {id:'12049', file:'https://cdn.textstudio.com/output/clipart/9/4/0/2/12049_d3ab6.svg', title:'Red Hearts'},
+                {id:'18208', file:'https://cdn.textstudio.com/output/clipart/8/0/2/8/18208_93c82.svg', title:'Minecraft'},
+                {id:'18209', file:'https://cdn.textstudio.com/output/clipart/9/0/2/8/18209_38953.svg', title:'Nike'},
+                {id:'18214', file:'https://cdn.textstudio.com/output/clipart/4/1/2/8/18214_dfb84.svg', title:'Mushroom'},
+                {id:'18375', file:'https://cdn.textstudio.com/output/clipart/5/7/3/8/18375_8082d.svg', title:'Pokemon'},
+                {id:'18675', file:'https://cdn.textstudio.com/output/clipart/5/7/6/8/18675_917d9.svg', title:'4k'},
+                {id:'20690', file:'https://cdn.textstudio.com/output/clipart/0/9/6/0/20690_77547.svg', title:'GTA'},
+                {id:'20734', file:'https://cdn.textstudio.com/output/clipart/4/3/7/0/20734_dc266.svg', title:'Spiderman'},
+                {id:'20938', file:'https://cdn.textstudio.com/output/clipart/8/3/9/0/20938_5a2f8.svg', title:'Minecraft'},
+                {id:'20939', file:'https://cdn.textstudio.com/output/clipart/9/3/9/0/20939_96b92.svg', title:'Fortnite'},
+                {id:'20940', file:'https://cdn.textstudio.com/output/clipart/0/4/9/0/20940_eb462.svg', title:'YouTube'},
+                {id:'20948', file:'https://cdn.textstudio.com/output/clipart/8/4/9/0/20948_5633f.svg', title:'Dragon Ball Z'},
+                {id:'20963', file:'https://cdn.textstudio.com/output/clipart/3/6/9/0/20963_141b4.svg', title:'Minecraft Creeper'},
+                {id:'21022', file:'https://cdn.textstudio.com/output/clipart/2/2/0/1/21022_6da28.svg', title:'Naruto'},
+                {id:'21025', file:'https://cdn.textstudio.com/output/clipart/5/2/0/1/21025_30681.svg', title:'One Piece'},
+                {id:'21045', file:'https://cdn.textstudio.com/output/clipart/5/4/0/1/21045_233af.svg', title:'Barbie'},
+                {id:'21047', file:'https://cdn.textstudio.com/output/clipart/7/4/0/1/21047_15219.svg', title:'Super Mario'},
+                {id:'21049', file:'https://cdn.textstudio.com/output/clipart/9/4/0/1/21049_86905.svg', title:'Dragon Ball Goku'},
+                {id:'22151', file:'https://cdn.textstudio.com/output/clipart/1/5/1/2/22151_f2404.svg', title:'Hello Kitty'},
+                {id:'25347', file:'https://cdn.textstudio.com/output/clipart/7/4/3/5/25347_ba990.svg', title:'X Twitter'},
+                {id:'25541', file:'https://cdn.textstudio.com/output/clipart/1/4/5/5/25541_1fb8e.svg', title:'Golden Crown'},
+                {id:'25855', file:'https://cdn.textstudio.com/output/clipart/5/5/8/5/25855_915ab.svg', title:'Skull'},
+                {id:'25968', file:'https://cdn.textstudio.com/output/clipart/8/6/9/5/25968_b7c9b.svg', title:'Heart creature'},
+                {id:'26186', file:'https://cdn.textstudio.com/output/clipart/6/8/1/6/26186_e7180.svg', title:'Adidas'},
+                {id:'26224', file:'https://cdn.textstudio.com/output/clipart/4/2/2/6/26224_d5d8f.svg', title:'KFC'},
+                {id:'26249', file:'https://cdn.textstudio.com/output/clipart/9/4/2/6/26249_af59b.svg', title:'Playstation'},
+                {id:'26252', file:'https://cdn.textstudio.com/output/clipart/2/5/2/6/26252_0667a.svg', title:'Eagle'},
+                {id:'26264', file:'https://cdn.textstudio.com/output/clipart/4/6/2/6/26264_d5ea7.svg', title:'Bluey'},
+                {id:'26887', file:'https://cdn.textstudio.com/output/clipart/7/8/8/6/26887_3dd80.svg', title:'Sparkling Star'},
+                {id:'27250', file:'https://cdn.textstudio.com/output/clipart/0/5/2/7/27250_378f8.svg', title:'Red Dripping Paint'},
+            ];
+        }
+
+        function renderIcons(icons) {
+            gallery.innerHTML = '';
+            icons.forEach(function(icon) {
+                const li = document.createElement('li');
+                li.dataset.id = icon.id;
+                li.dataset.file = icon.file;
+                li.title = icon.title;
+                const img = document.createElement('img');
+                img.src = icon.file.replace('.svg', '.webp').replace('/clipart/', '/clipart/preview/small/');
+                img.alt = icon.title;
+                img.loading = 'lazy';
+                li.appendChild(img);
+                li.addEventListener('click', function() {
+                    setNestedSetting('icon.src', icon.file);
+                    const preview = document.getElementById('tt-icon-preview-container');
+                    if (preview) {
+                        preview.style.display = 'block';
+                        const pimg = preview.querySelector('img');
+                        if (pimg) pimg.src = icon.file;
+                    }
+                    gallery.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+                gallery.appendChild(li);
+            });
+        }
+
+        const allIcons = loadIcons();
+        renderIcons(allIcons);
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const q = this.value.toLowerCase();
+                const filtered = allIcons.filter(function(icon) {
+                    return icon.title.toLowerCase().includes(q);
+                });
+                renderIcons(filtered);
+                const noResult = document.getElementById('tt-icon-list-no-result');
+                if (noResult) noResult.style.display = filtered.length === 0 ? 'block' : 'none';
+            });
+        }
+    }
+
+    // ===== BACKGROUND GALLERY =====
+    function initBackgroundGallery() {
+        const gallery = document.getElementById('tt-background-gallery');
+        const searchInput = document.getElementById('tt-background-search-input');
+        if (!gallery) return;
+
+        const backgrounds = [
+            {id:'391', title:'Transparent', preset:'https://cdn.textstudio.com/output/background/0/1/9/3/391_84432.json'},
+            {id:'385', title:'White', preset:'https://cdn.textstudio.com/output/background/0/5/8/3/385_23afc.json'},
+            {id:'386', title:'Black', preset:'https://cdn.textstudio.com/output/background/0/6/8/3/386_0fae0.json'},
+            {id:'70', title:'Kimoby Blue', preset:'https://cdn.textstudio.com/output/background/0/0/0/7/70_eb29a.json'},
+            {id:'356', title:'Blood splash', preset:'https://cdn.textstudio.com/output/background/0/6/5/3/356_90e90.json'},
+            {id:'376', title:'Blurred circles', preset:'https://cdn.textstudio.com/output/background/0/6/7/3/376_15b81.json'},
+            {id:'380', title:'Hearts', preset:'https://cdn.textstudio.com/output/background/0/0/8/3/380_ff91f.json'},
+            {id:'384', title:'Sky', preset:'https://cdn.textstudio.com/output/background/0/4/8/3/384_89785.json'},
+            {id:'389', title:'Golden', preset:'https://cdn.textstudio.com/output/background/0/9/8/3/389_36ff1.json'},
+            {id:'421', title:'Space Earth', preset:'https://cdn.textstudio.com/output/background/0/1/2/4/421_cb4b9.json'},
+            {id:'427', title:'Rainbow swirl', preset:'https://cdn.textstudio.com/output/background/0/7/2/4/427_58338.json'},
+            {id:'447', title:'Smoke', preset:'https://cdn.textstudio.com/output/background/0/7/4/4/447_be2e2.json'},
+            {id:'452', title:'Thunder', preset:'https://cdn.textstudio.com/output/background/0/2/5/4/452_c75f0.json'},
+            {id:'858', title:'Circular', preset:'https://cdn.textstudio.com/output/background/0/8/5/8/858_ab743.json'},
+            {id:'941', title:'Pop Art', preset:'https://cdn.textstudio.com/output/background/0/1/4/9/941_25235.json'},
+            {id:'964', title:'Minecraft', preset:'https://cdn.textstudio.com/output/background/0/4/6/9/964_eb3a3.json'},
+            {id:'981', title:'Comic bubbles', preset:'https://cdn.textstudio.com/output/background/0/1/8/9/981_f147d.json'},
+            {id:'999', title:'Retro 80s', preset:'https://cdn.textstudio.com/output/background/0/9/9/9/999_65d81.json'},
+            {id:'1040', title:'Green screen', preset:'https://cdn.textstudio.com/output/background/0/4/0/1/1040_81bc8.json'},
+            {id:'1086', title:'Brick', preset:'https://cdn.textstudio.com/output/background/6/8/0/1/1086_435a6.json'},
+            {id:'1114', title:'Purple splash', preset:'https://cdn.textstudio.com/output/background/4/1/1/1/1114_bb229.json'},
+            {id:'1115', title:'Blue splash', preset:'https://cdn.textstudio.com/output/background/5/1/1/1/1115_32f55.json'},
+            {id:'1117', title:'Green splash', preset:'https://cdn.textstudio.com/output/background/7/1/1/1/1117_ef1cc.json'},
+            {id:'1156', title:'Sun Vintage', preset:'https://cdn.textstudio.com/output/background/6/5/1/1/1156_b0b9e.json'},
+            {id:'1182', title:'Neon Square', preset:'https://cdn.textstudio.com/output/background/2/8/1/1/1182_321b3.json'},
+            {id:'1186', title:'Fantasy', preset:'https://cdn.textstudio.com/output/background/6/8/1/1/1186_bf78a.json'},
+            {id:'1197', title:'Dragon Ball Z', preset:'https://cdn.textstudio.com/output/background/7/9/1/1/1197_577a0.json'},
+            {id:'1211', title:'Blue gradient', preset:'https://cdn.textstudio.com/output/background/1/1/2/1/1211_e4fc1.json'},
+            {id:'1222', title:'Fortnite gradient', preset:'https://cdn.textstudio.com/output/background/2/2/2/1/1222_a13ce.json'},
+            {id:'1223', title:'Orange sunburst', preset:'https://cdn.textstudio.com/output/background/3/2/2/1/1223_c4c60.json'},
+            {id:'1225', title:'Black Wall', preset:'https://cdn.textstudio.com/output/background/5/2/2/1/1225_382c9.json'},
+            {id:'1231', title:'Sunburst Turquoise', preset:'https://cdn.textstudio.com/output/background/1/3/2/1/1231_294a7.json'},
+            {id:'1236', title:'Pink', preset:'https://cdn.textstudio.com/output/background/6/3/2/1/1236_5c21a.json'},
+            {id:'1237', title:'Love', preset:'https://cdn.textstudio.com/output/background/7/3/2/1/1237_16afd.json'},
+            {id:'1238', title:'Yellow sunburst', preset:'https://cdn.textstudio.com/output/background/8/3/2/1/1238_9a094.json'},
+            {id:'1240', title:'Red Gold', preset:'https://cdn.textstudio.com/output/background/0/4/2/1/1240_f0c17.json'},
+            {id:'1242', title:'Happy New Year', preset:'https://cdn.textstudio.com/output/background/2/4/2/1/1242_0d65e.json'},
+            {id:'1251', title:'Galaxy', preset:'https://cdn.textstudio.com/output/background/1/5/2/1/1251_21994.json'},
+            {id:'1252', title:'Cloud', preset:'https://cdn.textstudio.com/output/background/2/5/2/1/1252_a329e.json'},
+            {id:'1256', title:'Retro', preset:'https://cdn.textstudio.com/output/background/6/5/2/1/1256_21482.json'},
+            {id:'1265', title:'Retro', preset:'https://cdn.textstudio.com/output/background/5/6/2/1/1265_c9a29.json'},
+            {id:'1270', title:'Retro', preset:'https://cdn.textstudio.com/output/background/0/7/2/1/1270_c45bb.json'},
+            {id:'1303', title:'Retro', preset:'https://cdn.textstudio.com/output/background/3/0/3/1/1303_255a4.json'},
+            {id:'1316', title:'Synthwave 80s', preset:'https://cdn.textstudio.com/output/background/6/1/3/1/1316_d847f.json'},
+            {id:'1322', title:'Futuristic digital', preset:'https://cdn.textstudio.com/output/background/2/2/3/1/1322_f096b.json'},
+            {id:'1323', title:'Warning stripes', preset:'https://cdn.textstudio.com/output/background/3/2/3/1/1323_410d1.json'},
+            {id:'1326', title:'Tech wave', preset:'https://cdn.textstudio.com/output/background/6/2/3/1/1326_f3698.json'},
+            {id:'1331', title:'Pink stripes', preset:'https://cdn.textstudio.com/output/background/1/3/3/1/1331_eaa54.json'},
+            {id:'1332', title:'Pink hearts', preset:'https://cdn.textstudio.com/output/background/2/3/3/1/1332_bf831.json'},
+            {id:'1338', title:'Halftone comic', preset:'https://cdn.textstudio.com/output/background/8/3/3/1/1338_684fc.json'},
+            {id:'1343', title:'Spongebob', preset:'https://cdn.textstudio.com/output/background/3/4/3/1/1343_ffa8f.json'},
+            {id:'1365', title:'Sun burst', preset:'https://cdn.textstudio.com/output/background/5/6/3/1/1365_79f41.json'},
+            {id:'1371', title:'Spider', preset:'https://cdn.textstudio.com/output/background/1/7/3/1/1371_6f2e5.json'},
+            {id:'1372', title:'Red Comic', preset:'https://cdn.textstudio.com/output/background/2/7/3/1/1372_15e6a.json'},
+            {id:'1373', title:'Golden crown', preset:'https://cdn.textstudio.com/output/background/3/7/3/1/1373_d354c.json'},
+            {id:'1380', title:'Soft gradient', preset:'https://cdn.textstudio.com/output/background/0/8/3/1/1380_4ca61.json'},
+            {id:'1382', title:'Optical illusion', preset:'https://cdn.textstudio.com/output/background/2/8/3/1/1382_90001.json'},
+            {id:'1391', title:'Pastel sky glitter', preset:'https://cdn.textstudio.com/output/background/1/9/3/1/1391_84a46.json'},
+            {id:'1403', title:'Minnie Mouse', preset:'https://cdn.textstudio.com/output/background/3/0/4/1/1403_0d828.json'},
+            {id:'1414', title:'Rainbow stripes', preset:'https://cdn.textstudio.com/output/background/4/1/4/1/1414_5248f.json'},
+            {id:'1436', title:'Holi color', preset:'https://cdn.textstudio.com/output/background/6/3/4/1/1436_903ec.json'},
+            {id:'1469', title:'Blue Light', preset:'https://cdn.textstudio.com/output/background/9/6/4/1/1469_30763.json'},
+            {id:'1470', title:'Blue pink rays', preset:'https://cdn.textstudio.com/output/background/0/7/4/1/1470_ca194.json'},
+            {id:'1489', title:'Comic pink', preset:'https://cdn.textstudio.com/output/background/9/8/4/1/1489_7dd48.json'},
+            {id:'1493', title:'Dark Black', preset:'https://cdn.textstudio.com/output/background/3/9/4/1/1493_f05cb.json'},
+            {id:'1494', title:'Abstract dark', preset:'https://cdn.textstudio.com/output/background/4/9/4/1/1494_0b373.json'},
+            {id:'1496', title:'Blue portal', preset:'https://cdn.textstudio.com/output/background/6/9/4/1/1496_7b16b.json'},
+            {id:'1502', title:'Cyberpunk', preset:'https://cdn.textstudio.com/output/background/2/0/5/1/1502_69a6d.json'},
+            {id:'1505', title:'Comic blue', preset:'https://cdn.textstudio.com/output/background/5/0/5/1/1505_86195.json'},
+            {id:'1537', title:'Retro psychedelic', preset:'https://cdn.textstudio.com/output/background/7/3/5/1/1537_75ff0.json'},
+            {id:'1545', title:'70s funky', preset:'https://cdn.textstudio.com/output/background/5/4/5/1/1545_d60d0.json'},
+            {id:'1551', title:'Palm Silhouettes', preset:'https://cdn.textstudio.com/output/background/1/5/5/1/1551_bac18.json'},
+            {id:'1559', title:'Yellow Splash', preset:'https://cdn.textstudio.com/output/background/9/5/5/1/1559_fca1b.json'},
+            {id:'1586', title:'Purple circle', preset:'https://cdn.textstudio.com/output/background/6/8/5/1/1586_2093b.json'},
+            {id:'1593', title:'Minecraft Dungeons', preset:'https://cdn.textstudio.com/output/background/3/9/5/1/1593_6b0d8.json'},
+            {id:'1597', title:'GTA', preset:'https://cdn.textstudio.com/output/background/7/9/5/1/1597_be070.json'},
+            {id:'1599', title:'Dark Blue Brick', preset:'https://cdn.textstudio.com/output/background/9/9/5/1/1599_96efb.json'},
+            {id:'1606', title:'Space', preset:'https://cdn.textstudio.com/output/background/6/0/6/1/1606_37998.json'},
+            {id:'1618', title:'Purple Sunburst', preset:'https://cdn.textstudio.com/output/background/8/1/6/1/1618_862a7.json'},
+            {id:'1620', title:'Cloudy sky', preset:'https://cdn.textstudio.com/output/background/0/2/6/1/1620_5049f.json'},
+            {id:'1628', title:'Ronaldo', preset:'https://cdn.textstudio.com/output/background/8/2/6/1/1628_a5db2.json'},
+            {id:'1638', title:'Flash Sale', preset:'https://cdn.textstudio.com/output/background/8/3/6/1/1638_f5234.json'},
+            {id:'1644', title:'Brick Wall', preset:'https://cdn.textstudio.com/output/background/4/4/6/1/1644_e2cee.json'},
+            {id:'1656', title:'Comic Pop Art Pink', preset:'https://cdn.textstudio.com/output/background/6/5/6/1/1656_021bf.json'},
+            {id:'1664', title:'Purple pink clouds', preset:'https://cdn.textstudio.com/output/background/4/6/6/1/1664_fe70f.json'},
+            {id:'1690', title:'Pennant flags', preset:'https://cdn.textstudio.com/output/background/0/9/6/1/1690_125ed.json'},
+            {id:'1693', title:'Speech bubble pink', preset:'https://cdn.textstudio.com/output/background/3/9/6/1/1693_a2d13.json'},
+            {id:'1703', title:'Neon Heart', preset:'https://cdn.textstudio.com/output/background/3/0/7/1/1703_8ceb8.json'},
+            {id:'1721', title:'Christmas Red', preset:'https://cdn.textstudio.com/output/background/1/2/7/1/1721_505e8.json'},
+            {id:'2025', title:'Silhouette Drip', preset:'https://cdn.textstudio.com/output/background/5/2/0/2/2025_2d91a.json'},
+        ];
+
+        function renderBackgrounds(bgs) {
+            gallery.innerHTML = '';
+            bgs.forEach(function(bg) {
+                const li = document.createElement('li');
+                li.title = bg.title;
+                li.dataset.id = bg.id;
+                li.dataset.preset = bg.preset;
+                const div = document.createElement('div');
+                div.style.backgroundImage = 'url(https://cdn.textstudio.com/output/background/preview/small/' + bg.id + '_' + bg.preset.split('/').pop().split('_')[1].replace('.json', '') + '.webp)';
+                div.style.backgroundSize = 'cover';
+                div.style.width = '100%';
+                div.style.height = '100%';
+                li.appendChild(div);
+                li.addEventListener('click', function() {
+                    fetch(bg.preset)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data && data.background) {
+                                const bgSettings = data.background;
+                                if (bgSettings.fill) {
+                                    if (bgSettings.fill.color) setNestedSetting('background.fill.color', bgSettings.fill.color);
+                                    if (bgSettings.fill.alpha !== undefined) setNestedSetting('background.fill.alpha', bgSettings.fill.alpha);
+                                }
+                                if (bgSettings.fill && bgSettings.fill.gradient) {
+                                    setNestedSetting('background.fill.gradient.active', true);
+                                    if (bgSettings.fill.gradient.colors) setNestedSetting('background.fill.gradient.colors', bgSettings.fill.gradient.colors);
+                                    if (bgSettings.fill.gradient.type) setNestedSetting('background.fill.gradient.type', bgSettings.fill.gradient.type);
+                                }
+                                if (bgSettings.fill && bgSettings.fill.image && bgSettings.fill.image.src) {
+                                    setNestedSetting('background.fill.image.active', true);
+                                    setNestedSetting('background.fill.image.src', bgSettings.fill.image.src);
+                                }
+                                setNestedSetting('background.active', true);
+                            }
+                        })
+                        .catch(function() {
+                            setNestedSetting('background.active', true);
+                        });
+                    gallery.querySelectorAll('li').forEach(function(item) { item.classList.remove('selected'); });
+                    this.classList.add('selected');
+                });
+                gallery.appendChild(li);
+            });
+        }
+
+        renderBackgrounds(backgrounds);
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const q = this.value.toLowerCase();
+                const filtered = backgrounds.filter(function(bg) {
+                    return bg.title.toLowerCase().includes(q);
+                });
+                renderBackgrounds(filtered);
+                const noResult = document.getElementById('tt-background-list-no-result');
+                if (noResult) noResult.style.display = filtered.length === 0 ? 'block' : 'none';
+            });
+        }
+    }
+
+    // ===== MENU TABS =====
+    function bindMenuTabs() {
+        const menu = document.getElementById('tt-options-menu');
+        const options = document.getElementById('tt-options');
+        if (!menu || !options) return;
+
+        menu.addEventListener('click', function(e) {
+            const li = e.target.closest('li');
+            if (!li || !li.dataset.name) return;
+            menu.querySelectorAll('li').forEach(function(item) { item.classList.remove('selected'); });
+            li.classList.add('selected');
+            const sectionName = li.dataset.name;
+            options.querySelectorAll('section').forEach(function(section) {
+                section.style.display = section.dataset.name === sectionName ? 'flex' : 'none';
+            });
+        });
+    }
+
+    // ===== CUSTOM MENU (STYLES sub-tabs) =====
     function bindCustomMenu() {
-        const customMenuItems = document.querySelectorAll('#tt-custom-menu li');
-        const columns = document.querySelectorAll('[data-custom]');
+        const customMenu = document.getElementById('tt-custom-menu');
+        if (!customMenu) return;
 
-        customMenuItems.forEach(item => {
-            item.addEventListener('click', function() {
-                customMenuItems.forEach(el => el.classList.remove('selected'));
-                this.classList.add('selected');
-
-                const filter = this.dataset.filter;
-                columns.forEach(col => {
-                    col.style.display = 'flex';
-                    if (col.dataset.custom && col.dataset.custom !== filter) {
+        customMenu.addEventListener('click', function(e) {
+            const li = e.target.closest('li');
+            if (!li || !li.dataset.filter) return;
+            customMenu.querySelectorAll('li').forEach(function(item) { item.classList.remove('selected'); });
+            li.classList.add('selected');
+            const filter = li.dataset.filter;
+            const columns = this.closest('section').querySelector('.tt-columns');
+            if (columns) {
+                columns.querySelectorAll('.tt-column').forEach(function(col) {
+                    const custom = col.dataset.custom;
+                    if (custom && custom.startsWith(filter)) {
+                        col.style.display = 'flex';
+                    } else {
                         col.style.display = 'none';
                     }
                 });
-            });
+            }
         });
     }
 
     // ===== DOWNLOAD CONTROLS =====
     function bindDownloadControls() {
-        function bindCanvasDimension(id, key) {
-            const input = document.getElementById(id);
-            if (!input) return;
-            input.addEventListener('input', function() {
-                const value = Math.max(100, Math.min(8000, parseInt(this.value, 10) || 0));
-                if (!value) return;
-                const settings = editor.getSettings();
-                settings.canvas[key] = value;
-                editor.render();
-            });
-        }
-        bindCanvasDimension('tt-custom-width-input', 'width');
-        bindCanvasDimension('tt-custom-height-input', 'height');
         const downloadBtn = document.getElementById('tt-download-btn');
         if (downloadBtn) {
             downloadBtn.addEventListener('click', function() {
-                if (window.ExportManager) ExportManager.download();
-            });
-        }
-        const sizeList = document.getElementById('tt-download-size-list');
-        if (sizeList) {
-            sizeList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li && li.dataset.size) {
-                    document.querySelectorAll('#tt-download-size-list li').forEach(el => el.classList.remove('selected'));
-                    li.classList.add('selected');
-                    setNestedSetting('download.size', li.dataset.size);
+                if (window.TextMuyAPI) {
+                    const width = parseInt(document.getElementById('tt-download-width-input')?.value || 240);
+                    const height = parseInt(document.getElementById('tt-download-height-input')?.value || 600);
+                    const scale = parseFloat(document.getElementById('tt-download-scale-input')?.value || 1);
+                    TextMuyAPI.downloadPNG({ width: width * scale, height: height * scale });
                 }
             });
         }
 
-        const formatList = document.getElementById('tt-download-format-list');
-        if (formatList) {
-            formatList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li && li.dataset.format) {
-                    document.querySelectorAll('#tt-download-format-list li').forEach(el => el.classList.remove('selected'));
-                    li.classList.add('selected');
-                    setNestedSetting('download.format', li.dataset.format);
+        const copyBtn = document.getElementById('tt-copy-image-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                if (window.TextMuyAPI) {
+                    TextMuyAPI.copyImageToClipboard();
+                }
+            });
+        }
 
-                    setTimeout(() => {
-                        if (window.ExportManager) {
-                            ExportManager.download();
-                        }
-                    }, 100);
+        const savePresetBtn = document.getElementById('tt-save-preset-btn');
+        if (savePresetBtn) {
+            savePresetBtn.addEventListener('click', function() {
+                if (window.PresetManager) {
+                    const name = prompt('Preset name:');
+                    if (name) {
+                        PresetManager.savePreset(name, editor.getSettings());
+                    }
                 }
             });
         }
@@ -559,1050 +851,425 @@
         const ratioInput = document.getElementById('tt-download-ratio-input');
         if (ratioInput) {
             ratioInput.addEventListener('change', function() {
-                setNestedSetting('download.ratio', this.value);
+                const ratio = this.value;
+                if (ratio !== 'fit' && editor) {
+                    const parts = ratio.split(':').map(Number);
+                    if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
+                        const wInput = document.getElementById('tt-download-width-input');
+                        const hInput = document.getElementById('tt-download-height-input');
+                        if (wInput && hInput) {
+                            const w = parseInt(wInput.value) || 240;
+                            hInput.value = Math.round(w * parts[1] / parts[0]);
+                        }
+                    }
+                }
             });
         }
 
         const spacingInput = document.getElementById('tt-download-spacing-input');
         if (spacingInput) {
             spacingInput.addEventListener('change', function() {
-                setNestedSetting('download.spacing', parseFloat(this.value));
-            });
-        }
-
-        // Save as New Preset
-        const savePresetBtn = document.getElementById('tt-save-preset-btn');
-        if (savePresetBtn) {
-            savePresetBtn.addEventListener('click', function() {
-                saveAsNewPreset();
-            });
-        }
-
-        // Copy Image
-        const copyImageBtn = document.getElementById('tt-copy-image-btn');
-        if (copyImageBtn) {
-            copyImageBtn.addEventListener('click', function() {
-                copyImageToClipboard();
+                if (editor) {
+                    editor.getSettings().download = editor.getSettings().download || {};
+                    editor.getSettings().download.spacing = parseFloat(this.value);
+                }
             });
         }
     }
 
-    function saveAsNewPreset() {
-        const settings = editor.getSettings();
-        const presetName = prompt('Enter preset name:', 'my-preset');
-        
-        if (!presetName) return;
-        
-        // Sanitize filename
-        const safeName = presetName.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
-        
-        // Convert settings to TextStudio-compatible format
-        const preset = convertSettingsToPreset(settings);
-        
-        // Download as JSON file
-        const blob = new Blob([JSON.stringify(preset, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = safeName + '.json';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        alert('Preset saved as ' + safeName + '.json');
-    }
-
-    function convertSettingsToPreset(settings) {
-        // Convert internal settings format to TextStudio preset format
-        // Use optional chaining and default values to handle undefined properties
-        const s = settings || {};
-        return {
-            editable: 1,
-            text: s.text || 'TEXT',
-            font: {
-                size: s.canvas?.width ? 64 : (s.fontSize || 64),
-                weight: s.fontWeight || 'normal',
-                name: s.font || 'Bangers',
-                src: s.font || 'Bangers'
-            },
-            align: s.align || 'center',
-            rotate: s.rotate || 0,
-            lineHeight: s.lineHeight || 1,
-            letterSpacing: s.letterSpacing || 0,
-            mergeGradients: 0,
-            lettering: {
-                editable: 1,
-                active: s.lettering?.active ? 1 : 0,
-                blendmode: s.lettering?.blendmode || 'over',
-                boggle: {
-                    active: s.lettering?.boggle?.active ? 1 : 0,
-                    angle: s.lettering?.boggle?.angle || 0,
-                    amplitude: s.lettering?.boggle?.amplitude || 0.1
-                },
-                reverseOverlap: {
-                    letters: s.lettering?.reverseOverlap?.letters || 0,
-                    lines: s.lettering?.reverseOverlap?.lines || 0
-                },
-                shadow: {
-                    active: s.lettering?.shadow?.active ? 1 : 0,
-                    size: s.lettering?.shadow?.size || 0,
-                    distance: s.lettering?.shadow?.distance || 0,
-                    angle: s.lettering?.shadow?.angle || 0,
-                    fill: {
-                        alpha: s.lettering?.shadow?.alpha || 1,
-                        color: hexToRgb(s.lettering?.shadow?.color || '#000000')
-                    }
-                }
-            },
-            distort: {
-                arc: {
-                    angle: s.distort?.arc?.angle || 0
-                }
-            },
-            processing: {
-                active: s.processing?.active ? 1 : 0,
-                code: s.processing?.code || null
-            },
-            fill: {
-                editable: 1,
-                active: s.fill?.active ? 1 : 0,
-                alpha: s.fill?.alpha || 1,
-                color: hexToRgb(s.fill?.color || '#ffffff'),
-                texture: {
-                    active: s.fill?.texture?.active ? 1 : 0,
-                    alpha: s.fill?.texture?.alpha || 1,
-                    src: s.fill?.texture?.src || null,
-                    size: s.fill?.texture?.size || 1,
-                    repeat: 'repeat',
-                    position: 'center',
-                    blendmode: s.fill?.texture?.blendmode || 'source-over'
-                },
-                gradient: {
-                    active: s.fill?.gradient?.active ? 1 : 0,
-                    angle: s.fill?.gradient?.angle || 0,
-                    colors: [
-                        hexToRgb(s.fill?.gradient?.startColor || '#ffffff'),
-                        hexToRgb(s.fill?.gradient?.endColor || '#000000')
-                    ]
-                },
-                palette: {
-                    active: s.fill?.palette?.active ? 1 : 0,
-                    lettering: {
-                        method: s.fill?.palette?.lettering?.method || 'letter'
-                    },
-                    styles: s.fill?.palette?.styles || []
-                }
-            },
-            depth: {
-                editable: 1,
-                active: s.depth?.active ? 1 : 0,
-                length: s.depth?.length || 0.1,
-                angle: s.depth?.angle || 135,
-                fill: {
-                    alpha: s.depth?.alpha || 1,
-                    color: hexToRgb(s.depth?.color || '#000000'),
-                    gradient: {
-                        active: s.depth?.gradient?.active ? 1 : 0,
-                        type: 'depth',
-                        angle: s.depth?.gradient?.angle || 0,
-                        colors: [
-                            hexToRgb(s.depth?.gradient?.startColor || '#000000'),
-                            hexToRgb(s.depth?.gradient?.endColor || '#ffffff')
-                        ]
-                    },
-                    texture: {
-                        active: s.depth?.texture?.active ? 1 : 0,
-                        src: s.depth?.texture?.src || null,
-                        size: s.depth?.texture?.size || 1,
-                        blendmode: s.depth?.texture?.blendmode || 'source-over'
-                    }
-                }
-            },
-            depth2: {
-                editable: 1,
-                active: s.depth2?.active ? 1 : 0,
-                length: s.depth2?.length || 0.1,
-                angle: s.depth2?.angle || 135,
-                fill: {
-                    alpha: s.depth2?.alpha || 1,
-                    color: hexToRgb(s.depth2?.color || '#000000'),
-                    gradient: {
-                        active: s.depth2?.gradient?.active ? 1 : 0,
-                        type: 'depth',
-                        angle: s.depth2?.gradient?.angle || 0,
-                        colors: [
-                            hexToRgb(s.depth2?.gradient?.startColor || '#000000'),
-                            hexToRgb(s.depth2?.gradient?.endColor || '#ffffff')
-                        ]
-                    }
-                }
-            },
-            outline: {
-                global: {
-                    active: s.outline?.global?.active ? 1 : 0
-                },
-                dash: {
-                    active: s.outline?.dash?.active ? 1 : 0,
-                    pattern: s.outline?.dash?.pattern || []
-                },
-                first: {
-                    editable: 1,
-                    active: s.outline?.active ? 1 : 0,
-                    width: s.outline?.width || 0.1,
-                    join: s.outline?.join || 'round',
-                    fill: {
-                        alpha: s.outline?.alpha || 1,
-                        color: hexToRgb(s.outline?.color || '#000000'),
-                        gradient: {
-                            active: s.outline?.gradient?.active ? 1 : 0,
-                            angle: s.outline?.gradient?.angle || 0,
-                            colors: [
-                                hexToRgb(s.outline?.gradient?.startColor || '#000000'),
-                                hexToRgb(s.outline?.gradient?.endColor || '#000000')
-                            ]
-                        },
-                        texture: {
-                            active: s.outline?.texture?.active ? 1 : 0,
-                            src: s.outline?.texture?.src || null,
-                            size: s.outline?.texture?.size || 1,
-                            blendmode: s.outline?.texture?.blendmode || 'source-over'
-                        },
-                        palette: {
-                            active: s.outline?.palette?.active ? 1 : 0,
-                            lettering: {
-                                method: s.outline?.palette?.method || 'letter'
-                            },
-                            styles: s.outline?.palette?.styles || []
-                        }
-                    }
-                },
-                second: {
-                    editable: 1,
-                    active: s.outline2?.active ? 1 : 0,
-                    width: s.outline2?.width || 0.1,
-                    join: s.outline2?.join || 'round',
-                    fill: {
-                        alpha: s.outline2?.alpha || 1,
-                        color: hexToRgb(s.outline2?.color || '#000000'),
-                        gradient: {
-                            active: s.outline2?.gradient?.active ? 1 : 0,
-                            angle: s.outline2?.gradient?.angle || 0,
-                            colors: [
-                                hexToRgb(s.outline2?.gradient?.startColor || '#000000'),
-                                hexToRgb(s.outline2?.gradient?.endColor || '#000000')
-                            ]
-                        }
-                    }
-                }
-            },
-            bevel: {
-                inner: {
-                    editable: 1,
-                    active: s.bevel?.active ? 1 : 0,
-                    size: s.bevel?.size || 0.1,
-                    smoothing: s.bevel?.smoothing || 0,
-                    soften: s.bevel?.soften || 0.1,
-                    angle: s.bevel?.angle || 135,
-                    highlight: {
-                        alpha: s.bevel?.highlight?.alpha || 1,
-                        color: hexToRgb(s.bevel?.highlight?.color || '#ffffff')
-                    },
-                    shadow: {
-                        alpha: s.bevel?.shadow?.alpha || 1,
-                        color: hexToRgb(s.bevel?.shadow?.color || '#000000')
-                    }
-                }
-            },
-            shadow: {
-                outer: {
-                    editable: 1,
-                    active: s.shadowOuter?.active ? 1 : 0,
-                    size: s.shadowOuter?.size || 0,
-                    distance: s.shadowOuter?.distance || 0,
-                    angle: s.shadowOuter?.angle || 0,
-                    strength: s.shadowOuter?.strength || 0,
-                    fill: {
-                        alpha: s.shadowOuter?.alpha || 1,
-                        color: hexToRgb(s.shadowOuter?.color || '#000000')
-                    },
-                    blendmode: s.shadowOuter?.blendmode || 'normal'
-                },
-                outer2: {
-                    editable: 1,
-                    active: s.shadowOuter2?.active ? 1 : 0,
-                    size: s.shadowOuter2?.size || 0,
-                    distance: s.shadowOuter2?.distance || 0,
-                    angle: s.shadowOuter2?.angle || 0,
-                    fill: {
-                        alpha: s.shadowOuter2?.alpha || 1,
-                        color: hexToRgb(s.shadowOuter2?.color || '#000000')
-                    },
-                    blendmode: s.shadowOuter2?.blendmode || 'normal'
-                },
-                inner: {
-                    editable: 1,
-                    active: s.shadowInner?.active ? 1 : 0,
-                    size: s.shadowInner?.size || 0,
-                    distance: s.shadowInner?.distance || 0,
-                    angle: s.shadowInner?.angle || 0,
-                    offset: s.shadowInner?.offset || 0,
-                    alpha: s.shadowInner?.alpha || 1,
-                    color: hexToRgb(s.shadowInner?.color || '#000000'),
-                    blendmode: s.shadowInner?.blendmode || 'normal'
-                },
-                inner2: {
-                    editable: 1,
-                    active: s.shadowInner2?.active ? 1 : 0,
-                    size: s.shadowInner2?.size || 0,
-                    distance: s.shadowInner2?.distance || 0,
-                    angle: s.shadowInner2?.angle || 0,
-                    offset: s.shadowInner2?.offset || 0,
-                    alpha: s.shadowInner2?.alpha || 1,
-                    color: hexToRgb(s.shadowInner2?.color || '#000000'),
-                    blendmode: s.shadowInner2?.blendmode || 'normal'
-                }
-            },
-            icon: {
-                editable: 1,
-                active: s.icon?.active ? 1 : 0,
-                alpha: s.icon?.alpha || 1,
-                src: s.icon?.src || null,
-                size: s.icon?.size || 1,
-                rotate: s.icon?.rotate || 0,
-                position: s.icon?.position || 'left',
-                composite: s.icon?.composite || 'source-over',
-                blendmode: s.icon?.blendmode || 'source-over',
-                offset: {
-                    x: s.icon?.offset?.x || 0,
-                    y: s.icon?.offset?.y || 0
-                }
-            },
-            background: {
-                editable: 1,
-                active: s.background?.active ? 1 : 0,
-                composite: s.background?.composite || 'source-over',
-                fill: {
-                    alpha: s.background?.alpha || 1,
-                    color: hexToRgb(s.background?.color || '#000000'),
-                    image: {
-                        active: s.background?.image?.active ? 1 : 0,
-                        alpha: s.background?.image?.alpha || 1,
-                        src: s.background?.image?.src || null,
-                        size: s.background?.image?.size || 'cover',
-                        repeat: s.background?.image?.repeat || 'repeat'
-                    },
-                    gradient: {
-                        active: s.background?.gradient?.active ? 1 : 0,
-                        angle: s.background?.gradient?.angle || 0,
-                        type: s.background?.gradient?.type || 'linear',
-                        colors: [
-                            hexToRgb(s.background?.gradient?.startColor || '#000000'),
-                            hexToRgb(s.background?.gradient?.endColor || '#ffffff')
-                        ]
-                    }
-                }
-            },
-            animation: {
-                editable: 1,
-                active: s.animation?.active ? 1 : 0,
-                id: s.animation?.id || null,
-                pause: s.animation?.pause || 1000,
-                duration: s.animation?.duration || 1000
-            }
-        };
-    }
-
-    function hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 0, g: 0, b: 0 };
-    }
-
-    function copyImageToClipboard() {
-        if (!window.ExportManager || !editor.getCanvas()) {
-            alert('Canvas not available');
-            return;
-        }
-
-        try {
-            const canvas = ExportManager.canvasFromSettings(editor.getSettings());
-            canvas.toBlob(function(blob) {
-                if (!blob) {
-                    alert('Failed to create image blob');
-                    return;
-                }
-
-                const item = new ClipboardItem({ 'image/png': blob });
-                navigator.clipboard.write([item]).then(function() {
-                    alert('Image copied to clipboard!');
-                }).catch(function(err) {
-                    console.error('Failed to copy:', err);
-                    alert('Failed to copy image. Your browser may not support this feature.');
-                });
-            }, 'image/png');
-        } catch (e) {
-            console.error('Clipboard error:', e);
-            alert('Failed to copy image. Your browser may not support this feature.');
-        }
-    }
-
-    // ===== GRADIENT PICKER =====
-    function initGradientPickers() {
-        const pickers = document.querySelectorAll('.tt-gradient-picker');
-        const gradientFields = {
-            'tt-fill-gradient-colors-input': {
-                checkbox: 'tt-fill-gradient-active-input',
-                settingsPath: 'fill.gradient'
-            },
-            'tt-outline-fill-gradient-colors-input': {
-                checkbox: 'tt-outline-fill-gradient-active-input',
-                settingsPath: 'outline.gradient'
-            },
-            'tt-depth-gradient-colors-input': {
-                checkbox: 'tt-depth-gradient-active-input',
-                settingsPath: 'depth.gradient'
-            },
-            'tt-outline2-fill-gradient-colors-input': {
-                checkbox: 'tt-outline2-fill-gradient-active-input',
-                settingsPath: 'outline2.gradient'
-            }
-        };
-
-        pickers.forEach(picker => {
-            const inputId = picker.dataset.updateInput;
-            const config = gradientFields[inputId];
-            if (!config) return;
-
-            const colorContainer = document.createElement('div');
-            colorContainer.className = 'tt-gradient-colors';
-            colorContainer.style.display = 'flex';
-            colorContainer.style.gap = '8px';
-            colorContainer.style.marginTop = '8px';
-
-            const startColorInput = document.createElement('input');
-            startColorInput.type = 'color';
-            startColorInput.className = 'tt-color';
-            startColorInput.value = '#ffffff';
-
-            const endColorInput = document.createElement('input');
-            endColorInput.type = 'color';
-            endColorInput.className = 'tt-color';
-            endColorInput.value = '#000000';
-
-            colorContainer.appendChild(startColorInput);
-            colorContainer.appendChild(endColorInput);
-            picker.parentNode.insertBefore(colorContainer, picker.nextSibling);
-
-            function updateGradient() {
-                const startColor = startColorInput.value;
-                const endColor = endColorInput.value;
-                picker.style.background = 'linear-gradient(90deg, ' + startColor + ', ' + endColor + ')';
-
-                const settings = editor.getSettings();
-                const parts = config.settingsPath.split('.');
-                let obj = settings;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    obj = obj[parts[i]];
-                }
-                obj.startColor = startColor;
-                obj.endColor = endColor;
-                editor.render();
-            }
-
-            startColorInput.addEventListener('input', updateGradient);
-            endColorInput.addEventListener('input', updateGradient);
-
-            const checkbox = document.getElementById(config.checkbox);
-            if (checkbox) {
-                checkbox.addEventListener('change', function() {
-                    colorContainer.style.display = this.checked ? 'flex' : 'none';
-                    if (this.checked) {
-                        updateGradient();
-                    }
-                });
-
-                colorContainer.style.display = checkbox.checked ? 'flex' : 'none';
-            }
-        });
-    }
-
-    // ===== PRESET LOADING =====
+    // ===== PRESETS =====
     function bindPresets() {
-        const presetList = document.getElementById('tt-preset-list');
-        if (presetList) {
-            // Load presets dynamically
-            loadPresetList();
-            
-            presetList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (li && li.dataset.preset) {
-                    loadPreset(li.dataset.preset, li.dataset.source);
-                }
-            });
-        }
-
-        // Bind preset management buttons
-        bindPresetButtons();
-    }
-
-    async function loadPresetList() {
         const presetList = document.getElementById('tt-preset-list');
         if (!presetList) return;
 
-        presetList.innerHTML = '';
+        function loadPresets() {
+            const builtIn = [
+                { name: 'fire-free', title: 'Free Fire' },
+                { name: 'nintendo', title: 'Nintendo' },
+                { name: 'looney-tunes', title: 'Looney Tunes' }
+            ];
 
-        try {
-            // Get all presets from PresetManager
-            const presets = typeof PresetManager !== 'undefined' ? PresetManager.getPresetList() : [];
-            
-            // Add base presets from filesystem
-            const basePresets = ['fire-free', 'nintendo', 'looney-tunes'];
-            
-            // Combine base presets with user presets
-            const allPresets = new Set([...basePresets, ...presets.map(p => p.name)]);
-            
-            allPresets.forEach(presetName => {
+            presetList.innerHTML = '';
+            builtIn.forEach(function(p) {
                 const li = document.createElement('li');
-                li.dataset.preset = presetName;
-                
-                // Determine source
-                const preset = presets.find(p => p.name === presetName);
-                const source = preset ? preset.source : 'base';
-                li.dataset.source = source;
-                
-                // Display name
-                const displayName = presetName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                li.innerHTML = `<span>${displayName}</span>`;
-                
-                // Add source indicator
-                if (source === 'local') {
-                    li.classList.add('tt-preset-local');
-                } else if (source === 'imported') {
-                    li.classList.add('tt-preset-imported');
-                }
-                
+                li.dataset.preset = p.name;
+                li.title = p.title + ' Logo';
+                li.innerHTML = '<span>' + p.title + '</span>';
+                li.addEventListener('click', function() {
+                    if (window.PresetManager) PresetManager.loadPreset(p.name);
+                });
                 presetList.appendChild(li);
             });
 
-            // Add "New Preset" option
-            const newPresetLi = document.createElement('li');
-            newPresetLi.className = 'tt-preset-new';
-            newPresetLi.innerHTML = '<span>+ New Preset</span>';
-            newPresetLi.addEventListener('click', function(e) {
-                e.stopPropagation();
-                createNewPreset();
-            });
-            presetList.appendChild(newPresetLi);
-
-        } catch (e) {
-            console.error('Failed to load preset list:', e);
+            try {
+                const saved = JSON.parse(localStorage.getItem('textmuy_presets') || '{}');
+                Object.keys(saved).forEach(function(name) {
+                    if (!presetList.querySelector('[data-preset="' + name + '"]')) {
+                        const li = document.createElement('li');
+                        li.dataset.preset = name;
+                        li.title = name;
+                        li.innerHTML = '<span>' + name + '</span>';
+                        li.addEventListener('click', function() {
+                            if (window.PresetManager) PresetManager.loadPreset(name);
+                        });
+                        presetList.appendChild(li);
+                    }
+                });
+            } catch(e) {}
         }
+
+        loadPresets();
     }
 
-    async function loadPreset(presetName, source) {
-        try {
-            let preset;
-            
-            if (source === 'base') {
-                // Load from filesystem
-                preset = await PresetManager.loadPresetFromFile(presetName);
-            } else {
-                // Load from PresetManager
-                preset = PresetManager.getPreset(presetName);
-            }
-
-            if (preset) {
-                editor.loadPreset(preset);
-            }
-        } catch (e) {
-            console.error('Failed to load preset:', e);
-        }
-    }
-
-    function bindPresetButtons() {
-        // Save current settings as preset
-        const savePresetBtn = document.getElementById('tt-save-preset-btn');
-        if (savePresetBtn) {
-            savePresetBtn.addEventListener('click', function() {
-                saveCurrentAsPreset();
-            });
-        }
-
-        // Duplicate current preset
-        const duplicatePresetBtn = document.getElementById('tt-duplicate-preset-btn');
-        if (duplicatePresetBtn) {
-            duplicatePresetBtn.addEventListener('click', function() {
-                duplicateCurrentPreset();
-            });
-        }
-
-        // Delete current preset
-        const deletePresetBtn = document.getElementById('tt-delete-preset-btn');
-        if (deletePresetBtn) {
-            deletePresetBtn.addEventListener('click', function() {
-                deleteCurrentPreset();
-            });
-        }
-
-        // Export preset
-        const exportPresetBtn = document.getElementById('tt-export-preset-btn');
-        if (exportPresetBtn) {
-            exportPresetBtn.addEventListener('click', function() {
-                exportCurrentPreset();
-            });
-        }
-
-        // Import preset
-        const importPresetBtn = document.getElementById('tt-import-preset-btn');
-        if (importPresetBtn) {
-            importPresetBtn.addEventListener('click', function() {
-                importPresetFromFile();
-            });
-        }
-    }
-
-    function saveCurrentAsPreset() {
-        const settings = editor.getSettings();
-        const presetName = prompt('Enter preset name:', 'my-preset');
-        
-        if (!presetName) return;
-        
-        try {
-            const preset = convertSettingsToPreset(settings);
-            const safeName = PresetManager.createPreset(presetName, preset);
-            alert('Preset saved: ' + safeName);
-            loadPresetList(); // Refresh list
-        } catch (e) {
-            alert('Error saving preset: ' + e.message);
-        }
-    }
-
-    function duplicateCurrentPreset() {
-        const settings = editor.getSettings();
-        const currentPreset = settings.presetName || 'current';
-        const newName = prompt('Enter new preset name:', currentPreset + '-copy');
-        
-        if (!newName) return;
-        
-        try {
-            const preset = convertSettingsToPreset(settings);
-            const safeName = PresetManager.duplicatePreset(currentPreset, newName);
-            alert('Preset duplicated: ' + safeName);
-            loadPresetList(); // Refresh list
-        } catch (e) {
-            alert('Error duplicating preset: ' + e.message);
-        }
-    }
-
-    function deleteCurrentPreset() {
-        const settings = editor.getSettings();
-        const currentPreset = settings.presetName;
-        
-        if (!currentPreset) {
-            alert('No preset loaded');
-            return;
-        }
-        
-        if (!confirm('Delete preset: ' + currentPreset + '?')) return;
-        
-        try {
-            PresetManager.deletePreset(currentPreset);
-            alert('Preset deleted: ' + currentPreset);
-            loadPresetList(); // Refresh list
-        } catch (e) {
-            alert('Error deleting preset: ' + e.message);
-        }
-    }
-
-    function exportCurrentPreset() {
-        const settings = editor.getSettings();
-        const currentPreset = settings.presetName || 'preset';
-        
-        try {
-            PresetManager.exportPreset(currentPreset);
-        } catch (e) {
-            alert('Error exporting preset: ' + e.message);
-        }
-    }
-
-    function importPresetFromFile() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        
-        input.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const jsonString = e.target.result;
-                    const name = PresetManager.importPreset(jsonString);
-                    alert('Preset imported: ' + name);
-                    loadPresetList(); // Refresh list
-                } catch (err) {
-                    alert('Error importing preset: ' + err.message);
-                }
-            };
-            reader.readAsText(file);
-        });
-        
-        input.click();
-    }
-
-    function createNewPreset() {
-        const settings = editor.createDefaultSettings();
-        const presetName = prompt('Enter preset name:', 'new-preset');
-        
-        if (!presetName) return;
-        
-        try {
-            const preset = convertSettingsToPreset(settings);
-            const safeName = PresetManager.createPreset(presetName, preset);
-            editor.loadPreset(preset);
-            alert('Preset created: ' + safeName);
-            loadPresetList(); // Refresh list
-        } catch (e) {
-            alert('Error creating preset: ' + e.message);
-        }
-    }
-
-    // ===== IMPORT FROM TEXTSTUDIO =====
-    
-    // Font ID mapping for TextStudio fonts
-    const fontIdMap = {
-        '832': 'Bangers',
-        '833': 'Permanent Marker',
-        '834': 'Rock Salt',
-        '835': 'Anton',
-        '836': 'Oswald',
-        '837': 'Montserrat',
-        '838': 'Pacifico',
-        '839': 'Press Start 2P',
-        '840': 'Creepster',
-        '841': 'Share Tech Mono',
-        '842': 'Rubik Wet Paint',
-        '843': 'Carter One',
-        '844': 'Fascinate',
-        '845': 'Kanit',
-        '846': 'Bebas Neue',
-        '847': 'Freckle Dragon'
-    };
-
+    // ===== IMPORT CONTROLS =====
     function bindImportControls() {
         const importBtn = document.getElementById('tt-import-btn');
-        const importUrlInput = document.getElementById('tt-import-url-input');
-        
-        if (importBtn && importUrlInput) {
-            importBtn.addEventListener('click', function() {
-                const url = importUrlInput.value.trim();
-                if (!url) {
-                    alert('Please enter a TextStudio URL');
-                    return;
-                }
-                
-                // Extract preset ID from URL
-                // Format: https://www.textstudio.com/logo/retro-music-font-1100
-                const match = url.match(/\/logo\/([a-z0-9-]+)(?:\/|$)/i);
-                if (!match) {
-                    alert('Invalid TextStudio URL format');
-                    return;
-                }
-                
-                const presetId = match[1];
-                importFromTextStudio(presetId);
-            });
-        }
-    }
+        const importUrl = document.getElementById('tt-import-url-input');
+        if (!importBtn || !importUrl) return;
 
-    function importFromTextStudio(presetId) {
-        // Try multiple methods to import from TextStudio
-        const url = 'https://www.textstudio.com/logo/' + presetId;
-        
-        // Method 1: Try direct API (may fail due to CORS)
-        tryDirectAPI(presetId, url).catch(() => {
-            // Method 2: Try CORS proxy with HTML scraping
-            tryCORSProxy(url).catch(() => {
-                // Method 3: Fallback to manual JSON input
-                showManualJSONInput(url);
-            });
-        });
-    }
+        importBtn.addEventListener('click', function() {
+            const url = importUrl.value.trim();
+            if (!url) return;
+            importBtn.textContent = 'Importing...';
+            importBtn.disabled = true;
 
-    function tryDirectAPI(presetId, url) {
-        return new Promise((resolve, reject) => {
-            const apiUrl = 'https://www.textstudio.com/api/logo/' + presetId;
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', apiUrl, true);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            const preset = JSON.parse(xhr.responseText);
-                            const mappedPreset = mapFontIds(preset);
-                            editor.loadPreset(mappedPreset);
-                            cachePreset(presetId, mappedPreset);
-                            resolve(mappedPreset);
-                        } catch (e) {
-                            console.error('Failed to parse preset:', e);
-                            reject(e);
-                        }
-                    } else {
-                        reject(new Error('API request failed'));
-                    }
-                }
-            };
-            xhr.onerror = () => reject(new Error('API request error'));
-            xhr.send();
-        });
-    }
-
-    function tryCORSProxy(url) {
-        return new Promise((resolve, reject) => {
-            // Try multiple CORS proxies
-            const proxies = [
+            const proxyUrls = [
                 'https://api.allorigins.win/raw?url=',
                 'https://corsproxy.io/?',
-                'https://cors-anywhere.herokuapp.com/'
+                'https://api.codetabs.com/v1/proxy?quest='
             ];
-            
-            let proxyIndex = 0;
-            
-            function tryNextProxy() {
-                if (proxyIndex >= proxies.length) {
-                    reject(new Error('All CORS proxies failed'));
+
+            function tryProxy(index) {
+                if (index >= proxyUrls.length) {
+                    importBtn.textContent = 'Import';
+                    importBtn.disabled = false;
+                    alert('Could not import preset. Try pasting the JSON manually.');
                     return;
                 }
-                
-                const proxyUrl = proxies[proxyIndex] + encodeURIComponent(url);
-                const xhr = new XMLHttpRequest();
-                xhr.open('GET', proxyUrl, true);
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        if (xhr.status === 200) {
+
+                fetch(proxyUrls[index] + encodeURIComponent(url))
+                    .then(function(r) { return r.text(); })
+                    .then(function(html) {
+                        const match = html.match(/window\.__PRESET__\s*=\s*({[^;]+})/);
+                        if (match) {
                             try {
-                                const html = xhr.responseText;
-                                const preset = extractPresetFromHTML(html);
-                                if (preset) {
-                                    const mappedPreset = mapFontIds(preset);
-                                    editor.loadPreset(mappedPreset);
-                                    const presetId = extractPresetIdFromURL(url);
-                                    cachePreset(presetId, mappedPreset);
-                                    resolve(mappedPreset);
-                                } else {
-                                    proxyIndex++;
-                                    tryNextProxy();
+                                const preset = JSON.parse(match[1]);
+                                if (window.PresetManager) {
+                                    const name = 'imported-' + Date.now();
+                                    PresetManager.savePreset(name, preset);
+                                    alert('Preset imported successfully as "' + name + '"');
+                                    bindPresets();
                                 }
-                            } catch (e) {
-                                console.error('Failed to extract preset:', e);
-                                proxyIndex++;
-                                tryNextProxy();
-                            }
-                        } else {
-                            proxyIndex++;
-                            tryNextProxy();
+                                importBtn.textContent = 'Import';
+                                importBtn.disabled = false;
+                                return;
+                            } catch(e) {}
+                        }
+
+                        const jsonLdMatch = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([^<]+)<\/script>/);
+                        if (jsonLdMatch) {
+                            try {
+                                const data = JSON.parse(jsonLdMatch[1]);
+                                if (data && data.text) {
+                                    if (window.PresetManager) {
+                                        const name = 'imported-' + Date.now();
+                                        PresetManager.savePreset(name, data);
+                                        alert('Preset imported successfully as "' + name + '"');
+                                        bindPresets();
+                                    }
+                                    importBtn.textContent = 'Import';
+                                    importBtn.disabled = false;
+                                    return;
+                                }
+                            } catch(e) {}
+                        }
+
+                        tryProxy(index + 1);
+                    })
+                    .catch(function() {
+                        tryProxy(index + 1);
+                    });
+            }
+
+            tryProxy(0);
+        });
+    }
+
+    // ===== FIELDSET AUTO-MINIMIZE =====
+    function initActiveFieldsets() {
+        // Find all checkboxes inside <legend> inside <fieldset>
+        document.querySelectorAll('fieldset legend input[type="checkbox"]').forEach(function(checkbox) {
+            const fieldset = checkbox.closest('fieldset');
+            if (!fieldset) return;
+
+            // Get setting path
+            const settingPath = checkbox.getAttribute('data-tt-option');
+            if (!settingPath) return;
+
+            // Only handle checkboxes that control the fieldset visibility (end with .active)
+            const parts = settingPath.split('.');
+            const isActiveToggle = parts[parts.length - 1] === 'active';
+
+            if (!isActiveToggle) return;
+
+            // Initial state
+            toggleFieldset(fieldset, checkbox.checked);
+
+            // Update on change
+            checkbox.addEventListener('change', function() {
+                toggleFieldset(fieldset, checkbox.checked);
+            });
+        });
+
+        function toggleFieldset(fieldset, isActive) {
+            if (isActive) {
+                fieldset.classList.remove('tt-col-disabled');
+                if (fieldset.hasAttribute('data-autominimize')) {
+                    fieldset.classList.remove('tt-minimized');
+                }
+            } else {
+                fieldset.classList.add('tt-col-disabled');
+                if (fieldset.hasAttribute('data-autominimize')) {
+                    fieldset.classList.add('tt-minimized');
+                }
+            }
+        }
+    }
+
+    // ===== UNDO/REDO =====
+    let undoHistory = {};
+
+    function initUndoRedo() {
+        const undoControls = document.querySelectorAll('[data-undo-control]');
+
+        undoControls.forEach(function(undoSpan) {
+            const controlId = undoSpan.getAttribute('data-undo-control');
+            const control = document.getElementById(controlId);
+            if (!control) return;
+
+            if (!undoHistory[controlId]) {
+                undoHistory[controlId] = [];
+            }
+
+            const initialValue = control.type === 'checkbox' ? control.checked : control.value;
+            undoHistory[controlId].push(initialValue);
+
+            function trackChange() {
+                const currentValue = control.type === 'checkbox' ? control.checked : control.value;
+                const history = undoHistory[controlId];
+                if (history.length > 0 && history[history.length - 1] === currentValue) return;
+                history.push(currentValue);
+                if (history.length > 1) {
+                    undoSpan.style.display = 'inline-flex';
+                }
+            }
+
+            control.addEventListener('input', trackChange);
+            control.addEventListener('change', trackChange);
+
+            undoSpan.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const history = undoHistory[controlId];
+                if (history.length < 2) return;
+
+                history.pop();
+                const previousValue = history[history.length - 1];
+
+                if (control.type === 'checkbox') {
+                    control.checked = previousValue;
+                } else {
+                    control.value = previousValue;
+                }
+
+                const eventType = control.type === 'checkbox' ? 'change' : 'input';
+                control.dispatchEvent(new Event(eventType));
+
+                if (control.type === 'range') {
+                    updateRangeFill(control);
+                }
+
+                if (history.length <= 1) {
+                    undoSpan.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // ===== RANGE SLIDERS =====
+    function initRangeSliders() {
+        document.querySelectorAll('input[type="range"]').forEach(function(range) {
+            updateRangeFill(range);
+            range.addEventListener('input', function() {
+                updateRangeFill(this);
+            });
+        });
+    }
+
+    // ===== PRESET SEARCH AND FILTER =====
+    function initPresetFilters() {
+        const searchInput = document.getElementById('tt-preset-search-input');
+        const categoryFilter = document.getElementById('tt-preset-category-filter');
+        const presetList = document.getElementById('tt-preset-list');
+
+        if (!searchInput || !categoryFilter || !presetList) return;
+
+        function filterPresets() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+            const presetItems = presetList.querySelectorAll('li');
+
+            presetItems.forEach(function(item) {
+                const presetName = item.getAttribute('data-preset') || '';
+                const presetCategory = item.getAttribute('data-category') || 'custom';
+                const title = item.getAttribute('title') || '';
+
+                const matchesSearch = presetName.toLowerCase().includes(searchTerm) ||
+                                     title.toLowerCase().includes(searchTerm);
+                const matchesCategory = selectedCategory === 'all' || presetCategory === selectedCategory;
+
+                item.style.display = (matchesSearch && matchesCategory) ? '' : 'none';
+            });
+        }
+
+        searchInput.addEventListener('input', filterPresets);
+        categoryFilter.addEventListener('change', filterPresets);
+    }
+
+    // ===== FONT SEARCH AND FILTER =====
+    function initFontFilters() {
+        const searchInput = document.getElementById('tt-font-search-input');
+        const categoryFilter = document.getElementById('tt-font-category-filter');
+        const fontSelect = document.getElementById('tt-font-picker-input');
+        const fontUpload = document.getElementById('tt-font-upload-input');
+
+        if (!searchInput || !categoryFilter || !fontSelect) return;
+
+        function filterFonts() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+            const options = fontSelect.querySelectorAll('option, optgroup');
+
+            options.forEach(function(option) {
+                if (option.tagName === 'OPTGROUP') {
+                    const hasMatchingChild = Array.from(option.querySelectorAll('option')).some(function(child) {
+                        const fontName = child.textContent.toLowerCase();
+                        const matchesSearch = fontName.includes(searchTerm);
+                        const matchesCategory = selectedCategory === 'all' ||
+                                                   option.label.toLowerCase() === selectedCategory ||
+                                                   (selectedCategory === 'custom' && option.label === 'Custom');
+                        return matchesSearch && matchesCategory;
+                    });
+                    option.style.display = hasMatchingChild ? '' : 'none';
+                } else {
+                    const fontName = option.textContent.toLowerCase();
+                    const parentGroup = option.parentElement;
+                    const categoryLabel = parentGroup.tagName === 'OPTGROUP' ? parentGroup.label.toLowerCase() : '';
+
+                    const matchesSearch = fontName.includes(searchTerm);
+                    const matchesCategory = selectedCategory === 'all' ||
+                                               categoryLabel === selectedCategory ||
+                                               (selectedCategory === 'custom' && categoryLabel === 'custom');
+
+                    option.style.display = (matchesSearch && matchesCategory) ? '' : 'none';
+                }
+            });
+        }
+
+        searchInput.addEventListener('input', filterFonts);
+        categoryFilter.addEventListener('change', filterFonts);
+
+        if (fontUpload) {
+            fontUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const dataUrl = event.target.result;
+                    const fontName = file.name.replace(/\.[^/.]+$/, '');
+                    if (window.FontLoader) {
+                        const fontKey = window.FontLoader.registerCustomFont(fontName, dataUrl);
+                        const customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
+                        if (customGroup) {
+                            const option = document.createElement('option');
+                            option.value = fontKey;
+                            option.textContent = fontName;
+                            customGroup.appendChild(option);
+                            fontSelect.value = fontKey;
+                            fontSelect.dispatchEvent(new Event('change'));
                         }
                     }
                 };
-                xhr.onerror = () => {
-                    proxyIndex++;
-                    tryNextProxy();
+                reader.readAsDataURL(file);
+            });
+        }
+    }
+
+    // ===== TT-SHOW-BROTHER TABS =====
+    function initShowBrotherTabs() {
+        document.querySelectorAll('.tt-show-brother').forEach(function(tabList) {
+            tabList.addEventListener('click', function(e) {
+                const li = e.target.closest('li');
+                if (!li || !li.dataset.show) return;
+                this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
+                li.classList.add('selected');
+                const parent = this.closest('.tt-column-inner');
+                if (parent) {
+                    parent.querySelectorAll('fieldset').forEach(fs => {
+                        fs.style.display = fs.id === li.dataset.show ? 'block' : 'none';
+                    });
+                }
+            });
+        });
+    }
+
+    // ===== TEXTURE UPLOADS =====
+    function initTextureUploads() {
+        document.querySelectorAll('input[type="file"][accept="image/*"]').forEach(function(input) {
+            input.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const dataUrl = ev.target.result;
+                    const settingPath = input.dataset.ttOption;
+                    if (settingPath) setNestedSetting(settingPath, dataUrl);
+                    const preview = input.parentElement.nextElementSibling;
+                    if (preview && preview.classList.contains('tt-texture-preview')) {
+                        preview.style.display = 'block';
+                        const img = preview.querySelector('.tt-texture-preview-image');
+                        if (img) img.src = dataUrl;
+                    }
+                    const previewContainer = input.closest('.tt-option')?.querySelector('[id$="preview-container"]');
+                    if (previewContainer) {
+                        previewContainer.style.display = 'block';
+                        const img = previewContainer.querySelector('img');
+                        if (img) img.src = dataUrl;
+                    }
                 };
-                xhr.send();
-            }
-            
-            tryNextProxy();
+                reader.readAsDataURL(file);
+            });
+        });
+
+        document.querySelectorAll('.tt-texture-delete-icon, [id$="preview-delete-icon"]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const preview = this.closest('.tt-texture-preview, [id$="preview-container"]');
+                if (preview) preview.style.display = 'none';
+                const option = this.closest('.tt-option, fieldset');
+                if (option) {
+                    const fileInput = option.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.value = '';
+                        const settingPath = fileInput.dataset.ttOption;
+                        if (settingPath) setNestedSetting(settingPath, null);
+                    }
+                }
+            });
         });
     }
 
-    function mapFontIds(preset) {
-        // Map TextStudio font IDs to actual font names
-        if (preset.font && preset.font.src) {
-            const fontId = preset.font.src.toString();
-            if (fontIdMap[fontId]) {
-                preset.font.src = fontIdMap[fontId];
-                preset.font.name = fontIdMap[fontId];
-            }
-        }
-        return preset;
-    }
-
-    function extractPresetFromHTML(html) {
-        // Try to find preset data in window.__PRESET__ or similar
-        const windowPresetRegex = /window\.__PRESET__\s*=\s*(\{[\s\S]*?\});/i;
-        const windowMatch = windowPresetRegex.exec(html);
-        
-        if (windowMatch) {
-            try {
-                return JSON.parse(windowMatch[1]);
-            } catch (e) {
-                console.error('Failed to parse window.__PRESET__:', e);
-            }
-        }
-
-        // Try to find preset data in script tags
-        const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
-        let match;
-        
-        while ((match = scriptRegex.exec(html)) !== null) {
-            const scriptContent = match[1];
-            
-            // Try to find JSON object with preset structure
-            const jsonRegex = /(\{[\s\S]*"text"[\s\S]*"font"[\s\S]*\})/g;
-            const jsonMatch = jsonRegex.exec(scriptContent);
-            
-            if (jsonMatch) {
-                try {
-                    return JSON.parse(jsonMatch[1]);
-                } catch (e) {
-                    continue;
-                }
-            }
-        }
-        
-        // Try to find in data attributes
-        const dataRegex = /data-preset="([^"]*)"/i;
-        const dataMatch = dataRegex.exec(html);
-        
-        if (dataMatch) {
-            try {
-                return JSON.parse(decodeURIComponent(dataMatch[1]));
-            } catch (e) {
-                // Try without decode
-                try {
-                    return JSON.parse(dataMatch[1]);
-                } catch (e2) {
-                    // Continue to next method
-                }
-            }
-        }
-
-        // Try to find in JSON-LD or other structured data
-        const jsonLdRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/i;
-        const jsonLdMatch = jsonLdRegex.exec(html);
-        
-        if (jsonLdMatch) {
-            try {
-                const data = JSON.parse(jsonLdMatch[1]);
-                if (data && (data.preset || data.settings)) {
-                    return data.preset || data.settings;
-                }
-            } catch (e) {
-                console.error('Failed to parse JSON-LD:', e);
-            }
-        }
-        
-        return null;
-    }
-
-    function extractPresetIdFromURL(url) {
-        const match = url.match(/\/logo\/([a-z0-9-]+)(?:\/|$)/i);
-        return match ? match[1] : null;
-    }
-
-    function cachePreset(presetId, preset) {
-        try {
-            if (typeof PresetManager !== 'undefined') {
-                PresetManager.createPreset(presetId, preset);
-            } else {
-                const cache = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
-                cache[presetId] = {
-                    preset: preset,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem('textstudio_presets', JSON.stringify(cache));
-            }
-        } catch (e) {
-            console.error('Failed to cache preset:', e);
-        }
-    }
-
-    function getCachedPreset(presetId) {
-        try {
-            if (typeof PresetManager !== 'undefined') {
-                return PresetManager.getPreset(presetId);
-            }
-            const cache = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
-            if (cache[presetId]) {
-                // Check if cache is not too old (7 days)
-                const age = Date.now() - cache[presetId].timestamp;
-                if (age < 7 * 24 * 60 * 60 * 1000) {
-                    return cache[presetId].preset;
-                }
-            }
-        } catch (e) {
-            console.error('Failed to get cached preset:', e);
-        }
-        return null;
-    }
-
-    function showManualJSONInput(url) {
-        // Create a modal for manual JSON input
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-        `;
-        
-        modal.innerHTML = `
-            <div style="background: #fff; padding: 30px; border-radius: 10px; max-width: 600px; width: 90%;">
-                <h3 style="color: #fff; margin-bottom: 15px;">Import Preset from TextStudio</h3>
-                <p style="color: #ccc; margin-bottom: 15px; font-size: 14px;">
-                    Could not import automatically. Please visit <a href="${url}" target="_blank" style="color: #4a9eff;">${url}</a>, 
-                    open browser console (F12), and paste the preset JSON below.
-                </p>
-                <textarea id="manual-json-input" style="width: 100%; height: 200px; background: #f5f5f5; color: #333; border: 1px solid #ddd; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;" placeholder="Paste JSON here..."></textarea>
-                <div style="margin-top: 15px; display: flex; gap: 10px;">
-                    <button id="manual-json-import" style="flex: 1; padding: 10px; background: #4a9eff; color: #fff; border: none; border-radius: 5px; cursor: pointer;">Import</button>
-                    <button id="manual-json-cancel" style="flex: 1; padding: 10px; background: #ddd; color: #333; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        document.getElementById('manual-json-import').addEventListener('click', function() {
-            const jsonText = document.getElementById('manual-json-input').value.trim();
-            if (!jsonText) {
-                alert('Please paste JSON');
-                return;
-            }
-            
-            try {
-                const preset = JSON.parse(jsonText);
-                editor.loadPreset(preset);
-                const presetId = extractPresetIdFromURL(url);
-                if (presetId) {
-                    cachePreset(presetId, preset);
-                }
-                document.body.removeChild(modal);
-            } catch (e) {
-                alert('Invalid JSON: ' + e.message);
-            }
-        });
-        
-        document.getElementById('manual-json-cancel').addEventListener('click', function() {
-            document.body.removeChild(modal);
-        });
-    }
-
-    // Export
-    window.TextControls = {
+    // Expose init
+    window.Controls = {
         init: init
     };
-
 })();

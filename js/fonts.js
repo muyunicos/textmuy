@@ -46,7 +46,57 @@
         'Fascinate': 'Fascinate',
         'Kanit': 'Kanit',
         'Bebas Neue': 'Bebas Neue',
-        'Freckle Dragon': 'Freckle Dragon'
+        'Freckle Dragon': 'Freckle Dragon',
+        'Lobster': 'Lobster',
+        'Raleway': 'Raleway',
+        'Open Sans': 'Open Sans',
+        'Lato': 'Lato',
+        'Playfair Display': 'Playfair Display',
+        'Merriweather': 'Merriweather',
+        'Source Sans Pro': 'Source Sans Pro',
+        'Nunito': 'Nunito',
+        'Poppins': 'Poppins',
+        'Ubuntu': 'Ubuntu',
+        'Righteous': 'Righteous',
+        'Abril Fatface': 'Abril Fatface',
+        'Satisfy': 'Satisfy',
+        'Dancing Script': 'Dancing Script',
+        'Indie Flower': 'Indie Flower',
+        'Shadows Into Light': 'Shadows Into Light',
+        'Architects Daughter': 'Architects Daughter',
+        'Patrick Hand': 'Patrick Hand',
+        'Kalam': 'Kalam',
+        'Amatic SC': 'Amatic SC',
+        'Caveat': 'Caveat',
+        'Zeyada': 'Zeyada',
+        'Great Vibes': 'Great Vibes',
+        'Alex Brush': 'Alex Brush',
+        'Allura': 'Allura',
+        'Sacramento': 'Sacramento',
+        'Tangerine': 'Tangerine',
+        'Quicksand': 'Quicksand',
+        'Work Sans': 'Work Sans',
+        'Josefin Sans': 'Josefin Sans',
+        'Quattrocento Sans': 'Quattrocento Sans',
+        'Crimson Text': 'Crimson Text',
+        'Libre Baskerville': 'Libre Baskerville',
+        'PT Sans': 'PT Sans',
+        'Source Serif Pro': 'Source Serif Pro',
+        'Slabo 27px': 'Slabo 27px',
+        'Arimo': 'Arimo',
+        'Arvo': 'Arvo',
+        'Lora': 'Lora',
+        'Vollkorn': 'Vollkorn'
+    };
+
+    // Font categories
+    var fontCategories = {
+        'display': ['Bangers', 'Anton', 'Bebas Neue', 'Righteous', 'Abril Fatface', 'Fascinate', 'Creepster', 'Freckle Dragon'],
+        'handwriting': ['Permanent Marker', 'Rock Salt', 'Pacifico', 'Satisfy', 'Dancing Script', 'Indie Flower', 'Shadows Into Light', 'Architects Daughter', 'Patrick Hand', 'Kalam', 'Amatic SC', 'Caveat', 'Zeyada', 'Great Vibes', 'Alex Brush', 'Allura', 'Sacramento', 'Tangerine'],
+        'sans-serif': ['Oswald', 'Montserrat', 'Open Sans', 'Lato', 'Source Sans Pro', 'Nunito', 'Poppins', 'Ubuntu', 'Quicksand', 'Work Sans', 'Josefin Sans', 'Quattrocento Sans', 'PT Sans', 'Arimo', 'Roboto', 'Kanit'],
+        'serif': ['Playfair Display', 'Merriweather', 'Crimson Text', 'Libre Baskerville', 'Source Serif Pro', 'Slabo 27px', 'Arvo', 'Lora', 'Vollkorn'],
+        'monospace': ['Press Start 2P', 'Share Tech Mono'],
+        'gaming': ['Press Start 2P', 'Creepster', 'Rubik Wet Paint']
     };
 
     var loadedFonts = {};
@@ -216,6 +266,7 @@
         registerCustomFont: registerCustomFont,
         deleteCustomFont: deleteCustomFont,
         getAvailableFonts: getAvailableFonts,
+        getFontCategories: function() { return fontCategories; },
         registry: fontRegistry,
         googleFontFallbacks: googleFontFallbacks
     };

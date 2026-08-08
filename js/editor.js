@@ -285,10 +285,11 @@
 
         // ===== CANVAS =====
         canvas: {
-            width: 1920,
-            height: 1080,
+            width: 240,
+            height: 600,
+            ratio: 2.5,
             autoFit: false,
-            zoom: 0.64,
+            zoom: 64,
             padding: 0.05
         },
 
@@ -726,6 +727,117 @@
         return layout;
     }
 
+    // Calculate dynamic canvas size based on zoom and canvas settings
+    function calculateDynamicCanvasSize(ctx, text, s) {
+        const lines = text.split('\n');
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
+        
+        // Get viewport width (wrapper width)
+        const wrapper = document.getElementById('tt-canvas-wrapper');
+        const viewportWidth = wrapper ? wrapper.clientWidth : 900;
+        const viewportHeight = wrapper ? wrapper.clientHeight : 600;
+        
+        // Ensure minimum viewport dimensions
+        const safeViewportWidth = Math.max(viewportWidth, 300);
+        const safeViewportHeight = Math.max(viewportHeight, 200);
+        
+        // Get base canvas size from settings
+        const baseCanvasWidth = s.canvas.width || 240;
+        const baseCanvasHeight = s.canvas.height || 600;
+        
+        // Calculate zoom factor from canvas.zoom (12-140 range)
+        const zoomValue = s.canvas.zoom || 64;
+        
+        // Calculate canvas dimensions based on zoom
+        let canvasWidth, canvasHeight;
+        
+        if (zoomValue === 64) {
+            // Zoom 64 = 100% of base canvas size
+            canvasWidth = baseCanvasWidth;
+            canvasHeight = baseCanvasHeight;
+        } else if (zoomValue >= 64) {
+            // Zoom 64-140: Scale from base size to 100% of wrapper
+            const zoomProgress = (zoomValue - 64) / (140 - 64); // 0 to 1
+            const targetWidth = safeViewportWidth;
+            const targetHeight = safeViewportHeight * (baseCanvasHeight / baseCanvasWidth);
+            
+            canvasWidth = baseCanvasWidth + (targetWidth - baseCanvasWidth) * zoomProgress;
+            canvasHeight = baseCanvasHeight + (targetHeight - baseCanvasHeight) * zoomProgress;
+        } else {
+            // Zoom 12-64: Scale from minimum to base size
+            const zoomProgress = (zoomValue - 12) / (64 - 12); // 0 to 1
+            
+            // Calculate minimum size (10% of wrapper or 50% of base canvas)
+            const minFromWrapper = safeViewportWidth * 0.1;
+            const minFromCanvas = baseCanvasWidth * 0.5;
+            const minWidth = Math.min(minFromWrapper, minFromCanvas);
+            const minHeight = minWidth * (baseCanvasHeight / baseCanvasWidth);
+            
+            canvasWidth = minWidth + (baseCanvasWidth - minWidth) * zoomProgress;
+            canvasHeight = minHeight + (baseCanvasHeight - minHeight) * zoomProgress;
+        }
+        
+        // Ensure minimum dimensions
+        canvasWidth = Math.max(canvasWidth, 100);
+        canvasHeight = Math.max(canvasHeight, 50);
+        
+        // Calculate font size (default 24px, scales proportionally with zoom)
+        const baseFontSize = 24;
+        const fontSizeScale = canvasWidth / baseCanvasWidth;
+        let fontSizePx = baseFontSize * fontSizeScale;
+        
+        // Ensure minimum font size for legibility
+        fontSizePx = Math.max(fontSizePx, 12);
+        
+        // Refine font size to ensure text fills canvas (with padding)
+        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        
+        let maxLineWidth = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            if (w > maxLineWidth) maxLineWidth = w;
+        }
+        
+        const textHeight = fontSizePx * s.lineHeight * lines.length;
+        const extraW = calcExtraWidth(s, fontSizePx);
+        const extraH = calcExtraHeight(s, fontSizePx);
+        
+        // Calculate total content dimensions
+        const contentWidth = maxLineWidth + extraW;
+        const contentHeight = textHeight + extraH;
+        
+        // Adjust font size to fill canvas width (with padding)
+        const padding = canvasWidth * (s.canvas.padding || 0.05);
+        const availableWidth = canvasWidth - padding * 2;
+        
+        if (contentWidth > availableWidth && contentWidth > 0) {
+            fontSizePx = fontSizePx * (availableWidth / contentWidth);
+            fontSizePx = Math.max(fontSizePx, 12);
+        }
+        
+        // Recalculate with adjusted font size
+        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        maxLineWidth = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            if (w > maxLineWidth) maxLineWidth = w;
+        }
+        
+        const adjustedTextHeight = fontSizePx * s.lineHeight * lines.length;
+        const adjustedExtraW = calcExtraWidth(s, fontSizePx);
+        const adjustedExtraH = calcExtraHeight(s, fontSizePx);
+        
+        const finalContentWidth = maxLineWidth + adjustedExtraW;
+        const finalContentHeight = adjustedTextHeight + adjustedExtraH;
+        
+        // Calculate final canvas dimensions
+        const finalCanvasWidth = Math.max(finalContentWidth + padding * 2, canvasWidth);
+        const finalCanvasHeight = Math.max(finalContentHeight + padding * 2, canvasHeight);
+        
+        return { width: finalCanvasWidth, height: finalCanvasHeight, fontSize: fontSizePx };
+    }
+
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
         const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
@@ -772,35 +884,30 @@
         const ctx = state.ctx;
         const s = state.settings;
 
-        // Use canvas dimensions from settings (fixed size)
-        const canvasWidth = s.canvas.width * state.scale;
-        const canvasHeight = s.canvas.height * state.scale;
+        const text = s.text || 'TEXT';
+
+        // Calculate dynamic canvas size based on content and viewport
+        const dynamicSize = calculateDynamicCanvasSize(ctx, text, s);
+        const canvasWidth = dynamicSize.width;
+        const canvasHeight = dynamicSize.height;
+        const calculatedFontSize = dynamicSize.fontSize;
 
         state.canvas.width = canvasWidth;
         state.canvas.height = canvasHeight;
-        // Scale down for display if too large
-        const maxDisplayWidth = 900;
-        const displayScale = Math.min(1, maxDisplayWidth / canvasWidth);
-        state.canvas.style.width = (canvasWidth / state.scale * displayScale) + 'px';
-        state.canvas.style.height = (canvasHeight / state.scale * displayScale) + 'px';
+
+        // Set canvas display size (no scaling, actual size)
+        state.canvas.style.width = canvasWidth + 'px';
+        state.canvas.style.height = canvasHeight + 'px';
 
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
         // Draw background
         drawBackground(ctx, canvasWidth, canvasHeight);
 
-        const text = s.text || 'TEXT';
         const lines = text.split('\n');
 
-        // Auto-fit or use zoom-based font size
-        let fontSizePx;
-        if (s.canvas.autoFit) {
-            fontSizePx = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) * state.scale;
-        } else {
-            // Use font.size from TextStudio structure (12-140 range)
-            const font_size = s.font.size || 64;
-            fontSizePx = font_size * state.scale;
-        }
+        // Use the dynamically calculated font size
+        let fontSizePx = calculatedFontSize;
 
         // Load custom font if needed
         const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
@@ -1043,7 +1150,7 @@
 
         if (!state.transparentOutput) {
             // Checkered background for transparency preview only
-            const size = 20 * state.scale;
+            const size = 20;
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, width, height);
 
@@ -2322,301 +2429,265 @@
     function updateUIFromSettings() {
         const s = state.settings;
 
-        const textarea = document.getElementById('tt-text-textarea');
-        if (textarea) textarea.value = s.text;
-
-        const fontSelect = document.getElementById('tt-font-picker-input');
-        if (fontSelect) fontSelect.value = s.font.src || s.font;
-
-        // Update align controls
-        const alignInput = document.getElementById('tt-align-input');
-        const alignList = document.querySelector('.tt-align-list');
-        if (alignInput && alignList) {
-            alignInput.value = s.align || 'center';
-            alignList.querySelectorAll('li').forEach(li => {
-                li.classList.remove('selected');
-                if (li.dataset.id === (s.align || 'center')) {
-                    li.classList.add('selected');
-                }
-            });
+        function setInputValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.type === 'checkbox') el.checked = Boolean(value);
+                else el.value = value !== undefined && value !== null ? value : '';
+            }
         }
 
-        // Update font weight controls
+        // TEXT section
+        setInputValue('tt-text-textarea', s.text);
+        setInputValue('tt-font-picker-input', s.font.src || s.font);
+        setInputValue('tt-font-size-input', s.font.size || 64);
+        setInputValue('tt-letter-spacing-input', s.letterSpacing || 0);
+        setInputValue('tt-line-height-input', s.lineHeight || 1);
+        setInputValue('tt-distort-arc-angle-input', s.distort && s.distort.arc ? s.distort.arc.angle : 0);
+        setInputValue('tt-rotate-input', s.rotate || 0);
+        setInputValue('tt-merge-gradients-input', s.mergeGradients || false);
+
+        // Font weight
         const fontWeightInput = document.getElementById('tt-font-weight-input');
         const fontOptionsList = document.querySelector('.tt-font-options-list');
         if (fontWeightInput && fontOptionsList) {
             fontWeightInput.value = s.font.weight || 'normal';
             fontOptionsList.querySelectorAll('li').forEach(li => {
                 li.classList.remove('selected');
-                if ((s.font.weight || 'normal') === 'bold') {
-                    li.classList.add('selected');
-                }
+                if ((s.font.weight || 'normal') === 'bold') li.classList.add('selected');
             });
         }
 
-        // Update line height input
-        const lineHeightInput = document.getElementById('tt-line-height-input');
-        if (lineHeightInput) {
-            lineHeightInput.value = s.lineHeight || 1;
-            updateRangeFill(lineHeightInput);
+        // Align
+        const alignInput = document.getElementById('tt-align-input');
+        const alignList = document.querySelector('.tt-align-list');
+        if (alignInput && alignList) {
+            alignInput.value = s.align || 'center';
+            alignList.querySelectorAll('li').forEach(li => {
+                li.classList.remove('selected');
+                if (li.dataset.id === (s.align || 'center')) li.classList.add('selected');
+            });
         }
 
-        // Update merge gradients checkbox
-        const mergeGradientsInput = document.getElementById('tt-merge-gradients-input');
-        if (mergeGradientsInput) {
-            mergeGradientsInput.checked = s.mergeGradients || false;
+        // FILL
+        setInputValue('tt-fill-active-input', s.fill.active);
+        setInputValue('tt-fill-color-input', s.fill.color);
+        setInputValue('tt-fill-gradient-active-input', s.fill.gradient && s.fill.gradient.active);
+        setInputValue('tt-fill-gradient-angle-input', s.fill.gradient && s.fill.gradient.angle);
+        setInputValue('tt-fill-alpha-input', s.fill.alpha);
+        setInputValue('tt-fill-texture-active-input', s.fill.texture && s.fill.texture.active);
+        setInputValue('tt-fill-texture-alpha-input', s.fill.texture && s.fill.texture.alpha);
+        setInputValue('tt-fill-texture-lettering-input', s.fill.texture && s.fill.texture.lettering);
+        setInputValue('tt-fill-palette-active-input', s.fill.palette && s.fill.palette.active);
+        setInputValue('tt-fill-palette-lettering-method-input', s.fill.palette && s.fill.palette.lettering && s.fill.palette.lettering.method);
+
+        // LETTERING
+        setInputValue('tt-lettering-active-input', s.lettering && s.lettering.active);
+        setInputValue('tt-lettering-boggle-active-input', s.lettering && s.lettering.boggle && s.lettering.boggle.active);
+        setInputValue('tt-lettering-boggle-angle-input', s.lettering && s.lettering.boggle && s.lettering.boggle.angle);
+        setInputValue('tt-lettering-boggle-amplitude-input', s.lettering && s.lettering.boggle && s.lettering.boggle.amplitude);
+        setInputValue('tt-lettering-shadow-active-input', s.lettering && s.lettering.shadow && s.lettering.shadow.active);
+        setInputValue('tt-lettering-shadow-size-input', s.lettering && s.lettering.shadow && s.lettering.shadow.size);
+        setInputValue('tt-lettering-shadow-fill-alpha-input', s.lettering && s.lettering.shadow && s.lettering.shadow.fill && s.lettering.shadow.fill.alpha);
+        setInputValue('tt-lettering-shadow-distance-input', s.lettering && s.lettering.shadow && s.lettering.shadow.distance);
+        setInputValue('tt-lettering-shadow-angle-input', s.lettering && s.lettering.shadow && s.lettering.shadow.angle);
+        setInputValue('tt-lettering-shadow-fill-color-input', s.lettering && s.lettering.shadow && s.lettering.shadow.fill && s.lettering.shadow.fill.color);
+        setInputValue('tt-lettering-reverse-overlap-letters-input', s.lettering && s.lettering.reverseOverlap && s.lettering.reverseOverlap.letters);
+        setInputValue('tt-lettering-reverse-overlap-lines-input', s.lettering && s.lettering.reverseOverlap && s.lettering.reverseOverlap.lines);
+        setInputValue('tt-lettering-blendmode-input', s.lettering && s.lettering.blendmode);
+
+        // DEPTH
+        setInputValue('tt-depth-active-input', s.depth.active);
+        setInputValue('tt-depth-length-input', s.depth.length);
+        setInputValue('tt-depth-angle-input', s.depth.angle);
+        setInputValue('tt-depth-fill-color-input', s.depth.fill && s.depth.fill.color);
+        setInputValue('tt-depth-fill-gradient-active-input', s.depth.fill && s.depth.fill.gradient && s.depth.fill.gradient.active);
+        setInputValue('tt-depth-fill-merge-alpha-input', s.depth.fill && s.depth.fill.mergeAlpha);
+        setInputValue('tt-depth-fill-alpha-input', s.depth.fill && s.depth.fill.alpha);
+        setInputValue('tt-depth-fill-texture-active-input', s.depth.fill && s.depth.fill.texture && s.depth.fill.texture.active);
+        setInputValue('tt-depth-fill-texture-alpha-input', s.depth.fill && s.depth.fill.texture && s.depth.fill.texture.alpha);
+
+        // DEPTH 2
+        setInputValue('tt-depth2-active-input', s.depth2.active);
+        setInputValue('tt-depth2-length-input', s.depth2.length);
+        setInputValue('tt-depth2-angle-input', s.depth2.angle);
+        setInputValue('tt-depth2-fill-color-input', s.depth2.fill && s.depth2.fill.color);
+        setInputValue('tt-depth2-fill-gradient-active-input', s.depth2.fill && s.depth2.fill.gradient && s.depth2.fill.gradient.active);
+        setInputValue('tt-depth2-fill-merge-alpha-input', s.depth2.fill && s.depth2.fill.mergeAlpha);
+        setInputValue('tt-depth2-fill-alpha-input', s.depth2.fill && s.depth2.fill.alpha);
+
+        // OUTLINE #1
+        setInputValue('tt-outline-first-active-input', s.outline && s.outline.first && s.outline.first.active);
+        setInputValue('tt-outline-first-width-input', s.outline && s.outline.first && s.outline.first.width);
+        setInputValue('tt-outline-first-fill-color-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.color);
+        setInputValue('tt-outline-first-fill-gradient-active-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.gradient && s.outline.first.fill.gradient.active);
+        setInputValue('tt-outline-first-fill-gradient-angle-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.gradient && s.outline.first.fill.gradient.angle);
+        setInputValue('tt-outline-first-fill-palette-active-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.palette && s.outline.first.fill.palette.active);
+        setInputValue('tt-outline-first-dash-input', s.outline && s.outline.first && s.outline.first.dash);
+        setInputValue('tt-outline-first-fill-alpha-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.alpha);
+        setInputValue('tt-outline-first-fill-texture-active-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.texture && s.outline.first.fill.texture.active);
+        setInputValue('tt-outline-first-fill-texture-alpha-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.texture && s.outline.first.fill.texture.alpha);
+        setInputValue('tt-outline-first-fill-texture-lettering-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.texture && s.outline.first.fill.texture.lettering);
+        setInputValue('tt-outline-first-specular-active-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.active);
+        setInputValue('tt-outline-first-specular-blur-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.blur);
+        setInputValue('tt-outline-first-specular-scale-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.scale);
+        setInputValue('tt-outline-first-specular-constant-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.constant);
+        setInputValue('tt-outline-first-specular-exponent-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.exponent);
+        setInputValue('tt-outline-first-specular-azimuth-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.azimuth);
+        setInputValue('tt-outline-first-specular-elevation-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.elevation);
+        setInputValue('tt-outline-first-specular-color-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.color);
+        setInputValue('tt-outline-first-specular-blendmode-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.blendmode);
+        setInputValue('tt-outline-first-specular-type-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.type);
+        setInputValue('tt-outline-first-specular-point-x-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.point && s.outline.first.specular.point.x);
+        setInputValue('tt-outline-first-specular-point-y-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.point && s.outline.first.specular.point.y);
+        setInputValue('tt-outline-first-specular-point-z-input', s.outline && s.outline.first && s.outline.first.specular && s.outline.first.specular.point && s.outline.first.specular.point.z);
+
+        // Outline #1 join
+        const outlineFirstJoinInput = document.getElementById('tt-outline-first-join-input');
+        const outlineFirstJoinList = document.querySelector('[data-input="tt-outline-first-join-input"]');
+        if (outlineFirstJoinInput && outlineFirstJoinList) {
+            const joinVal = s.outline && s.outline.first && s.outline.first.join || 'round';
+            outlineFirstJoinInput.value = joinVal;
+            outlineFirstJoinList.querySelectorAll('li').forEach(li => {
+                li.classList.remove('selected');
+                if (li.dataset.id === joinVal) li.classList.add('selected');
+            });
         }
 
-        const fontSizeInput = document.getElementById('tt-font-size-input');
-        if (fontSizeInput) {
-            // Use font.size directly from TextStudio structure (12-140 range)
-            fontSizeInput.value = s.font.size || 64;
-            // Update range fill visual
-            updateRangeFill(fontSizeInput);
+        // OUTLINE #2
+        setInputValue('tt-outline-second-active-input', s.outline && s.outline.second && s.outline.second.active);
+        setInputValue('tt-outline-second-width-input', s.outline && s.outline.second && s.outline.second.width);
+        setInputValue('tt-outline-second-fill-color-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.color);
+        setInputValue('tt-outline-second-fill-gradient-active-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.gradient && s.outline.second.fill.gradient.active);
+        setInputValue('tt-outline-second-dash-input', s.outline && s.outline.second && s.outline.second.dash);
+        setInputValue('tt-outline-second-fill-alpha-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.alpha);
+        setInputValue('tt-outline-second-fill-texture-active-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.texture && s.outline.second.fill.texture.active);
+        setInputValue('tt-outline-second-specular-active-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.active);
+        setInputValue('tt-outline-second-specular-blur-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.blur);
+        setInputValue('tt-outline-second-specular-scale-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.scale);
+        setInputValue('tt-outline-second-specular-constant-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.constant);
+        setInputValue('tt-outline-second-specular-exponent-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.exponent);
+        setInputValue('tt-outline-second-specular-azimuth-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.azimuth);
+        setInputValue('tt-outline-second-specular-elevation-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.elevation);
+        setInputValue('tt-outline-second-specular-color-input', s.outline && s.outline.second && s.outline.second.specular && s.outline.second.specular.color);
+
+        // Outline #2 join
+        const outlineSecondJoinInput = document.getElementById('tt-outline-second-join-input');
+        const outlineSecondJoinList = document.querySelector('[data-input="tt-outline-second-join-input"]');
+        if (outlineSecondJoinInput && outlineSecondJoinList) {
+            const joinVal2 = s.outline && s.outline.second && s.outline.second.join || 'round';
+            outlineSecondJoinInput.value = joinVal2;
+            outlineSecondJoinList.querySelectorAll('li').forEach(li => {
+                li.classList.remove('selected');
+                if (li.dataset.id === joinVal2) li.classList.add('selected');
+            });
         }
 
-        const letterSpacingInput = document.getElementById('tt-letter-spacing-input');
-        if (letterSpacingInput) {
-            // Use letterSpacing directly (already in -0.5 to 1.5 range)
-            letterSpacingInput.value = s.letterSpacing || 0;
-            updateRangeFill(letterSpacingInput);
-        }
+        // OUTLINE GLOBAL
+        setInputValue('tt-outline-global-active-input', s.outline && s.outline.global && s.outline.global.active);
+        setInputValue('tt-outline-global-width-input', s.outline && s.outline.global && s.outline.global.width);
+        setInputValue('tt-outline-global-fill-color-input', s.outline && s.outline.global && s.outline.global.fill && s.outline.global.fill.color);
+        setInputValue('tt-outline-global-fill-gradient-active-input', s.outline && s.outline.global && s.outline.global.fill && s.outline.global.fill.gradient && s.outline.global.fill.gradient.active);
+        setInputValue('tt-outline-global-fill-alpha-input', s.outline && s.outline.global && s.outline.global.fill && s.outline.global.fill.alpha);
+        setInputValue('tt-outline-global-shadow-active-input', s.outline && s.outline.global && s.outline.global.shadow && s.outline.global.shadow.active);
+        setInputValue('tt-outline-global-mask-input', s.outline && s.outline.global && s.outline.global.mask);
+        setInputValue('tt-outline-global-projection-input', s.outline && s.outline.global && s.outline.global.projection);
 
-        const rotateInput = document.getElementById('tt-rotate-input');
-        if (rotateInput) rotateInput.value = s.rotate;
+        setInputValue('tt-outline-global2-active-input', s.outline && s.outline.global2 && s.outline.global2.active);
+        setInputValue('tt-outline-global2-width-input', s.outline && s.outline.global2 && s.outline.global2.width);
+        setInputValue('tt-outline-global2-fill-color-input', s.outline && s.outline.global2 && s.outline.global2.fill && s.outline.global2.fill.color);
+        setInputValue('tt-outline-global2-fill-alpha-input', s.outline && s.outline.global2 && s.outline.global2.fill && s.outline.global2.fill.alpha);
+        setInputValue('tt-outline-global2-shadow-active-input', s.outline && s.outline.global2 && s.outline.global2.shadow && s.outline.global2.shadow.active);
+        setInputValue('tt-outline-global2-mask-input', s.outline && s.outline.global2 && s.outline.global2.mask);
 
-        const curveInput = document.getElementById('tt-distort-arc-angle-input');
-        if (curveInput) {
-            curveInput.value = s.distort.arc.angle || 0;
-            updateRangeFill(curveInput);
-        }
+        // BEVEL INNER
+        setInputValue('tt-bevel-inner-active-input', s.bevel && s.bevel.inner && s.bevel.inner.active);
+        setInputValue('tt-bevel-inner-size-input', s.bevel && s.bevel.inner && s.bevel.inner.size);
+        setInputValue('tt-bevel-inner-soften-input', s.bevel && s.bevel.inner && s.bevel.inner.soften);
+        setInputValue('tt-bevel-inner-angle-input', s.bevel && s.bevel.inner && s.bevel.inner.angle);
+        setInputValue('tt-bevel-inner-altitude-input', s.bevel && s.bevel.inner && s.bevel.inner.altitude);
+        setInputValue('tt-bevel-inner-highlight-color-input', s.bevel && s.bevel.inner && s.bevel.inner.highlight && s.bevel.inner.highlight.color);
+        setInputValue('tt-bevel-inner-highlight-blendmode-input', s.bevel && s.bevel.inner && s.bevel.inner.highlight && s.bevel.inner.highlight.blendmode);
+        setInputValue('tt-bevel-inner-highlight-alpha-input', s.bevel && s.bevel.inner && s.bevel.inner.highlight && s.bevel.inner.highlight.alpha);
+        setInputValue('tt-bevel-inner-shadow-color-input', s.bevel && s.bevel.inner && s.bevel.inner.shadow && s.bevel.inner.shadow.color);
+        setInputValue('tt-bevel-inner-shadow-blendmode-input', s.bevel && s.bevel.inner && s.bevel.inner.shadow && s.bevel.inner.shadow.blendmode);
+        setInputValue('tt-bevel-inner-shadow-alpha-input', s.bevel && s.bevel.inner && s.bevel.inner.shadow && s.bevel.inner.shadow.alpha);
 
-        const fillActive = document.getElementById('tt-fill-active-input');
-        if (fillActive) fillActive.checked = s.fill.active;
+        // SPECULAR INNER
+        setInputValue('tt-specular-inner-active-input', s.specular && s.specular.inner && s.specular.inner.active);
+        setInputValue('tt-specular-inner-blur-input', s.specular && s.specular.inner && s.specular.inner.blur);
+        setInputValue('tt-specular-inner-scale-input', s.specular && s.specular.inner && s.specular.inner.scale);
+        setInputValue('tt-specular-inner-constant-input', s.specular && s.specular.inner && s.specular.inner.constant);
+        setInputValue('tt-specular-inner-exponent-input', s.specular && s.specular.inner && s.specular.inner.exponent);
+        setInputValue('tt-specular-inner-azimuth-input', s.specular && s.specular.inner && s.specular.inner.azimuth);
+        setInputValue('tt-specular-inner-elevation-input', s.specular && s.specular.inner && s.specular.inner.elevation);
+        setInputValue('tt-specular-inner-color-input', s.specular && s.specular.inner && s.specular.inner.color);
 
-        const fillColor = document.getElementById('tt-fill-color-input');
-        if (fillColor) fillColor.value = s.fill.color;
+        // INNER SHADOW
+        setInputValue('tt-shadow-inner-active-input', s.shadow && s.shadow.inner && s.shadow.inner.active);
+        setInputValue('tt-shadow-inner-size-input', s.shadow && s.shadow.inner && s.shadow.inner.size);
+        setInputValue('tt-shadow-inner-strength-input', s.shadow && s.shadow.inner && s.shadow.inner.strength);
+        setInputValue('tt-shadow-inner-alpha-input', s.shadow && s.shadow.inner && s.shadow.inner.alpha);
+        setInputValue('tt-shadow-inner-distance-input', s.shadow && s.shadow.inner && s.shadow.inner.distance);
+        setInputValue('tt-shadow-inner-angle-input', s.shadow && s.shadow.inner && s.shadow.inner.angle);
+        setInputValue('tt-shadow-inner-offset-input', s.shadow && s.shadow.inner && s.shadow.inner.offset);
+        setInputValue('tt-shadow-inner-color-input', s.shadow && s.shadow.inner && s.shadow.inner.color);
+        setInputValue('tt-shadow-inner-blendmode-input', s.shadow && s.shadow.inner && s.shadow.inner.blendmode);
 
-        const fillAlpha = document.getElementById('tt-fill-alpha-input');
-        if (fillAlpha) fillAlpha.value = s.fill.alpha;
+        setInputValue('tt-shadow-inner2-active-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.active);
+        setInputValue('tt-shadow-inner2-size-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.size);
+        setInputValue('tt-shadow-inner2-strength-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.strength);
+        setInputValue('tt-shadow-inner2-alpha-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.alpha);
+        setInputValue('tt-shadow-inner2-distance-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.distance);
+        setInputValue('tt-shadow-inner2-angle-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.angle);
+        setInputValue('tt-shadow-inner2-offset-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.offset);
+        setInputValue('tt-shadow-inner2-color-input', s.shadow && s.shadow.inner2 && s.shadow.inner2.color);
 
-        const outlineActive = document.getElementById('tt-outline-active-input');
-        if (outlineActive) outlineActive.checked = s.outline.active;
+        // OUTER SHADOW
+        setInputValue('tt-shadow-outer-active-input', s.shadow && s.shadow.outer && s.shadow.outer.active);
+        setInputValue('tt-shadow-outer-size-input', s.shadow && s.shadow.outer && s.shadow.outer.size);
+        setInputValue('tt-shadow-outer-strength-input', s.shadow && s.shadow.outer && s.shadow.outer.strength);
+        setInputValue('tt-shadow-outer-fill-alpha-input', s.shadow && s.shadow.outer && s.shadow.outer.fill && s.shadow.outer.fill.alpha);
+        setInputValue('tt-shadow-outer-distance-input', s.shadow && s.shadow.outer && s.shadow.outer.distance);
+        setInputValue('tt-shadow-outer-angle-input', s.shadow && s.shadow.outer && s.shadow.outer.angle);
+        setInputValue('tt-shadow-outer-mask-input', s.shadow && s.shadow.outer && s.shadow.outer.mask);
+        setInputValue('tt-shadow-outer-fill-color-input', s.shadow && s.shadow.outer && s.shadow.outer.fill && s.shadow.outer.fill.color);
+        setInputValue('tt-shadow-outer-fill-gradient-active-input', s.shadow && s.shadow.outer && s.shadow.outer.fill && s.shadow.outer.fill.gradient && s.shadow.outer.fill.gradient.active);
 
-        const outlineWidth = document.getElementById('tt-outline-width-input');
-        if (outlineWidth) outlineWidth.value = s.outline.width;
+        setInputValue('tt-shadow-outer2-active-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.active);
+        setInputValue('tt-shadow-outer2-size-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.size);
+        setInputValue('tt-shadow-outer2-strength-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.strength);
+        setInputValue('tt-shadow-outer2-fill-alpha-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.fill && s.shadow.outer2.fill.alpha);
+        setInputValue('tt-shadow-outer2-distance-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.distance);
+        setInputValue('tt-shadow-outer2-angle-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.angle);
+        setInputValue('tt-shadow-outer2-mask-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.mask);
+        setInputValue('tt-shadow-outer2-fill-color-input', s.shadow && s.shadow.outer2 && s.shadow.outer2.fill && s.shadow.outer2.fill.color);
 
-        const outlineJoin = document.getElementById('tt-outline-join-input');
-        if (outlineJoin) outlineJoin.value = s.outline.join;
+        // ICON
+        setInputValue('tt-icon-active-input', s.icon && s.icon.active);
+        setInputValue('tt-icon-size-input', s.icon && s.icon.size);
+        setInputValue('tt-icon-position-input', s.icon && s.icon.position);
+        setInputValue('tt-icon-offset-x-input', s.icon && s.icon.offset && s.icon.offset.x);
+        setInputValue('tt-icon-offset-y-input', s.icon && s.icon.offset && s.icon.offset.y);
+        setInputValue('tt-icon-rotate-input', s.icon && s.icon.rotate);
+        setInputValue('tt-icon-alpha-input', s.icon && s.icon.alpha);
+        setInputValue('tt-icon-composite-input', s.icon && s.icon.composite);
 
-        const outlineColor = document.getElementById('tt-outline-fill-color-input');
-        if (outlineColor) outlineColor.value = s.outline.color;
-
-        const outlineAlpha = document.getElementById('tt-outline-fill-alpha-input');
-        if (outlineAlpha) outlineAlpha.value = s.outline.alpha;
-
-        const innerShadowActive = document.getElementById('tt-shadow-inner-active-input');
-        if (innerShadowActive) innerShadowActive.checked = s.shadowInner.active;
-
-        const innerShadowSize = document.getElementById('tt-shadow-inner-size-input');
-        if (innerShadowSize) innerShadowSize.value = s.shadowInner.size;
-
-        const innerShadowDistance = document.getElementById('tt-shadow-inner-distance-input');
-        if (innerShadowDistance) innerShadowDistance.value = s.shadowInner.distance;
-
-        const innerShadowAngle = document.getElementById('tt-shadow-inner-angle-input');
-        if (innerShadowAngle) innerShadowAngle.value = s.shadowInner.angle;
-
-        const innerShadowOffset = document.getElementById('tt-shadow-inner-offset-input');
-        if (innerShadowOffset) innerShadowOffset.value = s.shadowInner.offset || 0;
-
-        const innerShadowColor = document.getElementById('tt-shadow-inner-color-input');
-        if (innerShadowColor) innerShadowColor.value = s.shadowInner.color;
-
-        const innerShadowAlpha = document.getElementById('tt-shadow-inner-alpha-input');
-        if (innerShadowAlpha) innerShadowAlpha.value = s.shadowInner.alpha;
-
-        const outerShadowActive = document.getElementById('tt-shadow-outer-active-input');
-        if (outerShadowActive) outerShadowActive.checked = s.shadowOuter.active;
-
-        const outerShadowSize = document.getElementById('tt-shadow-outer-size-input');
-        if (outerShadowSize) outerShadowSize.value = s.shadowOuter.size;
-
-        const outerShadowDistance = document.getElementById('tt-shadow-outer-distance-input');
-        if (outerShadowDistance) outerShadowDistance.value = s.shadowOuter.distance;
-
-        const outerShadowAngle = document.getElementById('tt-shadow-outer-angle-input');
-        if (outerShadowAngle) outerShadowAngle.value = s.shadowOuter.angle;
-
-        const outerShadowColor = document.getElementById('tt-shadow-outer-fill-color-input');
-        if (outerShadowColor) outerShadowColor.value = s.shadowOuter.color;
-
-        const outerShadowAlpha = document.getElementById('tt-shadow-outer-fill-alpha-input');
-        if (outerShadowAlpha) outerShadowAlpha.value = s.shadowOuter.alpha;
-
-        // Depth controls
-        const depthActive = document.getElementById('tt-depth-active-input');
-        if (depthActive) depthActive.checked = s.depth.active;
-        const depthLength = document.getElementById('tt-depth-length-input');
-        if (depthLength) depthLength.value = s.depth.length;
-        const depthAngle = document.getElementById('tt-depth-angle-input');
-        if (depthAngle) depthAngle.value = s.depth.angle;
-        const depthColor = document.getElementById('tt-depth-color-input');
-        if (depthColor) depthColor.value = s.depth.color;
-        const depthAlpha = document.getElementById('tt-depth-alpha-input');
-        if (depthAlpha) depthAlpha.value = s.depth.alpha;
-        const depthGradientActive = document.getElementById('tt-depth-gradient-active-input');
-        if (depthGradientActive) depthGradientActive.checked = s.depth.gradient.active;
-        const depthGradientAngle = document.getElementById('tt-depth-gradient-angle-input');
-        if (depthGradientAngle) depthGradientAngle.value = s.depth.gradient.angle;
-
-        // Outline 2 controls
-        const outline2Active = document.getElementById('tt-outline2-active-input');
-        if (outline2Active) outline2Active.checked = s.outline2.active;
-        const outline2Width = document.getElementById('tt-outline2-width-input');
-        if (outline2Width) outline2Width.value = s.outline2.width;
-        const outline2Join = document.getElementById('tt-outline2-join-input');
-        if (outline2Join) outline2Join.value = s.outline2.join;
-        const outline2Color = document.getElementById('tt-outline2-fill-color-input');
-        if (outline2Color) outline2Color.value = s.outline2.color;
-        const outline2Alpha = document.getElementById('tt-outline2-fill-alpha-input');
-        if (outline2Alpha) outline2Alpha.value = s.outline2.alpha;
-        const outline2GradientActive = document.getElementById('tt-outline2-fill-gradient-active-input');
-        if (outline2GradientActive) outline2GradientActive.checked = s.outline2.gradient.active;
-        const outline2GradientAngle = document.getElementById('tt-outline2-fill-gradient-angle-input');
-        if (outline2GradientAngle) outline2GradientAngle.value = s.outline2.gradient.angle;
-
-        // Shadow 2 controls
-        const outerShadow2Active = document.getElementById('tt-shadow-outer2-active-input');
-        if (outerShadow2Active) outerShadow2Active.checked = s.shadowOuter2.active;
-        const outerShadow2Size = document.getElementById('tt-shadow-outer2-size-input');
-        if (outerShadow2Size) outerShadow2Size.value = s.shadowOuter2.size;
-        const outerShadow2Distance = document.getElementById('tt-shadow-outer2-distance-input');
-        if (outerShadow2Distance) outerShadow2Distance.value = s.shadowOuter2.distance;
-        const outerShadow2Angle = document.getElementById('tt-shadow-outer2-angle-input');
-        if (outerShadow2Angle) outerShadow2Angle.value = s.shadowOuter2.angle;
-        const outerShadow2Color = document.getElementById('tt-shadow-outer2-fill-color-input');
-        if (outerShadow2Color) outerShadow2Color.value = s.shadowOuter2.color;
-        const outerShadow2Alpha = document.getElementById('tt-shadow-outer2-fill-alpha-input');
-        if (outerShadow2Alpha) outerShadow2Alpha.value = s.shadowOuter2.alpha;
-
-        const innerShadow2Active = document.getElementById('tt-shadow-inner2-active-input');
-        if (innerShadow2Active) innerShadow2Active.checked = s.shadowInner2.active;
-        const innerShadow2Size = document.getElementById('tt-shadow-inner2-size-input');
-        if (innerShadow2Size) innerShadow2Size.value = s.shadowInner2.size;
-        const innerShadow2Distance = document.getElementById('tt-shadow-inner2-distance-input');
-        if (innerShadow2Distance) innerShadow2Distance.value = s.shadowInner2.distance;
-        const innerShadow2Angle = document.getElementById('tt-shadow-inner2-angle-input');
-        if (innerShadow2Angle) innerShadow2Angle.value = s.shadowInner2.angle;
-        const innerShadow2Offset = document.getElementById('tt-shadow-inner2-offset-input');
-        if (innerShadow2Offset) innerShadow2Offset.value = s.shadowInner2.offset || 0;
-        const innerShadow2Color = document.getElementById('tt-shadow-inner2-color-input');
-        if (innerShadow2Color) innerShadow2Color.value = s.shadowInner2.color;
-        const innerShadow2Alpha = document.getElementById('tt-shadow-inner2-alpha-input');
-        if (innerShadow2Alpha) innerShadow2Alpha.value = s.shadowInner2.alpha;
-
-        // Bevel controls
-        const bevelActive = document.getElementById('tt-bevel-active-input');
-        if (bevelActive) bevelActive.checked = s.bevel.active;
-        const bevelSize = document.getElementById('tt-bevel-size-input');
-        if (bevelSize) bevelSize.value = s.bevel.size;
-        const bevelSmoothing = document.getElementById('tt-bevel-smoothing-input');
-        if (bevelSmoothing) bevelSmoothing.value = s.bevel.smoothing;
-        const bevelAngle = document.getElementById('tt-bevel-angle-input');
-        if (bevelAngle) bevelAngle.value = s.bevel.angle;
-        const bevelHighlightColor = document.getElementById('tt-bevel-highlight-color-input');
-        if (bevelHighlightColor) bevelHighlightColor.value = s.bevel.highlight.color;
-        const bevelHighlightAlpha = document.getElementById('tt-bevel-highlight-alpha-input');
-        if (bevelHighlightAlpha) bevelHighlightAlpha.value = s.bevel.highlight.alpha;
-        const bevelShadowColor = document.getElementById('tt-bevel-shadow-color-input');
-        if (bevelShadowColor) bevelShadowColor.value = s.bevel.shadow.color;
-        const bevelShadowAlpha = document.getElementById('tt-bevel-shadow-alpha-input');
-        if (bevelShadowAlpha) bevelShadowAlpha.value = s.bevel.shadow.alpha;
-
-        // Lettering controls
-        const letteringActive = document.getElementById('tt-lettering-active-input');
-        if (letteringActive) letteringActive.checked = s.lettering.active;
-        const letteringBoggleActive = document.getElementById('tt-lettering-boggle-active-input');
-        if (letteringBoggleActive) letteringBoggleActive.checked = s.lettering.boggle.active;
-        const letteringBoggleAngle = document.getElementById('tt-lettering-boggle-angle-input');
-        if (letteringBoggleAngle) letteringBoggleAngle.value = s.lettering.boggle.angle;
-        const letteringBoggleAmplitude = document.getElementById('tt-lettering-boggle-amplitude-input');
-        if (letteringBoggleAmplitude) letteringBoggleAmplitude.value = s.lettering.boggle.amplitude;
-        const letteringReverseActive = document.getElementById('tt-lettering-reverse-active-input');
-        if (letteringReverseActive) letteringReverseActive.checked = s.lettering.reverseOverlap.active;
-        const letteringReverseLetters = document.getElementById('tt-lettering-reverse-letters-input');
-        if (letteringReverseLetters) letteringReverseLetters.value = s.lettering.reverseOverlap.letters;
-        const letteringReverseLines = document.getElementById('tt-lettering-reverse-lines-input');
-        if (letteringReverseLines) letteringReverseLines.value = s.lettering.reverseOverlap.lines;
-
-        // Distort controls
-        const distortActive = document.getElementById('tt-distort-active-input');
-        if (distortActive) distortActive.checked = s.distort.active;
-        const distortArc = document.getElementById('tt-distort-arc-input');
-        if (distortArc) distortArc.value = s.distort.arc.angle;
-
-        // Texture controls
-        const fillTextureActive = document.getElementById('tt-fill-texture-active-input');
-        if (fillTextureActive) fillTextureActive.checked = s.fill.texture.active;
-        const fillTextureSrc = document.getElementById('tt-fill-texture-src-input');
-        if (fillTextureSrc) fillTextureSrc.value = s.fill.texture.src || '';
-        const fillTextureSize = document.getElementById('tt-fill-texture-size-input');
-        if (fillTextureSize) fillTextureSize.value = s.fill.texture.size;
-        const fillTextureAlpha = document.getElementById('tt-fill-texture-alpha-input');
-        if (fillTextureAlpha) fillTextureAlpha.value = s.fill.texture.alpha;
-
-        const outlineTextureActive = document.getElementById('tt-outline-texture-active-input');
-        if (outlineTextureActive) outlineTextureActive.checked = s.outline.texture.active;
-        const outlineTextureSrc = document.getElementById('tt-outline-texture-src-input');
-        if (outlineTextureSrc) outlineTextureSrc.value = s.outline.texture.src || '';
-        const outlineTextureSize = document.getElementById('tt-outline-texture-size-input');
-        if (outlineTextureSize) outlineTextureSize.value = s.outline.texture.size;
-
-        // Palette controls
-        const outlinePaletteActive = document.getElementById('tt-outline-palette-active-input');
-        if (outlinePaletteActive) outlinePaletteActive.checked = s.outline.palette.active;
-        const outlinePaletteMethod = document.getElementById('tt-outline-palette-method-input');
-        if (outlinePaletteMethod) outlinePaletteMethod.value = s.outline.palette.method;
-
-        const bgActive = document.getElementById('tt-background-active-input');
-        if (bgActive) bgActive.checked = s.background.active;
-
-        const bgColor = document.getElementById('tt-background-fill-color-input');
-        if (bgColor) bgColor.value = s.background.color;
-
-        const bgAlpha = document.getElementById('tt-background-fill-alpha-input');
-        if (bgAlpha) bgAlpha.value = s.background.alpha;
-
-        const bgImageActive = document.getElementById('tt-background-image-active-input');
-        if (bgImageActive) bgImageActive.checked = s.background.image.active;
-
-        const bgImageSrc = document.getElementById('tt-background-image-input');
-        if (bgImageSrc) bgImageSrc.value = s.background.image.src || '';
-
-        const bgImageSize = document.getElementById('tt-background-image-size-input');
-        if (bgImageSize) bgImageSize.value = s.background.image.size;
-
-        const iconActive = document.getElementById('tt-icon-active-input');
-        if (iconActive) iconActive.checked = s.icon.active;
-
-        const iconSrc = document.getElementById('tt-icon-src-input');
-        if (iconSrc) iconSrc.value = s.icon.src || '';
-
-        const iconPosition = document.getElementById('tt-icon-position-input');
-        if (iconPosition) iconPosition.value = s.icon.position;
-
-        const iconSize = document.getElementById('tt-icon-size-input');
-        if (iconSize) iconSize.value = s.icon.size;
-
-        const iconOffsetX = document.getElementById('tt-icon-offset-x-input');
-        if (iconOffsetX) iconOffsetX.value = s.icon.offset.x;
-
-        const iconOffsetY = document.getElementById('tt-icon-offset-y-input');
-        if (iconOffsetY) iconOffsetY.value = s.icon.offset.y;
+        // BACKGROUND
+        setInputValue('tt-background-active-input', s.background && s.background.active);
+        setInputValue('tt-background-fill-color-input', s.background && s.background.fill && s.background.fill.color);
+        setInputValue('tt-background-fill-gradient-active-input', s.background && s.background.fill && s.background.fill.gradient && s.background.fill.gradient.active);
+        setInputValue('tt-background-fill-gradient-type-input', s.background && s.background.fill && s.background.fill.gradient && s.background.fill.gradient.type);
+        setInputValue('tt-background-fill-gradient-angle-input', s.background && s.background.fill && s.background.fill.gradient && s.background.fill.gradient.angle);
+        setInputValue('tt-background-fill-alpha-input', s.background && s.background.fill && s.background.fill.alpha);
+        setInputValue('tt-background-fill-image-active-input', s.background && s.background.fill && s.background.fill.image && s.background.fill.image.active);
+        setInputValue('tt-background-fill-image-repeat-input', s.background && s.background.fill && s.background.fill.image && s.background.fill.image.repeat);
+        setInputValue('tt-background-fill-image-alpha-input', s.background && s.background.fill && s.background.fill.image && s.background.fill.image.alpha);
+        setInputValue('tt-background-fill-image-size-custom-input', s.background && s.background.fill && s.background.fill.image && s.background.fill.image.size && s.background.fill.image.size.custom);
+        setInputValue('tt-background-composite-input', s.background && s.background.composite);
 
         // Update range slider fills
-        var ranges = document.querySelectorAll('input[type="range"]');
-        ranges.forEach(function(range) {
+        document.querySelectorAll('input[type="range"]').forEach(function(range) {
             updateRangeFill(range);
         });
     }
@@ -2651,22 +2722,29 @@
     function renderToCanvas(canvas, settings, options) {
         const previous = {
             canvas: state.canvas, ctx: state.ctx, settings: state.settings,
-            scale: state.scale, isRendering: state.isRendering,
+            isRendering: state.isRendering,
             transparentOutput: state.transparentOutput
         };
         try {
             state.canvas = canvas;
             state.ctx = canvas.getContext('2d');
             state.settings = settings;
-            state.scale = 1;
             state.isRendering = false;
             state.transparentOutput = Boolean(options && options.transparent);
+            
+            // For export, use fixed resolution independent of visual zoom
+            // Temporarily override canvas.zoom to ensure consistent export size
+            const originalZoom = state.settings.canvas.zoom;
+            state.settings.canvas.zoom = 1.0; // Use 1.0 for export (no visual zoom)
+            
             render();
+            
+            // Restore original zoom
+            state.settings.canvas.zoom = originalZoom;
         } finally {
             state.canvas = previous.canvas;
             state.ctx = previous.ctx;
             state.settings = previous.settings;
-            state.scale = previous.scale;
             state.isRendering = previous.isRendering;
             state.transparentOutput = previous.transparentOutput;
         }
