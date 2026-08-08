@@ -1,43 +1,0 @@
-
-var ftGUID_8712022="678211BA50F903";
-var ftConfID_8712022="0";
-var ftParams_8712022="ftOBA=1&ft_agentEnv=0&ft_referrer=https%3A%2F%2Fgoogleads.g.doubleclick.net%2Fpagead%2Fads%3Fgdpr%3D0%26client%3Dca-pub-9312284468429437%26output%3Dhtml%26h%3D280%26num_ads%3D1%26adk%3D1594876222%26adf%3D495514903%26abgtt%3D6%26w%3D371%26fwrn%3D4%26fwrnh%3D100%26lmt%3D1785264720%26rafmt%3D1%26armr%3D3%26sem%3Dmc%26pwprc%3D9445510256%26ad_type%3Dtext_image%26format%3D371x280%26url%3Dhttps%253A%252F%252Fwww.textstudio.com%252Flogo%252Fspotify-logo-867%2523google_vignette%26fwr%3D0%26pra%3D3%26rh%3D310%26rw%3D371%26rpe%3D1%26resp_fmts%3D3%26aiof%3D10%26asro%3D0%26aimartd%3D4%26aieuf%3D1%26aicrs%3D1%26fa%3D27%26uach%3DWyJXaW5kb3dzIiwiMTAuMC4wIiwieDg2IiwiIiwiMTUwLjAuNzg3MS4xODIiLG51bGwsMCxudWxsLCI2NCIsW1siTm90O0E9QnJhbmQiLCI4LjAuMC4wIl0sWyJDaHJvbWl1bSIsIjE1MC4wLjc4NzEuMTgyIl0sWyJHb29nbGUgQ2hyb21lIiwiMTUwLjAuNzg3MS4xODIiXV0sMF0.%26dt%3D1785264720809%26bpp%3D1%26bdt%3D8579%26idt%3D-M%26shv%3Dr20260721%26mjsv%3Dm202607230101%26ptt%3D9%26saldr%3Daa%26abxe%3D1%26cookie%3DID%253De488ddaf8d41c661%253AT%253D1785182203%253ART%253D17&gdpr=0&ftClick=https://adclick.g.doubleclick.net/aclk?sa=L&ai=CCje0UfpoatG8AdWH9cYPodPP2Q6I76j0XN69t5avAcCNtwEQASCHocEjYKHYgoAoyAEJqAMByAMCqgT7AU_Qjk7BvMmJteJGnkW-WBROWPMohqHvBoJ83yQ0anw-VSrhRydvGPwFzp6ekWne8TxNM_C9_t4flQGykb79FLp-aubW7ErLwyGDRyndMYDumfeaq6vIMIvf0ur_N1aEpO7nUp0guKBfm-hwJbX5veCEgR_XMF_dK32JBnnr221fV0ms1YmIXZEEqiqWpqjY1YQufHtr_PLKVQQ45ORihXUq4SgrVu-p0jjXdbo4YSjWdmNeQiFVuZejmKwDQAVlV4-m9gX1n3kg5ASV6VH9JNvajYL5A7gKeQfhQwK6mpyTdIKw3Xpts-hpbsMP3rPFd2T2TRh7u8rZYjdygAba4JK91p7WpsYBoAYhqAeT2LECqAeU2LECqAeV2LECqAemvhuoB5bYG6gHqpuxAqgH_56xAqgH35-xAqgHrb6xAqgHv9OxAtgHANIINQiAYRABMgiKgoCAgICACDoUmdCAgICABIDAgICAoKiAAqiBgBBIvf3BOlifhZushfaVA2AA-gsCCAGADAGqDQJBUuoNEwjrr5ushfaVAxXVQ90CHaHpM-uIDgnQFQGAFwGyFwQYDFAB&num=1&sig=AOD64_3amFSFImZWYR4to6vMQAaWt4HQTw&client=ca-pub-9312284468429437&adurl=https://exch.quantserve.com/r?&a=p-1RYxePXT9bCS2&labels=_qc.clk,_click.adserver.rtb,_click.rand.206668374&rtbip=192.184.73.73&rtbdata2=EAA6Gmh0dHBzOi8vd3d3LnRleHRzdHVkaW8uY29tWihZWk1ESFRYS0FobDZ4d3hQWThvWUdESEFBeHA2bGdNVFk4ci1wR3lsgAHWhMZiugEbQ0FFU0VFOHkyOTN3alZjNGdBeXN1MXdJRzN3wAGY8gHIAeWZx9D6M9oBFlJQeGdWM2N1SjY0cjZ1ZXFWaVo2Y1GwAgjIAgDQAs7hhvv4n_fMqQHoAgTyAg8I9Y4HEK7iwtu9w4eStAHyAgwIBBDnuo_ym47T0FD4AgCKAxYwLnB1Yi05MzEyMjg0NDY4NDI5NDM3mAMAqAMAsgMEtednJ7oDEgnJSdUuCdnqZxHzogXgndquvMIDEgn9TCzJn7BU7xFDOpad8KSzpsgDl4CAgQHYA9aExmLiAw9wLTFSWXhlUFhUOWJDUzLqAwYIrAIQ-gHyAwtiNzYwMCUyMGRwZPgDAIAEsAKKBAI3N5oEEgnRRvMZhqgRYhHgiYr3cUDasqIEEgnJSdUuCdnqZxHzogXgndquvKoEEgnJSdUuCdnqZxHzogXgndquvLgE0AXQBA7yBAJBUoAFAYoFKjIwYjYwYzdjNWMwNTU0Mzk5Y2M5MWIzZjQxMzBjNTcyYWNlNWQzOGY2YpAFAZoFFSC2DHxcBVQ5nMkbP0EwxXKs5dOPa6IFJEdEQlZVREFlV1c4ZlB3QnZGSGQwTmpFTlZXdEpDeko1Y1pJPbAFALgFAMAF1oTGYsgF89KqBNIFBggCEAEYGOgFBZoGFAoSCdFG8xmGqBFiEeCJivdxQNqyoAYAqAaXnf0htQbdqIg2ugZhCgJBUhIBQhgAIhFtYXIlMjBkZWwlMjBwbGF0YSoLYjc2MDAlMjBkcGQ6GnRlbGVjb20lMjBhcmdlbnRpbmElMjBzLmEuWhp0ZWxlY29tJTIwYXJnZW50aW5hJTIwcy5hLskGybgg5WQs2hPxBgBgIOVkLNoT-AYDgAcAigcSCf1MLMmfsFTvEUM6lp3wpLOmsAfA9LMEuAfn5YYF2AcE&rtb_id=Ccm4IOVkLNoTEQBgIOVkLNoTGDwiEyOLBja_kOtkXoY&redirecturl3=&ft_custom=asB5-26jYulypjXuDuVk7W75W6pbwXk6ihk=&site_url=textstudio.com&cachebuster=528954.340627148";
-var ftKeyword_8712022="";
-var ftCustom_8712022="asB5-26jYulypjXuDuVk7W75W6pbwXk6ihk=";
-var ftSection_8712022="";
-var ftSegment_8712022="";
-var ftSegmentList_8712022=[];
-var ftRuleMatch_8712022="0";
-var ftTimestamp_8712022="1785264909";
-var ftGeoC2_8712022="ar";
-var ftGeoState_8712022="b";
-var ftGeoCity_8712022="mar del plata";
-var ftISP_8712022="telecom argentina s.a.";
-var ftSpeed_8712022="broadband";
-var ftConnType_8712022="wifi";
-var ftDMA_8712022="-1";
-var ftLong_8712022="-57.55";
-var ftLat_8712022="-38";
-var ftPostal_8712022="b7600 dpd";
-var ftTimeZone_8712022="-300";
-var ftMobileCarrier_8712022="";
-var ftImp8712022 = {};
-ftImp8712022.privacy = "x";
-ftImp8712022.guidAge = "1";
-ftImp8712022.impID = "FA884980-059B-0F76-A617-A82967FF1BC5";
-ftImp8712022.duid = "FT:678211BA50F903";
-
-ftImp8712022.ft_tpplid = "";
-ftImp8712022.ft_c = {};
-ftImp8712022.gdpr = "0";
-ftImp8712022.gdpr_consent = "";
-ftImp8712022.gdpr_pd = "";
-ftImp8712022.oob_consent = "";
-ftImp8712022.gdprStoredConsent = "";
-ftImp8712022.us_privacy = "";
-ftImp8712022.gpc = "";
-
-ftImp8712022.jsAppend = "1";
-var ftCreativeId_8712022 = "5491324";
-(function(){var tag=document.getElementById("ft_servedby_8712022")||function(s){return s[s.length-1]}(document.getElementsByTagName("script")),js=document.createElement("script");js.src="https://ajs-assets.ftstatic.com/ftUtils.js";js.id="ftscript_m8712022";js.setAttribute("name","ftscript_m8712022");tag.parentNode.insertBefore(js,tag)})();window.fTChecker=window.fTChecker||function(id){if(!id)return false;id=""+id;if(window.hasOwnProperty("ftUtils")){window["ft"+id]=Object.assign({},window.ftUtils.common);window["ft"+id].getBannerConfig(id)}else(function(id){window.setTimeout(function(){window.fTChecker(id)},50)})(id)};window.fTChecker("8712022");
-
