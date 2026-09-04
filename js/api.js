@@ -33,13 +33,23 @@
     async function renderTextToPNG(params) {
         params = params || {};
         if (typeof params.text !== 'string') throw new Error('text must be a string');
-        if (!params.preset) throw new Error('preset is required');
+        if (!params.preset && !params.settings) throw new Error('preset or settings is required');
         if (!window.TextEditor || !window.ExportManager) throw new Error('TextMuy has not finished loading');
 
-        const preset = await loadPresetByName(params.preset);
-        const settings = TextEditor.createDefaultSettings();
-        TextEditor.loadPreset(preset, settings);
+        let settings;
+        if (params.settings) {
+            // Render from current editor state (used by Download / Copy buttons)
+            settings = TextEditor.createDefaultSettings();
+            mergeDeep(settings, params.settings);
+        } else {
+            const preset = await loadPresetByName(params.preset);
+            settings = TextEditor.createDefaultSettings();
+            TextEditor.loadPreset(preset, settings);
+        }
+
         settings.text = params.text;
+        if (params.width) settings.canvas.width = Math.max(100, Math.min(8000, Number(params.width) || settings.canvas.width));
+        if (params.height) settings.canvas.height = Math.max(100, Math.min(8000, Number(params.height) || settings.canvas.height));
         mergeDeep(settings, params.overrides || {});
 
         const canvas = ExportManager.canvasFromSettings(settings);
@@ -48,7 +58,7 @@
 
     async function downloadPNG(params) {
         const blob = await renderTextToPNG(params);
-        const name = (params.preset || 'textmuy') + '_' + Date.now() + '.png';
+        const name = (params && params.preset ? params.preset : 'textmuy') + '_' + Date.now() + '.png';
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -60,5 +70,19 @@
         return name;
     }
 
-    window.TextMuyAPI = { renderTextToPNG: renderTextToPNG, downloadPNG: downloadPNG, loadPresetByName: loadPresetByName };
+    async function copyImageToClipboard(params) {
+        const blob = await renderTextToPNG(params || {});
+        if (!navigator.clipboard || !window.ClipboardItem) {
+            throw new Error('Clipboard API not available in this browser. Use HTTPS or localhost.');
+        }
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        return true;
+    }
+
+    window.TextMuyAPI = {
+        renderTextToPNG: renderTextToPNG,
+        downloadPNG: downloadPNG,
+        copyImageToClipboard: copyImageToClipboard,
+        loadPresetByName: loadPresetByName
+    };
 })();

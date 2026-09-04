@@ -15,12 +15,14 @@
             weight: 'normal',
             name: '',
         },
-        align: 'right',
+        align: 'center',
         rotate: 0,
         lineHeight: 1,
         letterSpacing: 0,
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
+        // Persistent per-line overrides. The base settings above are All.
+        lineStyles: { 1: {}, 2: {}, 3: {} },
 
         // ===== 3D & FILLING =====
         // Filling (Relleno principal) - RGB format matching TextStudio
@@ -117,6 +119,21 @@
                     gradient: { active: false, angle: 0, colors: [] },
                     texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1 }
                 }
+            },
+            global2: {
+                active: false,
+                width: 0.1,
+                join: 'round',
+                mask: false,
+                projection: true,
+                vector: true,
+                shadow: { active: false, color: { r: 0, g: 0, b: 0, a: 1 }, size: 0.5 },
+                fill: {
+                    alpha: 1,
+                    color: { r: 255, g: 255, b: 255 },
+                    gradient: { active: false, angle: 0, colors: [] },
+                    texture: { active: false, alpha: 1, blendmode: 'over', src: null, repeat: 'repeat', position: 'center', size: 1 }
+                }
             }
         },
 
@@ -131,7 +148,7 @@
         },
 
         // ===== SHADOWS =====
-        // Bevel structure matching TextStudio
+        // Bevel structure matching TextStudio (inner + inner2 "brother")
         bevel: {
             inner: {
                 active: false,
@@ -139,8 +156,36 @@
                 smoothing: 0,
                 soften: 0.1,
                 angle: 135,
+                altitude: 0,
                 highlight: { alpha: 1, blendmode: 'over', color: { r: 255, g: 255, b: 255 } },
                 shadow: { alpha: 1, blendmode: 'over', color: { r: 0, g: 0, b: 0 } }
+            },
+            inner2: {
+                active: false,
+                size: 0.1,
+                smoothing: 0,
+                soften: 0.1,
+                angle: 135,
+                altitude: 0,
+                highlight: { alpha: 1, blendmode: 'over', color: { r: 255, g: 255, b: 255 } },
+                shadow: { alpha: 1, blendmode: 'over', color: { r: 0, g: 0, b: 0 } }
+            }
+        },
+
+        // Specular inner lighting
+        specular: {
+            inner: {
+                active: false,
+                type: 'default',
+                color: { r: 255, g: 255, b: 255 },
+                blendmode: 'screen',
+                blur: 0.5,
+                constant: 0.5,
+                exponent: 12,
+                azimuth: 0,
+                elevation: 50,
+                point: { x: 0, y: 0, z: 1 },
+                scale: 1
             }
         },
 
@@ -289,8 +334,9 @@
             height: 600,
             ratio: 2.5,
             autoFit: false,
-            zoom: 64,
-            padding: 0.05
+            zoom: 100,
+            maxFontSize: 100,
+            padding: 0
         },
 
         // ===== PROCESSING =====
@@ -340,8 +386,6 @@
             return;
         }
         state.ctx = state.canvas.getContext('2d');
-        state.ctx.textBaseline = 'middle';
-        state.ctx.textAlign = 'center';
 
         const textarea = document.getElementById('tt-text-textarea');
         if (textarea) {
@@ -351,6 +395,14 @@
         // Preload custom fonts
         if (window.FontLoader) {
             FontLoader.preloadAll();
+        }
+
+        const canvasWrapper = document.getElementById('tt-canvas-wrapper');
+        if (canvasWrapper && typeof ResizeObserver !== 'undefined') {
+            state.canvasResizeObserver = new ResizeObserver(function() {
+                render();
+            });
+            state.canvasResizeObserver.observe(canvasWrapper);
         }
 
         render();
@@ -454,19 +506,17 @@
      * Calculate detailed text layout with per-character metrics
      * This is the foundation for per-character effects
      */
-    function calculateTextLayout(ctx, text, settings) {
+    function calculateTextLayout(ctx, text, settings, renderedFontSize) {
         const layout = new TextLayout();
         const s = settings;
         
         // Split text into lines
         const lines = text.split('\n');
-        const fontSizePx = s.font.size;
+        const fontSizePx = renderedFontSize || s.font.size;
         layout.fontSize = fontSizePx;
         
         // Set font for measurements
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
-        const fontWeight = s.font.weight || 'normal';
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        setTextFont(ctx, s, fontSizePx);
         
         // Calculate metrics for each character in each line
         const letterSpacing = s.letterSpacing || 0;
@@ -513,9 +563,12 @@
         }
         layout.totalWidth = maxWidth;
         
-        const lineHeightPx = fontSizePx * (s.lineHeight || 1);
-        layout.totalHeight = lines.length * lineHeightPx;
-        layout.baseline = fontSizePx * 0.5; // Middle baseline
+        const measure = ctx.measureText('Ag');
+        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
+        layout.totalHeight = ascent + descent + (lines.length - 1) * lineAdvance;
+        layout.baseline = -layout.totalHeight / 2 + ascent;
         
         return layout;
     }
@@ -661,7 +714,7 @@
             // Overlap lines vertically
             for (let i = 1; i < layout.lines.length; i++) {
                 const line = layout.lines[i];
-                const lineHeightPx = layout.fontSize * 1.2; // Approximate line height
+                const lineHeightPx = layout.fontSize * (state.settings.lineHeight !== undefined ? state.settings.lineHeight : 1);
                 
                 for (const charMetrics of line) {
                     charMetrics.transform.y = -lineHeightPx * 0.2 * i; // 20% overlap per line
@@ -727,127 +780,86 @@
         return layout;
     }
 
-    // Calculate dynamic canvas size based on zoom and canvas settings
+    // Canvas pixels always keep their configured size. Zoom affects only the
+    // preview CSS size so it cannot alter the output or stretch its aspect ratio.
     function calculateDynamicCanvasSize(ctx, text, s) {
-        const lines = text.split('\n');
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
-        const fontWeight = s.font.weight || 'normal';
-        
-        // Get viewport width (wrapper width)
-        const wrapper = document.getElementById('tt-canvas-wrapper');
-        const viewportWidth = wrapper ? wrapper.clientWidth : 900;
-        const viewportHeight = wrapper ? wrapper.clientHeight : 600;
-        
-        // Ensure minimum viewport dimensions
-        const safeViewportWidth = Math.max(viewportWidth, 300);
-        const safeViewportHeight = Math.max(viewportHeight, 200);
-        
-        // Get base canvas size from settings
         const baseCanvasWidth = s.canvas.width || 240;
         const baseCanvasHeight = s.canvas.height || 600;
-        
-        // Calculate zoom factor from canvas.zoom (12-140 range)
-        const zoomValue = s.canvas.zoom || 64;
-        
-        // Calculate canvas dimensions based on zoom
-        let canvasWidth, canvasHeight;
-        
-        if (zoomValue === 64) {
-            // Zoom 64 = 100% of base canvas size
-            canvasWidth = baseCanvasWidth;
-            canvasHeight = baseCanvasHeight;
-        } else if (zoomValue >= 64) {
-            // Zoom 64-140: Scale from base size to 100% of wrapper
-            const zoomProgress = (zoomValue - 64) / (140 - 64); // 0 to 1
-            const targetWidth = safeViewportWidth;
-            const targetHeight = safeViewportHeight * (baseCanvasHeight / baseCanvasWidth);
-            
-            canvasWidth = baseCanvasWidth + (targetWidth - baseCanvasWidth) * zoomProgress;
-            canvasHeight = baseCanvasHeight + (targetHeight - baseCanvasHeight) * zoomProgress;
+        return {
+            width: Math.max(1, Math.round(baseCanvasWidth)),
+            height: Math.max(1, Math.round(baseCanvasHeight))
+        };
+    }
+
+    function cloneSettings(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function mergeSettings(target, source) {
+        if (!source || typeof source !== 'object') return target;
+        Object.keys(source).forEach(function(key) {
+            const value = source[key];
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) target[key] = {};
+                mergeSettings(target[key], value);
+            } else {
+                target[key] = value;
+            }
+        });
+        return target;
+    }
+
+    function getLineStyleSlot(lineIndex) {
+        return lineIndex === 0 ? 1 : lineIndex === 1 ? 2 : 3;
+    }
+
+    function getEffectiveLineSettings(settings, lineIndex) {
+        const effective = cloneSettings(settings);
+        const slot = getLineStyleSlot(lineIndex);
+        mergeSettings(effective, safeGet(settings, 'lineStyles.' + slot, {}));
+        return effective;
+    }
+
+    function hasLineStyleOverrides(settings) {
+        const styles = settings.lineStyles || {};
+        return [1, 2, 3].some(function(slot) {
+            return styles[slot] && Object.keys(styles[slot]).length > 0;
+        });
+    }
+
+    function calculateCanvasDisplaySize(canvasWidth, canvasHeight, zoomValue) {
+        const wrapper = document.getElementById('tt-canvas-wrapper');
+        const availableWidth = wrapper && wrapper.clientWidth ? wrapper.clientWidth * 0.9 : canvasWidth;
+        const availableHeight = wrapper && wrapper.clientHeight ? wrapper.clientHeight * 0.9 : canvasHeight;
+        const fitScale = Math.min(1, availableWidth / canvasWidth, availableHeight / canvasHeight);
+        // At 0%, keep the shortest canvas edge at 50px when the wrapper has
+        // room, so tall or wide canvases remain usable while preserving ratio.
+        const minimumScale = 50 / Math.min(canvasWidth, canvasHeight);
+        const zoom = Math.max(0, Math.min(300, Number(zoomValue) || 0));
+
+        let requestedScale;
+        if (zoom <= 100) {
+            requestedScale = minimumScale + (fitScale - minimumScale) * (zoom / 100);
         } else {
-            // Zoom 12-64: Scale from minimum to base size
-            const zoomProgress = (zoomValue - 12) / (64 - 12); // 0 to 1
-            
-            // Calculate minimum size (10% of wrapper or 50% of base canvas)
-            const minFromWrapper = safeViewportWidth * 0.1;
-            const minFromCanvas = baseCanvasWidth * 0.5;
-            const minWidth = Math.min(minFromWrapper, minFromCanvas);
-            const minHeight = minWidth * (baseCanvasHeight / baseCanvasWidth);
-            
-            canvasWidth = minWidth + (baseCanvasWidth - minWidth) * zoomProgress;
-            canvasHeight = minHeight + (baseCanvasHeight - minHeight) * zoomProgress;
+            requestedScale = fitScale + (3 - fitScale) * ((zoom - 100) / 200);
         }
-        
-        // Ensure minimum dimensions
-        canvasWidth = Math.max(canvasWidth, 100);
-        canvasHeight = Math.max(canvasHeight, 50);
-        
-        // Calculate font size (default 24px, scales proportionally with zoom)
-        const baseFontSize = 24;
-        const fontSizeScale = canvasWidth / baseCanvasWidth;
-        let fontSizePx = baseFontSize * fontSizeScale;
-        
-        // Ensure minimum font size for legibility
-        fontSizePx = Math.max(fontSizePx, 12);
-        
-        // Refine font size to ensure text fills canvas (with padding)
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
-        
-        let maxLineWidth = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            if (w > maxLineWidth) maxLineWidth = w;
-        }
-        
-        const textHeight = fontSizePx * s.lineHeight * lines.length;
-        const extraW = calcExtraWidth(s, fontSizePx);
-        const extraH = calcExtraHeight(s, fontSizePx);
-        
-        // Calculate total content dimensions
-        const contentWidth = maxLineWidth + extraW;
-        const contentHeight = textHeight + extraH;
-        
-        // Adjust font size to fill canvas width (with padding)
-        const padding = canvasWidth * (s.canvas.padding || 0.05);
-        const availableWidth = canvasWidth - padding * 2;
-        
-        if (contentWidth > availableWidth && contentWidth > 0) {
-            fontSizePx = fontSizePx * (availableWidth / contentWidth);
-            fontSizePx = Math.max(fontSizePx, 12);
-        }
-        
-        // Recalculate with adjusted font size
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
-        maxLineWidth = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            if (w > maxLineWidth) maxLineWidth = w;
-        }
-        
-        const adjustedTextHeight = fontSizePx * s.lineHeight * lines.length;
-        const adjustedExtraW = calcExtraWidth(s, fontSizePx);
-        const adjustedExtraH = calcExtraHeight(s, fontSizePx);
-        
-        const finalContentWidth = maxLineWidth + adjustedExtraW;
-        const finalContentHeight = adjustedTextHeight + adjustedExtraH;
-        
-        // Calculate final canvas dimensions
-        const finalCanvasWidth = Math.max(finalContentWidth + padding * 2, canvasWidth);
-        const finalCanvasHeight = Math.max(finalContentHeight + padding * 2, canvasHeight);
-        
-        return { width: finalCanvasWidth, height: finalCanvasHeight, fontSize: fontSizePx };
+
+        // Up to 100% the preview is contained. Above it, preserve the
+        // requested scale and let the centered viewer clip the overflow.
+        const displayScale = zoom > 100 ? requestedScale : Math.min(requestedScale, fitScale);
+        return Math.max(1, Math.round(canvasWidth * displayScale));
     }
 
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
         const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
         const fontWeight = s.font.weight || 'normal';
-        const padding = canvasWidth * (s.canvas.padding || 0.05);
+        const padding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
         const availW = canvasWidth - padding * 2;
         const availH = canvasHeight - padding * 2;
 
         let lo = 8;
-        let hi = 400;
+        let hi = Math.max(8, Math.ceil(Math.max(canvasWidth, canvasHeight)));
         let best = 8;
 
         while (lo <= hi) {
@@ -861,11 +873,30 @@
                 if (w > maxLineWidth) maxLineWidth = w;
             }
 
-            const textHeight = mid * s.lineHeight * lines.length;
+            const metrics = ctx.measureText('Ag');
+            const ascent = metrics.actualBoundingBoxAscent || mid * 0.8;
+            const descent = metrics.actualBoundingBoxDescent || mid * 0.2;
+            const lineAdvance = mid * (s.lineHeight !== undefined ? s.lineHeight : 1);
+            const textHeight = ascent + descent + (lines.length - 1) * lineAdvance;
             const extraW = calcExtraWidth(s, mid);
             const extraH = calcExtraHeight(s, mid);
+            let renderedWidth = maxLineWidth + extraW;
+            let renderedHeight = textHeight + extraH;
+            const arcAngle = safeGet(s, 'distort.arc.angle', 0);
+            if (Math.abs(arcAngle) >= 0.1 && typeof DistortEngine !== 'undefined') {
+                const arcBounds = DistortEngine.getArcGeometry(renderedWidth, renderedHeight, arcAngle);
+                renderedWidth = arcBounds.width;
+                renderedHeight = arcBounds.height;
+            }
+            const rotation = Math.abs(s.rotate || 0) * Math.PI / 180;
+            if (rotation > 0.0001) {
+                const rotatedWidth = Math.abs(renderedWidth * Math.cos(rotation)) + Math.abs(renderedHeight * Math.sin(rotation));
+                const rotatedHeight = Math.abs(renderedWidth * Math.sin(rotation)) + Math.abs(renderedHeight * Math.cos(rotation));
+                renderedWidth = rotatedWidth;
+                renderedHeight = rotatedHeight;
+            }
 
-            if (maxLineWidth + extraW <= availW && textHeight + extraH <= availH) {
+            if (renderedWidth <= availW && renderedHeight <= availH) {
                 best = mid;
                 lo = mid + 1;
             } else {
@@ -886,18 +917,18 @@
 
         const text = s.text || 'TEXT';
 
-        // Calculate dynamic canvas size based on content and viewport
+        // The fixed pixel canvas never grows to fit the text; autoFitText()
+        // shrinks the font instead. Zoom only changes the preview size.
         const dynamicSize = calculateDynamicCanvasSize(ctx, text, s);
         const canvasWidth = dynamicSize.width;
         const canvasHeight = dynamicSize.height;
-        const calculatedFontSize = dynamicSize.fontSize;
 
         state.canvas.width = canvasWidth;
         state.canvas.height = canvasHeight;
 
-        // Set canvas display size (no scaling, actual size)
-        state.canvas.style.width = canvasWidth + 'px';
-        state.canvas.style.height = canvasHeight + 'px';
+        const displayWidth = calculateCanvasDisplaySize(canvasWidth, canvasHeight, s.canvas.zoom);
+        state.canvas.style.width = displayWidth + 'px';
+        state.canvas.style.height = 'auto';
 
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -906,17 +937,24 @@
 
         const lines = text.split('\n');
 
-        // Use the dynamically calculated font size
-        let fontSizePx = calculatedFontSize;
+        // Max Font Size is based on one character and the canvas's limiting
+        // axis: height for horizontal canvases, width for vertical ones.
+        // Auto-fit can still reduce that cap when the complete text needs it.
+        const fontSizePadding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
+        const availableWidth = Math.max(1, canvasWidth - fontSizePadding * 2);
+        const availableHeight = Math.max(1, canvasHeight - fontSizePadding * 2);
+        const singleCharacterReference = canvasWidth >= canvasHeight ? availableHeight : availableWidth;
+        const maxFontPercentage = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
+        const maxFontSizePx = singleCharacterReference * maxFontPercentage;
+        const fittingFontSize = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s);
+        const fontSizePx = Math.max(8, Math.round(Math.min(fittingFontSize, maxFontSizePx)));
 
-        // Load custom font if needed
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
-        const fontWeight = s.font.weight || 'normal';
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        // Changing canvas dimensions resets every 2D context property.
+        setTextFont(ctx, s, fontSizePx);
 
         // ===== PER-CHARACTER LAYOUT SYSTEM =====
         // Calculate detailed text layout with per-character metrics
-        const layout = calculateTextLayout(ctx, text, s);
+        const layout = calculateTextLayout(ctx, text, s, fontSizePx);
         
         // Apply palette effects if active
         if (s.fill.palette && s.fill.palette.active) {
@@ -937,15 +975,6 @@
         // Store layout in state for use in render functions
         state.layout = layout;
         
-        // Calculate dimensions from layout
-        const maxLineWidth = layout.totalWidth;
-        const lineSpacing = fontSizePx * Math.max(0, s.lineHeight - 1);
-        const totalHeight = layout.totalHeight;
-        
-        // Centro del texto total (bounding box completo)
-        const textCenterX = maxLineWidth / 2;
-        const textCenterY = totalHeight / 2;
-
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
 
@@ -962,77 +991,142 @@
             loadTextureImage(s.outline.texture.src);
         }
 
-        // Draw text effects in order
-        ctx.save();
-        
-        // Rotación siguiendo el patrón de TextStudio:
-        // 1. Translate al centro del canvas
-        // 2. Rotar
-        // 3. No translate de vuelta (el texto se dibuja en coordenadas relativas al centro)
-        ctx.translate(centerX, centerY);
-        ctx.rotate((s.rotate * Math.PI) / 180);
+        // Render all text-related pixels offscreen. The arc is intentionally
+        // applied only after this complete layer has been composed, so every
+        // fill, outline and shadow follows exactly the same curve. A rotated
+        // or fully curved text block can be wider or taller before its final
+        // transform than its final bounding box, so size this source layer
+        // from the untransformed content to prevent early clipping.
+        const rotationValue = Math.abs(s.rotate || 0) * Math.PI / 180;
+        const arcAngle = safeGet(s, 'distort.arc.angle', 0);
+        const offscreenGutter = 4;
+        const offscreenSide = Math.ceil(Math.hypot(canvasWidth, canvasHeight)) + offscreenGutter * 2;
+        const sourceWidth = Math.ceil(layout.totalWidth + calcExtraWidth(s, fontSizePx)) + offscreenGutter * 2;
+        const sourceHeight = Math.ceil(layout.totalHeight + calcExtraHeight(s, fontSizePx)) + offscreenGutter * 2;
+        const needsExpandedTextLayer = rotationValue > 0.0001 || Math.abs(arcAngle) >= 0.1;
+        const textLayerWidth = needsExpandedTextLayer
+            ? Math.max(canvasWidth, sourceWidth, rotationValue > 0.0001 ? offscreenSide : 0)
+            : canvasWidth;
+        const textLayerHeight = needsExpandedTextLayer
+            ? Math.max(canvasHeight, sourceHeight, rotationValue > 0.0001 ? offscreenSide : 0)
+            : canvasHeight;
+        const textLayer = document.createElement('canvas');
+        textLayer.width = textLayerWidth;
+        textLayer.height = textLayerHeight;
+        const textCtx = textLayer.getContext('2d');
+        textCtx.save();
+        textCtx.translate(textLayerWidth / 2, textLayerHeight / 2);
 
         // Render order matching TextStudio pipeline
         // 1. Outer shadow 2 (TextStudio: shadow.outer2)
         if (isActive(s, 'shadow.outer2') || isActive(s, 'shadowOuter2')) {
-            drawOuterShadow2(ctx, text, lines, fontSizePx, s);
+            drawOuterShadow2(textCtx, text, lines, fontSizePx, s);
         }
 
         // 2. Outer shadow (TextStudio: shadow.outer)
         if (isActive(s, 'shadow.outer') || isActive(s, 'shadowOuter')) {
-            drawOuterShadow(ctx, text, lines, fontSizePx, s);
+            drawOuterShadow(textCtx, text, lines, fontSizePx, s);
         }
 
         // 3. 3D depth 2
         if (isActive(s, 'depth2')) {
-            drawDepth2(ctx, text, lines, fontSizePx, s);
+            drawDepth2(textCtx, text, lines, fontSizePx, s);
         }
 
         // 4. 3D depth
         if (isActive(s, 'depth')) {
-            drawDepth(ctx, text, lines, fontSizePx, s);
+            drawDepth(textCtx, text, lines, fontSizePx, s);
         }
 
         // 5. Fill
         if (isActive(s, 'fill')) {
-            drawFill(ctx, text, lines, fontSizePx, s);
+            drawFill(textCtx, text, lines, fontSizePx, s);
         }
 
         // 6. Outline second (TextStudio: outline.second)
         if (isActive(s, 'outline.second') || isActive(s, 'outline2')) {
-            drawOutline2(ctx, text, lines, fontSizePx, s);
+            drawOutline2(textCtx, text, lines, fontSizePx, s);
         }
 
         // 7. Outline first (TextStudio: outline.first)
         if (isActive(s, 'outline.first') || isActive(s, 'outline')) {
-            drawOutline(ctx, text, lines, fontSizePx, s);
+            drawOutline(textCtx, text, lines, fontSizePx, s);
         }
 
         // 8. Outline global (TextStudio: outline.global)
         if (isActive(s, 'outline.global')) {
-            drawOutlineGlobal(ctx, text, lines, fontSizePx, s);
+            drawOutlineGlobal(textCtx, text, lines, fontSizePx, s);
         }
 
         // 9. Bevel inner (TextStudio: bevel.inner)
         if (isActive(s, 'bevel.inner') || isActive(s, 'bevel')) {
-            drawBevel(ctx, text, lines, fontSizePx, s);
+            drawBevel(textCtx, text, lines, fontSizePx, s);
         }
 
         // 10. Inner shadow 2 (TextStudio: shadow.inner2)
         if (isActive(s, 'shadow.inner2') || isActive(s, 'shadowInner2')) {
-            drawInnerShadow2(ctx, text, lines, fontSizePx, s);
+            drawInnerShadow2(textCtx, text, lines, fontSizePx, s);
         }
 
         // 11. Inner shadow (TextStudio: shadow.inner)
         if (isActive(s, 'shadow.inner') || isActive(s, 'shadowInner')) {
-            drawInnerShadow(ctx, text, lines, fontSizePx, s);
+            drawInnerShadow(textCtx, text, lines, fontSizePx, s);
         }
 
         // 12. Icon
         if (isActive(s, 'icon') && state.iconImg) {
-            drawIcon(ctx, text, lines, fontSizePx, s);
+            drawIcon(textCtx, text, lines, fontSizePx, s);
         }
 
+        textCtx.restore();
+
+        let composedLayer = textLayer;
+        let hasTrimmedContent = false;
+        if (Math.abs(arcAngle) >= 0.1 && typeof DistortEngine !== 'undefined') {
+            if (!state.distortEngine) state.distortEngine = new DistortEngine();
+            const croppedLayer = state.distortEngine.trimTransparent(textLayer);
+            if (croppedLayer) {
+                composedLayer = state.distortEngine.curve(croppedLayer, arcAngle);
+                hasTrimmedContent = true;
+            }
+        }
+
+        // Rotation is deliberately final, applied after the curve so the
+        // order matches the reference editor.  The final canvas remains
+        // fixed.  To avoid clipping the rotated text against the canvas
+        // edges, the empty transparent border of the composed layer is
+        // trimmed before rotating, so rotation is centered on the actual
+        // content instead of the full-canvas transparent box.
+        let rotateLayer = composedLayer;
+        if (rotationValue > 0.0001 && typeof DistortEngine !== 'undefined') {
+            if (!state.distortEngine) state.distortEngine = new DistortEngine();
+            const trimmedLayer = state.distortEngine.trimTransparent(composedLayer);
+            if (trimmedLayer) {
+                rotateLayer = trimmedLayer;
+                hasTrimmedContent = true;
+            }
+        }
+
+        // Curving and trimming add their own antialiasing gutter, which is
+        // not present in the pre-render estimate used by autoFitText(). Fit
+        // the actual final layer as a last step so a rotated curve cannot be
+        // clipped by the fixed output canvas.
+        const rotationCos = Math.abs(Math.cos(rotationValue));
+        const rotationSin = Math.abs(Math.sin(rotationValue));
+        const finalWidth = rotateLayer.width * rotationCos + rotateLayer.height * rotationSin;
+        const finalHeight = rotateLayer.width * rotationSin + rotateLayer.height * rotationCos;
+        const canvasPadding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
+        const availableContentWidth = Math.max(1, canvasWidth - canvasPadding * 2);
+        const availableContentHeight = Math.max(1, canvasHeight - canvasPadding * 2);
+        const finalScale = hasTrimmedContent
+            ? Math.min(1, availableContentWidth / finalWidth, availableContentHeight / finalHeight)
+            : 1;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(finalScale, finalScale);
+        ctx.rotate((s.rotate * Math.PI) / 180);
+        ctx.drawImage(rotateLayer, -rotateLayer.width / 2, -rotateLayer.height / 2);
         ctx.restore();
 
         state.isRendering = false;
@@ -1357,8 +1451,6 @@
         const offCtx = offscreen.getContext('2d');
 
         offCtx.font = ctx.font;
-        offCtx.textBaseline = 'middle';
-        offCtx.textAlign = 'center';
         offCtx.translate(offscreen.width / 2, offscreen.height / 2);
         offCtx.fillStyle = getColorValue(color, alpha);
         offCtx.shadowColor = getColorValue(color, alpha);
@@ -1517,8 +1609,6 @@
         const offCtx = offscreen.getContext('2d');
 
         offCtx.font = ctx.font;
-        offCtx.textBaseline = 'middle';
-        offCtx.textAlign = 'center';
         offCtx.translate(offscreen.width / 2, offscreen.height / 2);
         offCtx.fillStyle = getColorValue(color, alpha);
         offCtx.shadowColor = getColorValue(color, alpha);
@@ -1537,15 +1627,21 @@
         ctx.restore();
     }
 
-    // Draw bevel effect
-    function drawBevel(ctx, text, lines, fontSizePx, s) {
-        const size = s.bevel.size * fontSizePx;
-        const angle = s.bevel.angle;
-        const smoothing = s.bevel.smoothing || s.bevel.soften || 0.1;
-        const soften = s.bevel.soften || 0.1;
+    // Draw bevel effect (modern TextStudio structure: bevel.inner)
+    function drawBevel(ctx, text, lines, fontSizePx, s, config) {
+        // Use explicit config (for bevel.inner2) or default to bevel.inner / legacy bevel
+        const bevelConfig = config || safeGet(s, 'bevel.inner', null) || safeGet(s, 'bevel', {});
+        const size = (bevelConfig.size || 0.1) * fontSizePx;
+        const angle = bevelConfig.angle || 135;
+        const soften = bevelConfig.soften || 0.1;
 
-        const highlightColor = hexToRgba(s.bevel.highlight.color, s.bevel.highlight.alpha);
-        const shadowColor = hexToRgba(s.bevel.shadow.color, s.bevel.shadow.alpha);
+        const highlightCfg = bevelConfig.highlight || { color: '#ffffff', alpha: 1 };
+        const shadowCfg = bevelConfig.shadow || { color: '#000000', alpha: 1 };
+
+        const highlightColor = getColorValue(highlightCfg.color, highlightCfg.alpha);
+        const shadowColor = getColorValue(shadowCfg.color, shadowCfg.alpha);
+        const highlightHex = colorToHex(highlightCfg.color);
+        const shadowHex = colorToHex(shadowCfg.color);
 
         // Try WebGL bevel if available
         if (typeof BevelWebGLEngine !== 'undefined' && !state.bevelEngine) {
@@ -1568,8 +1664,6 @@
             tempCtx.save();
             tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
             tempCtx.font = ctx.font;
-            tempCtx.textBaseline = 'middle';
-            tempCtx.textAlign = 'center';
             tempCtx.fillStyle = '#ffffff';
             tempCtx.strokeStyle = '#ffffff';
             tempCtx.lineWidth = size;
@@ -1578,22 +1672,24 @@
             drawTextLines(tempCtx, text, lines, fontSizePx, s, true);
             tempCtx.restore();
 
-            // Apply WebGL bevel
+            // Apply WebGL bevel (colors converted to normalized floats)
+            const hexToFloat = function(hex) {
+                hex = hex.replace('#', '');
+                if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+                return [
+                    parseInt(hex.substring(0, 2), 16) / 255,
+                    parseInt(hex.substring(2, 4), 16) / 255,
+                    parseInt(hex.substring(4, 6), 16) / 255
+                ];
+            };
+
             const bevelCanvas = state.bevelEngine.apply(tempCanvas, {
                 bevelSize: size / fontSizePx,
                 bevelAngle: angle,
-                lightColor: [
-                    parseInt(s.bevel.highlight.color.slice(1,3), 16) / 255,
-                    parseInt(s.bevel.highlight.color.slice(3,5), 16) / 255,
-                    parseInt(s.bevel.highlight.color.slice(5,7), 16) / 255
-                ],
-                shadowColor: [
-                    parseInt(s.bevel.shadow.color.slice(1,3), 16) / 255,
-                    parseInt(s.bevel.shadow.color.slice(3,5), 16) / 255,
-                    parseInt(s.bevel.shadow.color.slice(5,7), 16) / 255
-                ],
-                highlightIntensity: s.bevel.highlight.alpha,
-                shadowIntensity: s.bevel.shadow.alpha,
+                lightColor: hexToFloat(highlightHex),
+                shadowColor: hexToFloat(shadowHex),
+                highlightIntensity: highlightCfg.alpha,
+                shadowIntensity: shadowCfg.alpha,
                 softness: soften
             });
 
@@ -1607,6 +1703,7 @@
         }
 
         // Fallback: Simple bevel simulation using offset strokes
+        if (!size) return;
         const angleRad = (angle * Math.PI) / 180;
         const highlightOffset = size * 0.5;
         const shadowOffset = size * 0.5;
@@ -1678,58 +1775,33 @@
         }
     }
 
-    // Apply distort/arc effect (TextStudio-style curve with per-character positioning)
-    function applyDistort(ctx, text, fontSizePx, settings) {
-        // Initialize distort engine if available
-        if (typeof DistortEngine !== 'undefined' && !state.distortEngine) {
-            state.distortEngine = new DistortEngine();
-        }
+    function setTextFont(ctx, s, fontSizePx) {
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
+        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+    }
 
-        const distortSettings = settings.distort || {};
-        const arcAngle = distortSettings.arc ? distortSettings.arc.angle : 0;
-        const amplitude = distortSettings.arc ? distortSettings.arc.amplitude : 0;
-        const type = distortSettings.arc ? distortSettings.arc.type : 'arc';
+    // Return baseline positions that center the real glyph box at the origin.
+    function getTextBlockMetrics(ctx, lines, fontSizePx, s) {
+        setTextFont(ctx, s, fontSizePx);
+        const measure = ctx.measureText('Ag');
+        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
+        const totalHeight = ascent + descent + (lines.length - 1) * lineAdvance;
 
-        // Try DistortEngine if available and distortion is active
-        if (state.distortEngine && (Math.abs(arcAngle) > 0 || Math.abs(amplitude) > 0.01)) {
-            const applied = state.distortEngine.applyDistort(ctx, text, fontSizePx, {
-                angle: arcAngle,
-                amplitude: amplitude,
-                type: type
-            });
-            if (applied) return;
-        }
-
-        // Fallback: Simple transformation matrix for arc effect
-        const angleRad = (arcAngle * Math.PI) / 180;
-        
-        if (Math.abs(arcAngle) > 0) {
-            // Calculate radius based on text width and arc angle
-            const radius = fontSizePx * 3 / Math.abs(angleRad);
-            
-            // Apply transformation matrix for arc effect
-            ctx.translate(0, radius);
-            ctx.scale(1, 1 - Math.abs(angleRad) / 8);
-            ctx.translate(0, -radius);
-        }
+        return {
+            lineAdvance: lineAdvance,
+            firstBaseline: -totalHeight / 2 + ascent
+        };
     }
 
     // Draw text lines helper
     function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke) {
-        const lineHeight = s.lineHeight || 1.2;
+        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
-        
-        // Calculate total height based on line height (separación entre líneas)
-        // lineHeight: 1 = líneas juntas (sin espacio extra), >1 = más espacio, <1 = menos espacio
-        const lineSpacing = fontSizePx * Math.max(0, lineHeight - 1);
-        const totalHeight = fontSizePx + (lines.length - 1) * lineSpacing;
-        
-        // Centrar el texto verticalmente alrededor de (0,0)
-        // startY es la posición de la primera línea para que el centro del bounding box esté en (0,0)
-        const startY = -totalHeight / 2 + fontSizePx / 2;
-
-        // Check if curve text is active
-        const isCurved = s.distort && s.distort.arc && s.distort.arc.angle !== 0;
 
         // Calculate widths for alignment (TextStudio style: align lines relative to each other)
         const lineWidths = [];
@@ -1742,9 +1814,8 @@
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            // Calcular posición Y para que el centro del bounding box esté en (0,0)
-            // i=0 es la primera línea, i=lines.length-1 es la última
-            const y = -totalHeight / 2 + fontSizePx / 2 + i * lineSpacing;
+            // Calcular posición Y para cada línea
+            const y = blockMetrics.firstBaseline + i * blockMetrics.lineAdvance;
             
             // Calculate X offset based on alignment (TextStudio style)
             let xOffset = 0;
@@ -1753,22 +1824,16 @@
             } else if (s.align === 'right') {
                 xOffset = maxLineWidth / 2; // Right align: borde derecho del contenedor más ancho
             }
-            // Center is default (xOffset = 0): el texto se dibuja centrado en drawTextWithSpacing
-            
-            if (isCurved) {
-                drawTextCurved(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
-            } else {
-                drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
-            }
+            // Center is the default: drawTextWithSpacing offsets the line itself.
+            // Curving is a post-composition bitmap operation (see render()).
+            drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
         }
     }
 
     // Draw text with palette (per-letter coloring)
     function drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha) {
-        const lineHeight = s.lineHeight || 1;
-        const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
-        const totalHeight = fontSizePx * lineHeight * lines.length;
-        const startY = -totalHeight / 2 + fontSizePx / 2;
+        const spacing = s.letterSpacing * fontSizePx * 0.1;
+        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const styles = s.fill.palette.styles;
         const method = s.fill.palette.method || 'letter';
 
@@ -1784,17 +1849,15 @@
         let charIndex = 0;
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const y = startY + i * fontSizePx * lineHeight;
+            const y = blockMetrics.firstBaseline + i * blockMetrics.lineAdvance;
             
             // Calculate X offset based on alignment
-            let xOffset = 0;
+            let currentX = -lineWidths[i] / 2;
             if (s.align === 'left') {
-                xOffset = -maxLineWidth / 2;
+                currentX = -maxLineWidth / 2;
             } else if (s.align === 'right') {
-                xOffset = maxLineWidth / 2 - lineWidths[i];
+                currentX = maxLineWidth / 2 - lineWidths[i];
             }
-
-            let currentX = xOffset;
             for (let j = 0; j < line.length; j++) {
                 const char = line[j];
                 const charWidth = ctx.measureText(char).width;
@@ -1835,81 +1898,6 @@
             if (method === 'letter') {
                 charIndex += line.length;
             }
-        }
-    }
-
-    // Draw text with curve effect (per-character positioning)
-    function drawTextCurved(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
-        // Try DistortEngine if available
-        if (typeof DistortEngine !== 'undefined' && !state.distortEngine) {
-            state.distortEngine = new DistortEngine();
-        }
-
-        if (state.distortEngine) {
-            const applied = state.distortEngine.applyDistort(ctx, text, fontSizePx, {
-                angle: s.distort.arc.angle,
-                amplitude: s.distort.arc.amplitude || 0,
-                type: s.distort.arc.type || 'arc'
-            });
-            if (applied) return;
-        }
-
-        // Fallback: Original curve implementation
-        const arcAngle = s.distort.arc.angle;
-        const angleRad = (arcAngle * Math.PI) / 180;
-        
-        // Calculate curve parameters - TextStudio style: full circle at max angle
-        // For 360 degrees, we want the text to complete a full circle
-        const maxAngle = 360;
-        const circumference = 2 * Math.PI; // Full circle in radians
-        
-        // Calculate radius so that at max angle, text completes full circle
-        // Measure total text width
-        let totalWidth = 0;
-        const chars = [];
-        for (let i = 0; i < text.length; i++) {
-            const charWidth = ctx.measureText(text[i]).width;
-            chars.push({ char: text[i], width: charWidth });
-            totalWidth += charWidth;
-        }
-        totalWidth += spacing * (text.length - 1);
-        
-        // Calculate radius based on angle to achieve TextStudio-style effect
-        // At 360 degrees, we want circumference = totalWidth
-        // So radius = totalWidth / (2 * PI)
-        // But we scale this by the angle ratio to get intermediate values
-        const angleRatio = Math.abs(arcAngle) / maxAngle;
-        const radius = (totalWidth / circumference) / Math.max(0.1, angleRatio);
-        
-        // Center the text on the curve
-        const startAngle = -totalWidth / (2 * radius);
-        
-        // Draw each character along the curve
-        let currentAngle = startAngle;
-        for (let i = 0; i < chars.length; i++) {
-            const char = chars[i];
-            
-            // Calculate position on the curve
-            const charAngle = currentAngle + char.width / (2 * radius);
-            const charX = Math.sin(charAngle) * radius;
-            const charY = y - (radius - Math.cos(charAngle) * radius);
-            
-            // Calculate rotation for the character (tangent to the curve)
-            const rotation = charAngle;
-            
-            ctx.save();
-            ctx.translate(charX, charY);
-            ctx.rotate(rotation);
-            
-            if (isStroke) {
-                ctx.strokeText(char.char, -char.width / 2, 0);
-            } else {
-                ctx.fillText(char.char, -char.width / 2, 0);
-            }
-            
-            ctx.restore();
-            
-            currentAngle += (char.width + spacing) / radius;
         }
     }
 
@@ -2093,6 +2081,29 @@
         return `rgba(255, 255, 255, ${alpha})`;
     }
 
+    // Set a nested property on an object by dot path (creates intermediate objects)
+    function setNested(obj, path, value) {
+        const keys = path.split('.');
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+            if (!current[keys[i]] || typeof current[keys[i]] !== 'object') current[keys[i]] = {};
+            current = current[keys[i]];
+        }
+        current[keys[keys.length - 1]] = value;
+    }
+
+    // Convert a TextStudio color (hex string or {r,g,b[,a]}) to a plain hex string
+    function colorToHex(color) {
+        if (typeof color === 'string') return color;
+        if (color && typeof color === 'object') {
+            const r = Math.max(0, Math.min(255, Math.round(color.r || 0)));
+            const g = Math.max(0, Math.min(255, Math.round(color.g || 0)));
+            const b = Math.max(0, Math.min(255, Math.round(color.b || 0)));
+            return '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
+        }
+        return '#ffffff';
+    }
+
     // Update settings
     function updateSettings(newSettings) {
         Object.assign(state.settings, newSettings);
@@ -2133,7 +2144,7 @@
         }
         if (preset.align) s.align = preset.align;
         if (preset.rotate !== undefined) s.rotate = clampValue(preset.rotate, -180, 180, 0);
-        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0.1, 3, 1);
+        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0, 1.5, 1);
         if (preset.letterSpacing !== undefined) s.letterSpacing = clampValue(preset.letterSpacing, -0.5, 1.5, 0);
 
         // Fill with enhanced validation
@@ -2164,107 +2175,219 @@
             }
         }
 
-        // Outline with enhanced validation
+        // Outline with enhanced validation (modern TextStudio structure)
         if (preset.outline) {
-            if (preset.outline.global) {
-                s.outline.global.active = Boolean(preset.outline.global.active);
-            }
-            if (preset.outline.dash) {
-                s.outline.dash.active = Boolean(preset.outline.dash.active);
-                if (preset.outline.dash.pattern) s.outline.dash.pattern = preset.outline.dash.pattern;
-            }
+            // Outline #1 (outline.first)
             if (preset.outline.first) {
-                if (preset.outline.first.active !== undefined) s.outline.active = Boolean(preset.outline.first.active);
-                if (preset.outline.first.width !== undefined) s.outline.width = clampValue(preset.outline.first.width, 0, 1, 0.1);
-                if (preset.outline.first.join) s.outline.join = preset.outline.first.join;
-                if (preset.outline.first.fill && preset.outline.first.fill.color) s.outline.color = rgbToHex(preset.outline.first.fill.color);
-                if (preset.outline.first.fill && preset.outline.first.fill.alpha !== undefined) s.outline.alpha = clampValue(preset.outline.first.fill.alpha, 0, 1, 1);
-                if (preset.outline.first.fill && preset.outline.first.fill.gradient) {
-                    s.outline.gradient.active = Boolean(preset.outline.first.fill.gradient.active);
-                    if (preset.outline.first.fill.gradient.angle !== undefined) s.outline.gradient.angle = clampValue(preset.outline.first.fill.gradient.angle, 0, 360, 0);
-                    if (preset.outline.first.fill.gradient.colors && preset.outline.first.fill.gradient.colors.length >= 2) {
-                        s.outline.gradient.startColor = rgbToHex(preset.outline.first.fill.gradient.colors[0]);
-                        s.outline.gradient.endColor = rgbToHex(preset.outline.first.fill.gradient.colors[1]);
+                if (preset.outline.first.active !== undefined) s.outline.first.active = Boolean(preset.outline.first.active);
+                if (preset.outline.first.width !== undefined) s.outline.first.width = clampValue(preset.outline.first.width, 0, 1, 0.1);
+                if (preset.outline.first.join) s.outline.first.join = preset.outline.first.join;
+                if (preset.outline.first.dash !== undefined) s.outline.first.dash = preset.outline.first.dash;
+                if (preset.outline.first.fill) {
+                    if (preset.outline.first.fill.color) s.outline.first.fill.color = colorToHex(preset.outline.first.fill.color);
+                    if (preset.outline.first.fill.alpha !== undefined) s.outline.first.fill.alpha = clampValue(preset.outline.first.fill.alpha, 0, 1, 1);
+                    if (preset.outline.first.fill.gradient) {
+                        s.outline.first.fill.gradient.active = Boolean(preset.outline.first.fill.gradient.active);
+                        if (preset.outline.first.fill.gradient.angle !== undefined) s.outline.first.fill.gradient.angle = clampValue(preset.outline.first.fill.gradient.angle, 0, 360, 0);
+                        if (preset.outline.first.fill.gradient.colors && preset.outline.first.fill.gradient.colors.length >= 2) {
+                            s.outline.first.fill.gradient.colors = preset.outline.first.fill.gradient.colors;
+                        }
+                    }
+                    if (preset.outline.first.fill.texture) {
+                        if (preset.outline.first.fill.texture.active !== undefined) s.outline.first.fill.texture.active = Boolean(preset.outline.first.fill.texture.active);
+                        if (preset.outline.first.fill.texture.src) s.outline.first.fill.texture.src = preset.outline.first.fill.texture.src;
+                        if (preset.outline.first.fill.texture.size !== undefined) s.outline.first.fill.texture.size = clampValue(preset.outline.first.fill.texture.size, 0.1, 5, 1);
+                        if (preset.outline.first.fill.texture.blendmode) s.outline.first.fill.texture.blendmode = preset.outline.first.fill.texture.blendmode;
+                        if (preset.outline.first.fill.texture.repeat) s.outline.first.fill.texture.repeat = preset.outline.first.fill.texture.repeat;
+                        if (preset.outline.first.fill.texture.position) s.outline.first.fill.texture.position = preset.outline.first.fill.texture.position;
+                        if (preset.outline.first.fill.texture.alpha !== undefined) s.outline.first.fill.texture.alpha = clampValue(preset.outline.first.fill.texture.alpha, 0, 1, 1);
+                        if (preset.outline.first.fill.texture.lettering !== undefined) s.outline.first.fill.texture.lettering = Boolean(preset.outline.first.fill.texture.lettering);
+                    }
+                    if (preset.outline.first.fill.palette) {
+                        if (preset.outline.first.fill.palette.active !== undefined) s.outline.first.fill.palette.active = Boolean(preset.outline.first.fill.palette.active);
+                        if (preset.outline.first.fill.palette.lettering && preset.outline.first.fill.palette.lettering.method) s.outline.first.fill.palette.lettering.method = preset.outline.first.fill.palette.lettering.method;
+                        if (preset.outline.first.fill.palette.styles && Array.isArray(preset.outline.first.fill.palette.styles)) s.outline.first.fill.palette.styles = preset.outline.first.fill.palette.styles;
                     }
                 }
+                if (preset.outline.first.specular) {
+                    s.outline.first.specular = preset.outline.first.specular;
+                }
             }
+
+            // Outline #2 (outline.second)
             if (preset.outline.second) {
-                if (preset.outline.second.active !== undefined) s.outline2.active = Boolean(preset.outline.second.active);
-                if (preset.outline.second.width !== undefined) s.outline2.width = clampValue(preset.outline.second.width, 0, 1, 0.1);
-                if (preset.outline.second.join) s.outline2.join = preset.outline.second.join;
-                if (preset.outline.second.fill && preset.outline.second.fill.color) s.outline2.color = rgbToHex(preset.outline.second.fill.color);
-                if (preset.outline.second.fill && preset.outline.second.fill.alpha !== undefined) s.outline2.alpha = clampValue(preset.outline.second.fill.alpha, 0, 1, 1);
-                if (preset.outline.second.fill && preset.outline.second.fill.gradient) {
-                    s.outline2.gradient.active = Boolean(preset.outline.second.fill.gradient.active);
-                    if (preset.outline.second.fill.gradient.angle !== undefined) s.outline2.gradient.angle = clampValue(preset.outline.second.fill.gradient.angle, 0, 360, 0);
-                    if (preset.outline.second.fill.gradient.colors && preset.outline.second.fill.gradient.colors.length >= 2) {
-                        s.outline2.gradient.startColor = rgbToHex(preset.outline.second.fill.gradient.colors[0]);
-                        s.outline2.gradient.endColor = rgbToHex(preset.outline.second.fill.gradient.colors[1]);
+                if (preset.outline.second.active !== undefined) s.outline.second.active = Boolean(preset.outline.second.active);
+                if (preset.outline.second.width !== undefined) s.outline.second.width = clampValue(preset.outline.second.width, 0, 1, 0.1);
+                if (preset.outline.second.join) s.outline.second.join = preset.outline.second.join;
+                if (preset.outline.second.dash !== undefined) s.outline.second.dash = preset.outline.second.dash;
+                if (preset.outline.second.fill) {
+                    if (preset.outline.second.fill.color) s.outline.second.fill.color = colorToHex(preset.outline.second.fill.color);
+                    if (preset.outline.second.fill.alpha !== undefined) s.outline.second.fill.alpha = clampValue(preset.outline.second.fill.alpha, 0, 1, 1);
+                    if (preset.outline.second.fill.gradient) {
+                        s.outline.second.fill.gradient.active = Boolean(preset.outline.second.fill.gradient.active);
+                        if (preset.outline.second.fill.gradient.angle !== undefined) s.outline.second.fill.gradient.angle = clampValue(preset.outline.second.fill.gradient.angle, 0, 360, 0);
+                        if (preset.outline.second.fill.gradient.colors && preset.outline.second.fill.gradient.colors.length >= 2) {
+                            s.outline.second.fill.gradient.colors = preset.outline.second.fill.gradient.colors;
+                        }
+                    }
+                    if (preset.outline.second.fill.texture) {
+                        if (preset.outline.second.fill.texture.active !== undefined) s.outline.second.fill.texture.active = Boolean(preset.outline.second.fill.texture.active);
+                        if (preset.outline.second.fill.texture.src) s.outline.second.fill.texture.src = preset.outline.second.fill.texture.src;
+                        if (preset.outline.second.fill.texture.size !== undefined) s.outline.second.fill.texture.size = clampValue(preset.outline.second.fill.texture.size, 0.1, 5, 1);
+                        if (preset.outline.second.fill.texture.blendmode) s.outline.second.fill.texture.blendmode = preset.outline.second.fill.texture.blendmode;
+                        if (preset.outline.second.fill.texture.repeat) s.outline.second.fill.texture.repeat = preset.outline.second.fill.texture.repeat;
+                        if (preset.outline.second.fill.texture.position) s.outline.second.fill.texture.position = preset.outline.second.fill.texture.position;
+                        if (preset.outline.second.fill.texture.alpha !== undefined) s.outline.second.fill.texture.alpha = clampValue(preset.outline.second.fill.texture.alpha, 0, 1, 1);
+                        if (preset.outline.second.fill.texture.lettering !== undefined) s.outline.second.fill.texture.lettering = Boolean(preset.outline.second.fill.texture.lettering);
+                    }
+                    if (preset.outline.second.fill.palette) {
+                        if (preset.outline.second.fill.palette.active !== undefined) s.outline.second.fill.palette.active = Boolean(preset.outline.second.fill.palette.active);
+                        if (preset.outline.second.fill.palette.lettering && preset.outline.second.fill.palette.lettering.method) s.outline.second.fill.palette.lettering.method = preset.outline.second.fill.palette.lettering.method;
+                        if (preset.outline.second.fill.palette.styles && Array.isArray(preset.outline.second.fill.palette.styles)) s.outline.second.fill.palette.styles = preset.outline.second.fill.palette.styles;
                     }
                 }
-            } else {
-                s.outline2.active = false;
+                if (preset.outline.second.specular) {
+                    s.outline.second.specular = preset.outline.second.specular;
+                }
             }
-            if (preset.outline.first && preset.outline.first.fill && preset.outline.first.fill.texture) {
-                if (preset.outline.first.fill.texture.active !== undefined) s.outline.texture.active = Boolean(preset.outline.first.fill.texture.active);
-                if (preset.outline.first.fill.texture.src) s.outline.texture.src = preset.outline.first.fill.texture.src;
-                if (preset.outline.first.fill.texture.size !== undefined) s.outline.texture.size = clampValue(preset.outline.first.fill.texture.size, 0.1, 5, 1);
+
+            // Contour 3D #1 (outline.global)
+            if (preset.outline.global) {
+                if (preset.outline.global.active !== undefined) s.outline.global.active = Boolean(preset.outline.global.active);
+                if (preset.outline.global.width !== undefined) s.outline.global.width = clampValue(preset.outline.global.width, 0, 1, 0.1);
+                if (preset.outline.global.join) s.outline.global.join = preset.outline.global.join;
+                if (preset.outline.global.mask !== undefined) s.outline.global.mask = Boolean(preset.outline.global.mask);
+                if (preset.outline.global.projection !== undefined) s.outline.global.projection = Boolean(preset.outline.global.projection);
+                if (preset.outline.global.shadow) {
+                    s.outline.global.shadow.active = Boolean(preset.outline.global.shadow.active);
+                    if (preset.outline.global.shadow.color) s.outline.global.shadow.color = colorToHex(preset.outline.global.shadow.color);
+                    if (preset.outline.global.shadow.size !== undefined) s.outline.global.shadow.size = preset.outline.global.shadow.size;
+                }
+                if (preset.outline.global.fill) {
+                    if (preset.outline.global.fill.color) s.outline.global.fill.color = colorToHex(preset.outline.global.fill.color);
+                    if (preset.outline.global.fill.alpha !== undefined) s.outline.global.fill.alpha = clampValue(preset.outline.global.fill.alpha, 0, 1, 1);
+                    if (preset.outline.global.fill.gradient) {
+                        s.outline.global.fill.gradient.active = Boolean(preset.outline.global.fill.gradient.active);
+                        if (preset.outline.global.fill.gradient.angle !== undefined) s.outline.global.fill.gradient.angle = clampValue(preset.outline.global.fill.gradient.angle, 0, 360, 0);
+                        if (preset.outline.global.fill.gradient.colors && preset.outline.global.fill.gradient.colors.length >= 2) {
+                            s.outline.global.fill.gradient.colors = preset.outline.global.fill.gradient.colors;
+                        }
+                    }
+                    if (preset.outline.global.fill.texture) {
+                        if (preset.outline.global.fill.texture.active !== undefined) s.outline.global.fill.texture.active = Boolean(preset.outline.global.fill.texture.active);
+                        if (preset.outline.global.fill.texture.src) s.outline.global.fill.texture.src = preset.outline.global.fill.texture.src;
+                        if (preset.outline.global.fill.texture.size !== undefined) s.outline.global.fill.texture.size = clampValue(preset.outline.global.fill.texture.size, 0.1, 5, 1);
+                        if (preset.outline.global.fill.texture.blendmode) s.outline.global.fill.texture.blendmode = preset.outline.global.fill.texture.blendmode;
+                        if (preset.outline.global.fill.texture.repeat) s.outline.global.fill.texture.repeat = preset.outline.global.fill.texture.repeat;
+                        if (preset.outline.global.fill.texture.position) s.outline.global.fill.texture.position = preset.outline.global.fill.texture.position;
+                        if (preset.outline.global.fill.texture.alpha !== undefined) s.outline.global.fill.texture.alpha = clampValue(preset.outline.global.fill.texture.alpha, 0, 1, 1);
+                    }
+                }
             }
-            if (preset.outline.first && preset.outline.first.fill && preset.outline.first.fill.palette) {
-                if (preset.outline.first.fill.palette.active !== undefined) s.outline.palette.active = Boolean(preset.outline.first.fill.palette.active);
-                if (preset.outline.first.fill.palette.lettering && preset.outline.first.fill.palette.lettering.method) s.outline.palette.method = preset.outline.first.fill.palette.lettering.method;
+
+            // Contour 3D #2 (outline.global2)
+            if (preset.outline.global2) {
+                if (preset.outline.global2.active !== undefined) s.outline.global2.active = Boolean(preset.outline.global2.active);
+                if (preset.outline.global2.width !== undefined) s.outline.global2.width = clampValue(preset.outline.global2.width, 0, 1, 0.1);
+                if (preset.outline.global2.join) s.outline.global2.join = preset.outline.global2.join;
+                if (preset.outline.global2.mask !== undefined) s.outline.global2.mask = Boolean(preset.outline.global2.mask);
+                if (preset.outline.global2.projection !== undefined) s.outline.global2.projection = Boolean(preset.outline.global2.projection);
+                if (preset.outline.global2.shadow) {
+                    s.outline.global2.shadow.active = Boolean(preset.outline.global2.shadow.active);
+                    if (preset.outline.global2.shadow.color) s.outline.global2.shadow.color = colorToHex(preset.outline.global2.shadow.color);
+                    if (preset.outline.global2.shadow.size !== undefined) s.outline.global2.shadow.size = preset.outline.global2.shadow.size;
+                }
+                if (preset.outline.global2.fill) {
+                    if (preset.outline.global2.fill.color) s.outline.global2.fill.color = colorToHex(preset.outline.global2.fill.color);
+                    if (preset.outline.global2.fill.alpha !== undefined) s.outline.global2.fill.alpha = clampValue(preset.outline.global2.fill.alpha, 0, 1, 1);
+                    if (preset.outline.global2.fill.gradient) {
+                        s.outline.global2.fill.gradient.active = Boolean(preset.outline.global2.fill.gradient.active);
+                        if (preset.outline.global2.fill.gradient.angle !== undefined) s.outline.global2.fill.gradient.angle = clampValue(preset.outline.global2.fill.gradient.angle, 0, 360, 0);
+                        if (preset.outline.global2.fill.gradient.colors && preset.outline.global2.fill.gradient.colors.length >= 2) {
+                            s.outline.global2.fill.gradient.colors = preset.outline.global2.fill.gradient.colors;
+                        }
+                    }
+                    if (preset.outline.global2.fill.texture) {
+                        if (preset.outline.global2.fill.texture.active !== undefined) s.outline.global2.fill.texture.active = Boolean(preset.outline.global2.fill.texture.active);
+                        if (preset.outline.global2.fill.texture.src) s.outline.global2.fill.texture.src = preset.outline.global2.fill.texture.src;
+                        if (preset.outline.global2.fill.texture.size !== undefined) s.outline.global2.fill.texture.size = clampValue(preset.outline.global2.fill.texture.size, 0.1, 5, 1);
+                        if (preset.outline.global2.fill.texture.blendmode) s.outline.global2.fill.texture.blendmode = preset.outline.global2.fill.texture.blendmode;
+                        if (preset.outline.global2.fill.texture.repeat) s.outline.global2.fill.texture.repeat = preset.outline.global2.fill.texture.repeat;
+                        if (preset.outline.global2.fill.texture.position) s.outline.global2.fill.texture.position = preset.outline.global2.fill.texture.position;
+                        if (preset.outline.global2.fill.texture.alpha !== undefined) s.outline.global2.fill.texture.alpha = clampValue(preset.outline.global2.fill.texture.alpha, 0, 1, 1);
+                    }
+                }
             }
         }
 
-        // Shadow Inner with enhanced validation
+        // Shadow Inner #1 (shadow.inner)
         if (preset.shadow && preset.shadow.inner) {
-            if (preset.shadow.inner.active !== undefined) s.shadowInner.active = Boolean(preset.shadow.inner.active);
-            if (preset.shadow.inner.size !== undefined) s.shadowInner.size = clampValue(preset.shadow.inner.size, 0, 1, 0.2);
-            if (preset.shadow.inner.distance !== undefined) s.shadowInner.distance = clampValue(preset.shadow.inner.distance, 0, 1, 0.1);
-            if (preset.shadow.inner.angle !== undefined) s.shadowInner.angle = clampValue(preset.shadow.inner.angle, -180, 180, -45);
-            if (preset.shadow.inner.offset !== undefined) s.shadowInner.offset = clampValue(preset.shadow.inner.offset, 0, 1, 0);
-            if (preset.shadow.inner.color) s.shadowInner.color = rgbToHex(preset.shadow.inner.color);
-            if (preset.shadow.inner.alpha !== undefined) s.shadowInner.alpha = clampValue(preset.shadow.inner.alpha, 0, 1, 1);
-            if (preset.shadow.inner.blendmode) s.shadowInner.blendmode = preset.shadow.inner.blendmode;
+            if (preset.shadow.inner.active !== undefined) s.shadow.inner.active = Boolean(preset.shadow.inner.active);
+            if (preset.shadow.inner.size !== undefined) s.shadow.inner.size = clampValue(preset.shadow.inner.size, 0, 1, 0.2);
+            if (preset.shadow.inner.strength !== undefined) s.shadow.inner.strength = clampValue(preset.shadow.inner.strength, 0, 1, 0);
+            if (preset.shadow.inner.distance !== undefined) s.shadow.inner.distance = clampValue(preset.shadow.inner.distance, 0, 1, 0.1);
+            if (preset.shadow.inner.angle !== undefined) s.shadow.inner.angle = clampValue(preset.shadow.inner.angle, -180, 180, -45);
+            if (preset.shadow.inner.offset !== undefined) s.shadow.inner.offset = clampValue(preset.shadow.inner.offset, 0, 1, 0);
+            if (preset.shadow.inner.color) s.shadow.inner.color = colorToHex(preset.shadow.inner.color);
+            if (preset.shadow.inner.alpha !== undefined) s.shadow.inner.alpha = clampValue(preset.shadow.inner.alpha, 0, 1, 1);
+            if (preset.shadow.inner.blendmode) s.shadow.inner.blendmode = preset.shadow.inner.blendmode;
+            if (preset.shadow.inner.erosion) s.shadow.inner.erosion = preset.shadow.inner.erosion;
         }
 
-        // Shadow Outer with enhanced validation
-        if (preset.shadow && preset.shadow.outer) {
-            if (preset.shadow.outer.active !== undefined) s.shadowOuter.active = Boolean(preset.shadow.outer.active);
-            if (preset.shadow.outer.size !== undefined) s.shadowOuter.size = clampValue(preset.shadow.outer.size, 0, 1, 0.2);
-            if (preset.shadow.outer.distance !== undefined) s.shadowOuter.distance = clampValue(preset.shadow.outer.distance, 0, 1, 0.1);
-            if (preset.shadow.outer.angle !== undefined) s.shadowOuter.angle = clampValue(preset.shadow.outer.angle, -180, 180, 135);
-            if (preset.shadow.outer.strength !== undefined) s.shadowOuter.strength = clampValue(preset.shadow.outer.strength, 0, 1, 0);
-            if (preset.shadow.outer.fill && preset.shadow.outer.fill.color) s.shadowOuter.color = rgbToHex(preset.shadow.outer.fill.color);
-            if (preset.shadow.outer.fill && preset.shadow.outer.fill.alpha !== undefined) s.shadowOuter.alpha = clampValue(preset.shadow.outer.fill.alpha, 0, 1, 1);
-            if (preset.shadow.outer.blendmode) s.shadowOuter.blendmode = preset.shadow.outer.blendmode;
-        }
-
-        // Shadow Outer 2 with enhanced validation
-        if (preset.shadow && preset.shadow.outer2) {
-            if (preset.shadow.outer2.active !== undefined) s.shadowOuter2.active = Boolean(preset.shadow.outer2.active);
-            if (preset.shadow.outer2.size !== undefined) s.shadowOuter2.size = clampValue(preset.shadow.outer2.size, 0, 1, 0.2);
-            if (preset.shadow.outer2.distance !== undefined) s.shadowOuter2.distance = clampValue(preset.shadow.outer2.distance, 0, 1, 0.1);
-            if (preset.shadow.outer2.angle !== undefined) s.shadowOuter2.angle = clampValue(preset.shadow.outer2.angle, -180, 180, 135);
-            if (preset.shadow.outer2.fill && preset.shadow.outer2.fill.color) s.shadowOuter2.color = rgbToHex(preset.shadow.outer2.fill.color);
-            if (preset.shadow.outer2.fill && preset.shadow.outer2.fill.alpha !== undefined) s.shadowOuter2.alpha = clampValue(preset.shadow.outer2.fill.alpha, 0, 1, 1);
-            if (preset.shadow.outer2.blendmode) s.shadowOuter2.blendmode = preset.shadow.outer2.blendmode;
-        } else {
-            s.shadowOuter2.active = false;
-        }
-
-        // Shadow Inner 2 with enhanced validation
+        // Shadow Inner #2 (shadow.inner2)
         if (preset.shadow && preset.shadow.inner2) {
-            if (preset.shadow.inner2.active !== undefined) s.shadowInner2.active = Boolean(preset.shadow.inner2.active);
-            if (preset.shadow.inner2.size !== undefined) s.shadowInner2.size = clampValue(preset.shadow.inner2.size, 0, 1, 0.2);
-            if (preset.shadow.inner2.distance !== undefined) s.shadowInner2.distance = clampValue(preset.shadow.inner2.distance, 0, 1, 0.1);
-            if (preset.shadow.inner2.angle !== undefined) s.shadowInner2.angle = clampValue(preset.shadow.inner2.angle, -180, 180, 135);
-            if (preset.shadow.inner2.offset !== undefined) s.shadowInner2.offset = clampValue(preset.shadow.inner2.offset, 0, 1, 0);
-            if (preset.shadow.inner2.color) s.shadowInner2.color = rgbToHex(preset.shadow.inner2.color);
-            if (preset.shadow.inner2.alpha !== undefined) s.shadowInner2.alpha = clampValue(preset.shadow.inner2.alpha, 0, 1, 1);
-            if (preset.shadow.inner2.blendmode) s.shadowInner2.blendmode = preset.shadow.inner2.blendmode;
-        } else {
-            s.shadowInner2.active = false;
+            if (preset.shadow.inner2.active !== undefined) s.shadow.inner2.active = Boolean(preset.shadow.inner2.active);
+            if (preset.shadow.inner2.size !== undefined) s.shadow.inner2.size = clampValue(preset.shadow.inner2.size, 0, 1, 0.2);
+            if (preset.shadow.inner2.strength !== undefined) s.shadow.inner2.strength = clampValue(preset.shadow.inner2.strength, 0, 1, 0);
+            if (preset.shadow.inner2.distance !== undefined) s.shadow.inner2.distance = clampValue(preset.shadow.inner2.distance, 0, 1, 0.1);
+            if (preset.shadow.inner2.angle !== undefined) s.shadow.inner2.angle = clampValue(preset.shadow.inner2.angle, -180, 180, 135);
+            if (preset.shadow.inner2.offset !== undefined) s.shadow.inner2.offset = clampValue(preset.shadow.inner2.offset, 0, 1, 0);
+            if (preset.shadow.inner2.color) s.shadow.inner2.color = colorToHex(preset.shadow.inner2.color);
+            if (preset.shadow.inner2.alpha !== undefined) s.shadow.inner2.alpha = clampValue(preset.shadow.inner2.alpha, 0, 1, 1);
+            if (preset.shadow.inner2.blendmode) s.shadow.inner2.blendmode = preset.shadow.inner2.blendmode;
+            if (preset.shadow.inner2.erosion) s.shadow.inner2.erosion = preset.shadow.inner2.erosion;
+        }
+
+        // Shadow Outer #1 (shadow.outer)
+        if (preset.shadow && preset.shadow.outer) {
+            if (preset.shadow.outer.active !== undefined) s.shadow.outer.active = Boolean(preset.shadow.outer.active);
+            if (preset.shadow.outer.size !== undefined) s.shadow.outer.size = clampValue(preset.shadow.outer.size, 0, 1, 0.2);
+            if (preset.shadow.outer.strength !== undefined) s.shadow.outer.strength = clampValue(preset.shadow.outer.strength, 0, 1, 0);
+            if (preset.shadow.outer.distance !== undefined) s.shadow.outer.distance = clampValue(preset.shadow.outer.distance, 0, 1, 0.1);
+            if (preset.shadow.outer.angle !== undefined) s.shadow.outer.angle = clampValue(preset.shadow.outer.angle, -180, 180, 135);
+            if (preset.shadow.outer.mask !== undefined) s.shadow.outer.mask = Boolean(preset.shadow.outer.mask);
+            if (preset.shadow.outer.fill) {
+                if (preset.shadow.outer.fill.color) s.shadow.outer.fill.color = colorToHex(preset.shadow.outer.fill.color);
+                if (preset.shadow.outer.fill.alpha !== undefined) s.shadow.outer.fill.alpha = clampValue(preset.shadow.outer.fill.alpha, 0, 1, 1);
+                if (preset.shadow.outer.fill.gradient) {
+                    s.shadow.outer.fill.gradient.active = Boolean(preset.shadow.outer.fill.gradient.active);
+                    if (preset.shadow.outer.fill.gradient.angle !== undefined) s.shadow.outer.fill.gradient.angle = clampValue(preset.shadow.outer.fill.gradient.angle, 0, 360, 0);
+                    if (preset.shadow.outer.fill.gradient.colors && preset.shadow.outer.fill.gradient.colors.length >= 2) {
+                        s.shadow.outer.fill.gradient.colors = preset.shadow.outer.fill.gradient.colors;
+                    }
+                }
+            }
+        }
+
+        // Shadow Outer #2 (shadow.outer2)
+        if (preset.shadow && preset.shadow.outer2) {
+            if (preset.shadow.outer2.active !== undefined) s.shadow.outer2.active = Boolean(preset.shadow.outer2.active);
+            if (preset.shadow.outer2.size !== undefined) s.shadow.outer2.size = clampValue(preset.shadow.outer2.size, 0, 1, 0.2);
+            if (preset.shadow.outer2.strength !== undefined) s.shadow.outer2.strength = clampValue(preset.shadow.outer2.strength, 0, 1, 0);
+            if (preset.shadow.outer2.distance !== undefined) s.shadow.outer2.distance = clampValue(preset.shadow.outer2.distance, 0, 1, 0.1);
+            if (preset.shadow.outer2.angle !== undefined) s.shadow.outer2.angle = clampValue(preset.shadow.outer2.angle, -180, 180, 135);
+            if (preset.shadow.outer2.mask !== undefined) s.shadow.outer2.mask = Boolean(preset.shadow.outer2.mask);
+            if (preset.shadow.outer2.fill) {
+                if (preset.shadow.outer2.fill.color) s.shadow.outer2.fill.color = colorToHex(preset.shadow.outer2.fill.color);
+                if (preset.shadow.outer2.fill.alpha !== undefined) s.shadow.outer2.fill.alpha = clampValue(preset.shadow.outer2.fill.alpha, 0, 1, 1);
+                if (preset.shadow.outer2.fill.gradient) {
+                    s.shadow.outer2.fill.gradient.active = Boolean(preset.shadow.outer2.fill.gradient.active);
+                    if (preset.shadow.outer2.fill.gradient.angle !== undefined) s.shadow.outer2.fill.gradient.angle = clampValue(preset.shadow.outer2.fill.gradient.angle, 0, 360, 0);
+                    if (preset.shadow.outer2.fill.gradient.colors && preset.shadow.outer2.fill.gradient.colors.length >= 2) {
+                        s.shadow.outer2.fill.gradient.colors = preset.shadow.outer2.fill.gradient.colors;
+                    }
+                }
+            }
         }
 
         // Depth with enhanced validation
@@ -2308,19 +2431,49 @@
             s.depth2.active = false;
         }
 
-        // Bevel with enhanced validation
+        // Bevel Inner #1 (bevel.inner)
         if (preset.bevel && preset.bevel.inner) {
-            if (preset.bevel.inner.active !== undefined) s.bevel.active = Boolean(preset.bevel.inner.active);
-            if (preset.bevel.inner.size !== undefined) s.bevel.size = clampValue(preset.bevel.inner.size, 0, 1, 0.1);
-            if (preset.bevel.inner.smoothing !== undefined) s.bevel.smoothing = clampValue(preset.bevel.inner.smoothing, 0, 1, 0);
-            if (preset.bevel.inner.soften !== undefined) s.bevel.soften = clampValue(preset.bevel.inner.soften, 0, 1, 0.1);
-            if (preset.bevel.inner.angle !== undefined) s.bevel.angle = clampValue(preset.bevel.inner.angle, 0, 360, 135);
-            if (preset.bevel.inner.highlight && preset.bevel.inner.highlight.color) s.bevel.highlight.color = rgbToHex(preset.bevel.inner.highlight.color);
-            if (preset.bevel.inner.highlight && preset.bevel.inner.highlight.alpha !== undefined) s.bevel.highlight.alpha = clampValue(preset.bevel.inner.highlight.alpha, 0, 1, 1);
-            if (preset.bevel.inner.shadow && preset.bevel.inner.shadow.color) s.bevel.shadow.color = rgbToHex(preset.bevel.inner.shadow.color);
-            if (preset.bevel.inner.shadow && preset.bevel.inner.shadow.alpha !== undefined) s.bevel.shadow.alpha = clampValue(preset.bevel.inner.shadow.alpha, 0, 1, 1);
-        } else {
-            s.bevel.active = false;
+            if (preset.bevel.inner.active !== undefined) s.bevel.inner.active = Boolean(preset.bevel.inner.active);
+            if (preset.bevel.inner.size !== undefined) s.bevel.inner.size = clampValue(preset.bevel.inner.size, 0, 1, 0.1);
+            if (preset.bevel.inner.smoothing !== undefined) s.bevel.inner.smoothing = clampValue(preset.bevel.inner.smoothing, 0, 1, 0);
+            if (preset.bevel.inner.soften !== undefined) s.bevel.inner.soften = clampValue(preset.bevel.inner.soften, 0, 1, 0.1);
+            if (preset.bevel.inner.angle !== undefined) s.bevel.inner.angle = clampValue(preset.bevel.inner.angle, 0, 360, 135);
+            if (preset.bevel.inner.altitude !== undefined) s.bevel.inner.altitude = clampValue(preset.bevel.inner.altitude, 0, 90, 0);
+            if (preset.bevel.inner.highlight) {
+                if (preset.bevel.inner.highlight.color) s.bevel.inner.highlight.color = colorToHex(preset.bevel.inner.highlight.color);
+                if (preset.bevel.inner.highlight.alpha !== undefined) s.bevel.inner.highlight.alpha = clampValue(preset.bevel.inner.highlight.alpha, 0, 1, 1);
+                if (preset.bevel.inner.highlight.blendmode) s.bevel.inner.highlight.blendmode = preset.bevel.inner.highlight.blendmode;
+            }
+            if (preset.bevel.inner.shadow) {
+                if (preset.bevel.inner.shadow.color) s.bevel.inner.shadow.color = colorToHex(preset.bevel.inner.shadow.color);
+                if (preset.bevel.inner.shadow.alpha !== undefined) s.bevel.inner.shadow.alpha = clampValue(preset.bevel.inner.shadow.alpha, 0, 1, 1);
+                if (preset.bevel.inner.shadow.blendmode) s.bevel.inner.shadow.blendmode = preset.bevel.inner.shadow.blendmode;
+            }
+        }
+
+        // Bevel Inner #2 (bevel.inner2)
+        if (preset.bevel && preset.bevel.inner2) {
+            if (preset.bevel.inner2.active !== undefined) s.bevel.inner2.active = Boolean(preset.bevel.inner2.active);
+            if (preset.bevel.inner2.size !== undefined) s.bevel.inner2.size = clampValue(preset.bevel.inner2.size, 0, 1, 0.1);
+            if (preset.bevel.inner2.smoothing !== undefined) s.bevel.inner2.smoothing = clampValue(preset.bevel.inner2.smoothing, 0, 1, 0);
+            if (preset.bevel.inner2.soften !== undefined) s.bevel.inner2.soften = clampValue(preset.bevel.inner2.soften, 0, 1, 0.1);
+            if (preset.bevel.inner2.angle !== undefined) s.bevel.inner2.angle = clampValue(preset.bevel.inner2.angle, 0, 360, 135);
+            if (preset.bevel.inner2.altitude !== undefined) s.bevel.inner2.altitude = clampValue(preset.bevel.inner2.altitude, 0, 90, 0);
+            if (preset.bevel.inner2.highlight) {
+                if (preset.bevel.inner2.highlight.color) s.bevel.inner2.highlight.color = colorToHex(preset.bevel.inner2.highlight.color);
+                if (preset.bevel.inner2.highlight.alpha !== undefined) s.bevel.inner2.highlight.alpha = clampValue(preset.bevel.inner2.highlight.alpha, 0, 1, 1);
+                if (preset.bevel.inner2.highlight.blendmode) s.bevel.inner2.highlight.blendmode = preset.bevel.inner2.highlight.blendmode;
+            }
+            if (preset.bevel.inner2.shadow) {
+                if (preset.bevel.inner2.shadow.color) s.bevel.inner2.shadow.color = colorToHex(preset.bevel.inner2.shadow.color);
+                if (preset.bevel.inner2.shadow.alpha !== undefined) s.bevel.inner2.shadow.alpha = clampValue(preset.bevel.inner2.shadow.alpha, 0, 1, 1);
+                if (preset.bevel.inner2.shadow.blendmode) s.bevel.inner2.shadow.blendmode = preset.bevel.inner2.shadow.blendmode;
+            }
+        }
+
+        // Specular Inner (specular.inner)
+        if (preset.specular && preset.specular.inner) {
+            s.specular.inner = preset.specular.inner;
         }
 
         // Lettering with enhanced validation
@@ -2351,7 +2504,7 @@
         if (preset.distort && preset.distort.arc) {
             if (preset.distort.arc.angle !== undefined) {
                 s.distort.active = preset.distort.arc.angle !== 0;
-                s.distort.arc.angle = clampValue(preset.distort.arc.angle, -180, 180, 0);
+                s.distort.arc.angle = clampValue(preset.distort.arc.angle, -360, 360, 0);
             }
         }
 
@@ -2414,7 +2567,7 @@
             updateUIFromSettings();
 
             // Trigger font load and render
-            if (window.FontLoader && FontLoader.isCustomFont(s.font)) {
+            if (window.FontLoader && FontLoader.isCustomFont(s.font.src || s.font)) {
                 FontLoader.loadFont(s.font).then(function() {
                     render();
                 });
@@ -2442,10 +2595,24 @@
         setInputValue('tt-font-picker-input', s.font.src || s.font);
         setInputValue('tt-font-size-input', s.font.size || 64);
         setInputValue('tt-letter-spacing-input', s.letterSpacing || 0);
-        setInputValue('tt-line-height-input', s.lineHeight || 1);
+        setInputValue('tt-line-height-input', s.lineHeight !== undefined ? s.lineHeight : 1);
         setInputValue('tt-distort-arc-angle-input', s.distort && s.distort.arc ? s.distort.arc.angle : 0);
         setInputValue('tt-rotate-input', s.rotate || 0);
         setInputValue('tt-merge-gradients-input', s.mergeGradients || false);
+
+        // Canvas controls
+        if (s.canvas) {
+            setInputValue('tt-canvas-zoom-input', s.canvas.zoom !== undefined ? s.canvas.zoom : 100);
+            setInputValue('tt-canvas-width-input', s.canvas.width || 240);
+            setInputValue('tt-canvas-height-input', s.canvas.height || 600);
+            setInputValue('tt-canvas-ratio-input', s.canvas.ratio || 2.5);
+            setInputValue('tt-canvas-max-font-size-input', s.canvas.maxFontSize || 100);
+            setInputValue('tt-canvas-margin-input', Math.round((s.canvas.padding !== undefined ? s.canvas.padding : 0) * 100));
+        }
+
+        if (window.Controls && window.Controls.refreshUndoControls) {
+            window.Controls.refreshUndoControls();
+        }
 
         // Font weight
         const fontWeightInput = document.getElementById('tt-font-weight-input');
@@ -2732,10 +2899,10 @@
             state.isRendering = false;
             state.transparentOutput = Boolean(options && options.transparent);
             
-            // For export, use fixed resolution independent of visual zoom
-            // Temporarily override canvas.zoom to ensure consistent export size
+            // For export, use 100% zoom (1x) — independent of the visual zoom
+            // so the exported PNG always has the base resolution.
             const originalZoom = state.settings.canvas.zoom;
-            state.settings.canvas.zoom = 1.0; // Use 1.0 for export (no visual zoom)
+            state.settings.canvas.zoom = 100;
             
             render();
             

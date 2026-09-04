@@ -13,7 +13,13 @@
         // The PNG option is intentionally always transparent.  The checkerboard
         // is a preview aid only and must never become exported pixels.
         exportSettings.background.active = false;
-        exportSettings.background.image.active = false;
+        // Presets can use either the legacy background.image form or the
+        // current background.fill.image form.  Both must be disabled for a
+        // genuinely transparent export.
+        if (exportSettings.background.image) exportSettings.background.image.active = false;
+        if (exportSettings.background.fill && exportSettings.background.fill.image) {
+            exportSettings.background.fill.image.active = false;
+        }
         editor.renderToCanvas(canvas, exportSettings, { transparent: true });
         return canvas;
     }

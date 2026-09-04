@@ -46,27 +46,27 @@
 
         if (!widthInput || !heightInput || !ratioInput) return;
 
-        // Width input change
+        // Width input change - updates ratio and height
         widthInput.addEventListener('input', function() {
             const width = parseInt(this.value) || 240;
-            const ratio = parseFloat(ratioInput.value) || 2.5;
-            const height = Math.round(width * ratio);
-            heightInput.value = height;
+            const height = parseInt(heightInput.value) || 600;
+            const ratio = parseFloat((height / width).toFixed(2)) || 2.5;
+            ratioInput.value = ratio;
             setNestedSetting('canvas.width', width);
-            setNestedSetting('canvas.height', height);
+            setNestedSetting('canvas.ratio', ratio);
         });
 
-        // Height input change
+        // Height input change - updates ratio and width
         heightInput.addEventListener('input', function() {
             const height = parseInt(this.value) || 600;
-            const ratio = parseFloat(ratioInput.value) || 2.5;
-            const width = Math.round(height / ratio);
-            widthInput.value = width;
-            setNestedSetting('canvas.width', width);
+            const width = parseInt(widthInput.value) || 240;
+            const ratio = parseFloat((height / width).toFixed(2)) || 2.5;
+            ratioInput.value = ratio;
             setNestedSetting('canvas.height', height);
+            setNestedSetting('canvas.ratio', ratio);
         });
 
-        // Ratio input change
+        // Ratio input change - updates height
         ratioInput.addEventListener('input', function() {
             const ratio = parseFloat(this.value) || 2.5;
             const width = parseInt(widthInput.value) || 240;
@@ -135,6 +135,46 @@
         });
     }
 
+    // Fonts can arrive after the select event (notably uploaded fonts). Render
+    // once immediately, then again only when the currently selected face is
+    // ready.  The request id prevents a slow older selection from winning.
+    let fontLoadRequestId = 0;
+    function bindFontSelect(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function() {
+            const fontKey = this.value;
+            const requestId = ++fontLoadRequestId;
+            setNestedSetting('font.src', fontKey);
+
+            const settings = editor.getSettings();
+            const weight = settings.font && settings.font.weight ? settings.font.weight : 'normal';
+            const getName = function() {
+                return window.FontLoader ? FontLoader.getFontName(fontKey) : fontKey;
+            };
+            const needsLoader = window.FontLoader &&
+                (FontLoader.isCustomFont(fontKey) || Boolean(FontLoader.registry && FontLoader.registry[fontKey]));
+            const load = needsLoader ? FontLoader.loadFont(fontKey) : Promise.resolve(getName());
+
+            Promise.resolve(load)
+                .then(function(loadedName) {
+                    const name = loadedName || getName();
+                    if (!document.fonts || !document.fonts.load) return name;
+                    return document.fonts.load(`${weight} 64px "${name}"`).then(function() { return name; });
+                })
+                .catch(function() {
+                    // The initial render already used the browser fallback.
+                    return null;
+                })
+                .then(function() {
+                    const current = editor.getSettings().font;
+                    if (requestId === fontLoadRequestId && current && current.src === fontKey) {
+                        editor.render();
+                    }
+                });
+        });
+    }
+
     // Update range fill (bubble)
     function updateRangeFill(input) {
         const bubble = input.parentElement?.querySelector('output');
@@ -152,16 +192,32 @@
     function bindControls() {
         // TEXT
         bindCanvasSizeInputs();
+        bindRange('tt-canvas-zoom-input', 'canvas.zoom', parseInt);
+        bindRange('tt-canvas-max-font-size-input', 'canvas.maxFontSize', parseInt);
+        bindRange('tt-canvas-margin-input', 'canvas.padding', function(v) { return parseFloat(v) / 100; });
         bindTextarea('tt-text-textarea', 'text');
         bindAlignList('tt-align-input', 'align');
         bindFontWeight('tt-font-weight-input');
         bindCheckbox('tt-merge-gradients-input', 'mergeGradients');
-        bindSelect('tt-font-picker-input', 'font.src');
+        bindFontSelect('tt-font-picker-input');
         bindRangeWithRender('tt-font-size-input', 'font.size', parseInt);
         bindRange('tt-letter-spacing-input', 'letterSpacing', parseFloat);
         bindRange('tt-line-height-input', 'lineHeight', parseFloat);
         bindRange('tt-rotate-input', 'rotate', parseFloat);
         bindRange('tt-distort-arc-angle-input', 'distort.arc.angle', parseFloat);
+
+        // Initialize canvas controls from settings
+        const settings = editor.getSettings();
+        if (settings.canvas) {
+            const maxFontSizeInput = document.getElementById('tt-canvas-max-font-size-input');
+            if (maxFontSizeInput && settings.canvas.maxFontSize) {
+                maxFontSizeInput.value = settings.canvas.maxFontSize;
+            }
+            const marginInput = document.getElementById('tt-canvas-margin-input');
+            if (marginInput && settings.canvas.padding !== undefined) {
+                marginInput.value = Math.round(settings.canvas.padding * 100);
+            }
+        }
 
         // FILL
         bindCheckbox('tt-fill-active-input', 'fill.active');
@@ -818,11 +874,18 @@
         const downloadBtn = document.getElementById('tt-download-btn');
         if (downloadBtn) {
             downloadBtn.addEventListener('click', function() {
-                if (window.TextMuyAPI) {
+                if (window.TextMuyAPI && editor) {
                     const width = parseInt(document.getElementById('tt-download-width-input')?.value || 240);
                     const height = parseInt(document.getElementById('tt-download-height-input')?.value || 600);
                     const scale = parseFloat(document.getElementById('tt-download-scale-input')?.value || 1);
-                    TextMuyAPI.downloadPNG({ width: width * scale, height: height * scale });
+                    // Render from the current editor state (settings) so the
+                    // downloaded PNG matches what the user sees.
+                    TextMuyAPI.downloadPNG({
+                        settings: editor.getSettings(),
+                        text: editor.getSettings().text,
+                        width: width * scale,
+                        height: height * scale
+                    });
                 }
             });
         }
@@ -830,8 +893,11 @@
         const copyBtn = document.getElementById('tt-copy-image-btn');
         if (copyBtn) {
             copyBtn.addEventListener('click', function() {
-                if (window.TextMuyAPI) {
-                    TextMuyAPI.copyImageToClipboard();
+                if (window.TextMuyAPI && editor) {
+                    TextMuyAPI.copyImageToClipboard({
+                        settings: editor.getSettings(),
+                        text: editor.getSettings().text
+                    });
                 }
             });
         }
@@ -839,10 +905,16 @@
         const savePresetBtn = document.getElementById('tt-save-preset-btn');
         if (savePresetBtn) {
             savePresetBtn.addEventListener('click', function() {
-                if (window.PresetManager) {
+                if (window.PresetManager && editor) {
                     const name = prompt('Preset name:');
                     if (name) {
-                        PresetManager.savePreset(name, editor.getSettings());
+                        try {
+                            PresetManager.createPreset(name, editor.getSettings());
+                            alert('Preset "' + name + '" saved successfully.');
+                            bindPresets();
+                        } catch (e) {
+                            alert('Error saving preset: ' + e.message);
+                        }
                     }
                 }
             });
@@ -883,22 +955,18 @@
         if (!presetList) return;
 
         function loadPresets() {
-            const builtIn = [
-                { name: 'fire-free', title: 'Free Fire' },
-                { name: 'nintendo', title: 'Nintendo' },
-                { name: 'looney-tunes', title: 'Looney Tunes' }
-            ];
+            // Do NOT clear the HTML list — it already contains the built-in
+            // presets (fire-free, nintendo, looney-tunes, simple-gradient, etc).
+            // Only append presets from localStorage that are not already present.
 
-            presetList.innerHTML = '';
-            builtIn.forEach(function(p) {
-                const li = document.createElement('li');
-                li.dataset.preset = p.name;
-                li.title = p.title + ' Logo';
-                li.innerHTML = '<span>' + p.title + '</span>';
-                li.addEventListener('click', function() {
-                    if (window.PresetManager) PresetManager.loadPreset(p.name);
-                });
-                presetList.appendChild(li);
+            // Attach click handlers to any static <li> that lack them
+            presetList.querySelectorAll('li[data-preset]').forEach(function(li) {
+                if (!li.dataset.bound) {
+                    li.dataset.bound = '1';
+                    li.addEventListener('click', function() {
+                        if (window.PresetManager) PresetManager.loadPreset(li.dataset.preset);
+                    });
+                }
             });
 
             try {
@@ -956,7 +1024,7 @@
                                 const preset = JSON.parse(match[1]);
                                 if (window.PresetManager) {
                                     const name = 'imported-' + Date.now();
-                                    PresetManager.savePreset(name, preset);
+                                    PresetManager.createPreset(name, preset);
                                     alert('Preset imported successfully as "' + name + '"');
                                     bindPresets();
                                 }
@@ -973,7 +1041,7 @@
                                 if (data && data.text) {
                                     if (window.PresetManager) {
                                         const name = 'imported-' + Date.now();
-                                        PresetManager.savePreset(name, data);
+                                        PresetManager.createPreset(name, data);
                                         alert('Preset imported successfully as "' + name + '"');
                                         bindPresets();
                                     }
@@ -1036,62 +1104,75 @@
         }
     }
 
-    // ===== UNDO/REDO =====
-    let undoHistory = {};
+    // ===== RANGE DEFAULTS =====
+    function getValueAtPath(source, path) {
+        return path.split('.').reduce(function(value, key) {
+            return value === undefined || value === null ? undefined : value[key];
+        }, source);
+    }
+
+    function getDefaultRangeValue(control, defaults) {
+        const settingPath = control.getAttribute('data-tt-option');
+        const settingDefault = settingPath && defaults ? getValueAtPath(defaults, settingPath) : undefined;
+        if (typeof settingDefault === 'boolean') return settingDefault ? '1' : '0';
+        return settingDefault !== undefined && settingDefault !== null ? String(settingDefault) : control.defaultValue;
+    }
+
+    function getUndoLabel(control) {
+        const labels = document.querySelectorAll('label[for]');
+        for (let i = 0; i < labels.length; i++) {
+            if (labels[i].htmlFor === control.id) return labels[i];
+        }
+        return control.closest('.tt-option');
+    }
 
     function initUndoRedo() {
-        const undoControls = document.querySelectorAll('[data-undo-control]');
+        const defaults = editor && editor.createDefaultSettings ? editor.createDefaultSettings() : null;
 
-        undoControls.forEach(function(undoSpan) {
-            const controlId = undoSpan.getAttribute('data-undo-control');
-            const control = document.getElementById(controlId);
-            if (!control) return;
-
-            if (!undoHistory[controlId]) {
-                undoHistory[controlId] = [];
+        document.querySelectorAll('input[type="range"]').forEach(function(control) {
+            let undoSpan = document.querySelector('[data-undo-control="' + control.id + '"]');
+            if (!undoSpan) {
+                const label = getUndoLabel(control);
+                if (!label) return;
+                undoSpan = document.createElement('span');
+                undoSpan.className = 'tt-undo';
+                undoSpan.setAttribute('data-undo-control', control.id);
+                label.appendChild(undoSpan);
             }
 
-            const initialValue = control.type === 'checkbox' ? control.checked : control.value;
-            undoHistory[controlId].push(initialValue);
+            const defaultValue = getDefaultRangeValue(control, defaults);
+            control.value = defaultValue;
+            undoSpan.title = 'Restore default value';
+            undoSpan.setAttribute('role', 'button');
+            undoSpan.setAttribute('tabindex', '0');
 
-            function trackChange() {
-                const currentValue = control.type === 'checkbox' ? control.checked : control.value;
-                const history = undoHistory[controlId];
-                if (history.length > 0 && history[history.length - 1] === currentValue) return;
-                history.push(currentValue);
-                if (history.length > 1) {
-                    undoSpan.style.display = 'inline-flex';
-                }
+            function updateVisibility() {
+                undoSpan.style.display = control.value === defaultValue ? 'none' : 'inline-flex';
             }
 
-            control.addEventListener('input', trackChange);
-            control.addEventListener('change', trackChange);
+            function restoreDefault(event) {
+                if (event) event.preventDefault();
+                if (control.value === defaultValue) return;
+                control.value = defaultValue;
+                control.dispatchEvent(new Event('input', { bubbles: true }));
+                updateRangeFill(control);
+                updateVisibility();
+            }
 
-            undoSpan.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const history = undoHistory[controlId];
-                if (history.length < 2) return;
-
-                history.pop();
-                const previousValue = history[history.length - 1];
-
-                if (control.type === 'checkbox') {
-                    control.checked = previousValue;
-                } else {
-                    control.value = previousValue;
-                }
-
-                const eventType = control.type === 'checkbox' ? 'change' : 'input';
-                control.dispatchEvent(new Event(eventType));
-
-                if (control.type === 'range') {
-                    updateRangeFill(control);
-                }
-
-                if (history.length <= 1) {
-                    undoSpan.style.display = 'none';
-                }
+            control.addEventListener('input', updateVisibility);
+            control.addEventListener('change', updateVisibility);
+            undoSpan.addEventListener('click', restoreDefault);
+            undoSpan.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' || event.key === ' ') restoreDefault(event);
             });
+            undoSpan._updateDefaultVisibility = updateVisibility;
+            updateVisibility();
+        });
+    }
+
+    function refreshUndoControls() {
+        document.querySelectorAll('[data-undo-control]').forEach(function(undoSpan) {
+            if (undoSpan._updateDefaultVisibility) undoSpan._updateDefaultVisibility();
         });
     }
 
@@ -1205,71 +1286,9 @@
         }
     }
 
-    // ===== TT-SHOW-BROTHER TABS =====
-    function initShowBrotherTabs() {
-        document.querySelectorAll('.tt-show-brother').forEach(function(tabList) {
-            tabList.addEventListener('click', function(e) {
-                const li = e.target.closest('li');
-                if (!li || !li.dataset.show) return;
-                this.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
-                li.classList.add('selected');
-                const parent = this.closest('.tt-column-inner');
-                if (parent) {
-                    parent.querySelectorAll('fieldset').forEach(fs => {
-                        fs.style.display = fs.id === li.dataset.show ? 'block' : 'none';
-                    });
-                }
-            });
-        });
-    }
-
-    // ===== TEXTURE UPLOADS =====
-    function initTextureUploads() {
-        document.querySelectorAll('input[type="file"][accept="image/*"]').forEach(function(input) {
-            input.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const dataUrl = ev.target.result;
-                    const settingPath = input.dataset.ttOption;
-                    if (settingPath) setNestedSetting(settingPath, dataUrl);
-                    const preview = input.parentElement.nextElementSibling;
-                    if (preview && preview.classList.contains('tt-texture-preview')) {
-                        preview.style.display = 'block';
-                        const img = preview.querySelector('.tt-texture-preview-image');
-                        if (img) img.src = dataUrl;
-                    }
-                    const previewContainer = input.closest('.tt-option')?.querySelector('[id$="preview-container"]');
-                    if (previewContainer) {
-                        previewContainer.style.display = 'block';
-                        const img = previewContainer.querySelector('img');
-                        if (img) img.src = dataUrl;
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
-        });
-
-        document.querySelectorAll('.tt-texture-delete-icon, [id$="preview-delete-icon"]').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const preview = this.closest('.tt-texture-preview, [id$="preview-container"]');
-                if (preview) preview.style.display = 'none';
-                const option = this.closest('.tt-option, fieldset');
-                if (option) {
-                    const fileInput = option.querySelector('input[type="file"]');
-                    if (fileInput) {
-                        fileInput.value = '';
-                        const settingPath = fileInput.dataset.ttOption;
-                        if (settingPath) setNestedSetting(settingPath, null);
-                    }
-                }
-            });
-        });
-    }
-
     // Expose init
     window.Controls = {
-        init: init
+        init: init,
+        refreshUndoControls: refreshUndoControls
     };
 })();

@@ -79,10 +79,15 @@
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
-                if (window.TextMuyAPI) {
-                    var w = parseInt(document.getElementById('tt-custom-width-input')?.value || 1920);
-                    var h = parseInt(document.getElementById('tt-custom-height-input')?.value || 1080);
-                    TextMuyAPI.downloadPNG({ width: w, height: h });
+                if (window.TextMuyAPI && window.TextEditor) {
+                    var w = parseInt(document.getElementById('tt-download-width-input')?.value || 240);
+                    var h = parseInt(document.getElementById('tt-download-height-input')?.value || 600);
+                    TextMuyAPI.downloadPNG({
+                        settings: TextEditor.getSettings(),
+                        text: TextEditor.getSettings().text,
+                        width: w,
+                        height: h
+                    });
                 }
             }
         });

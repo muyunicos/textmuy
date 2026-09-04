@@ -261,13 +261,10 @@ strong {
     display: flex;
     align-items: center;
     justify-content: center;
-    max-width: 90%;
-    max-height: 90%;
 }
 
 #tt-canvas {
-    max-width: 100%;
-    max-height: 100%;
+    display: block;
     border-radius: var(--tt-radius-sm);
     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
@@ -441,6 +438,27 @@ strong {
 
 .tt-option:last-child {
     margin-bottom: 0;
+}
+
+.tt-line-style-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.tt-line-style-tabs button {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--tt-border-input);
+    border-radius: 4px;
+    color: var(--tt-text-muted);
+    background: var(--tt-bg-panel-2);
+    cursor: pointer;
+}
+
+.tt-line-style-tabs button.selected {
+    color: #fff;
+    background: var(--tt-accent);
+    border-color: var(--tt-accent);
 }
 
 .tt-option.tt-inline {

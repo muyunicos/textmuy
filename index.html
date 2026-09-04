@@ -62,6 +62,14 @@
                                             <input type="number" id="tt-canvas-ratio-input" data-tt-option="canvas.ratio" value="2.5" step="0.1" min="0.1" max="10" style="width: 60px;">
                                         </div>
                                     </div>
+                                    <div class="tt-option">
+                                        <label class="tt-label" for="tt-canvas-max-font-size-input"><span>Max Font Size (1 character):</span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="V+'%'"><output>100%</output></div>
+                                    </div>
+                                    <div class="tt-option">
+                                        <label class="tt-label" for="tt-canvas-margin-input"><span>Margin:</span></label>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="50" step="1" value="0" id="tt-canvas-margin-input" data-bubble="V+'%'"><output>0%</output></div>
+                                    </div>
                                     <div class="tt-option" style="flex:1">
                                         <textarea id="tt-text-textarea" spellcheck="false" placeholder="Your text..." data-tt-option="text" rows="3" cols="20"></textarea>
                                         <input type="hidden" id="tt-align-input" data-tt-option="align" value="center">
@@ -180,7 +188,7 @@
                                 <div class="tt-column-inner" id="tt-column-text-settings">
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-zoom-input"><span>Zoom:</span><span class="tt-undo" data-undo-control="tt-canvas-zoom-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="12" max="140" step="1" value="64" id="tt-canvas-zoom-input" data-tt-option="canvas.zoom" data-bubble="Math.round((V-12)/128*100)+'%'"><output style="left: calc(40.625% + 1.90625px);">41%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="300" step="1" value="100" id="tt-canvas-zoom-input" data-tt-option="canvas.zoom" data-bubble="V+'%'"><output style="left: calc(33.333% + 0.333px);">100%</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-letter-spacing-input"><span>Character spacing:</span><span class="tt-undo" data-undo-control="tt-letter-spacing-input" style="display: none;"></span></label>
@@ -188,7 +196,7 @@
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-line-height-input"><span>Line height:</span><span class="tt-undo" data-undo-control="tt-line-height-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="1" max="3" step="0.01" value="1" id="tt-line-height-input" data-tt-option="lineHeight" data-bubble="Math.round(V*100)+'%'"><output style="left: calc(31.0345% + 3.34483px);">100%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="1.5" step="0.01" value="1" id="tt-line-height-input" data-tt-option="lineHeight" data-bubble="Math.round(V*100)+'%'"><output style="left: calc(66.6667% - 0.166667px);">100%</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-distort-arc-angle-input"><span>Curve the text:</span><span class="tt-undo" data-undo-control="tt-distort-arc-angle-input" style="display: none;"></span></label>
@@ -198,8 +206,14 @@
                                         <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input" ></span></label>
                                         <div class="tt-range-bubble"><input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" data-bubble="V+'Â°'"><output style="left: calc(27.0833% + 3.9375px); display: none;">-82.5Â°</output></div>
                                     </div>
-                                    <div class="tt-option tt-lettering-inactive" id="tt-merge-gradients-option">
-                                        <label class="tt-label" for="tt-merge-gradients-input"> <input type="checkbox" class="tt-checkbox" id="tt-merge-gradients-input" data-tt-option="mergeGradients"> <span>Merging styles (multiline)</span></label>
+                                    <div class="tt-option" id="tt-line-style-selector">
+                                        <label class="tt-label"><span>Style target:</span></label>
+                                        <div class="tt-line-style-tabs" role="tablist" aria-label="Line style target">
+                                            <button type="button" class="selected" data-line-style="all">All</button>
+                                            <button type="button" data-line-style="1">L1</button>
+                                            <button type="button" data-line-style="2">L2</button>
+                                            <button type="button" data-line-style="3">L3</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

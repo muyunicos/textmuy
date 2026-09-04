@@ -40,12 +40,14 @@
 - **Opciones de Textura expandidas**: Expandidas de 3 a 9 posiciones y tamaños con increments de 10%
 - **Library de Presets expandida**: Añadidos 5+ presets base, implementadas categorías, búsqueda y filtros en UI
 - **Selección de Fuentes expandida**: Añadidos 40+ Google Fonts, implementadas categorías, búsqueda y upload de fuentes custom
-- **Sistema de Zoom refactorizado**: Implementado viewport zoom estilo TextStudio (canvas dimensions dinámicas, texto llena 100% del canvas, exportación con resolución independiente)
-- **Canvas dimensions dinámicas**: El canvas se calcula dinámicamente basándose en contenido y ancho de visualización
-- **Viewport zoom**: El zoom slider controla `canvas.zoom` en lugar de `font.size`
-- **Texto llena 100% del canvas**: El tamaño de fuente se calcula automáticamente para llenar el canvas
-- **Exportación independiente**: La exportación usa zoom fijo (1.0) para resolución consistente
+- **Sistema de Zoom refactorizado**: Canvas fijo (nunca crece según texto) + zoom multiplicador 0-300% + auto-fit de fuente + exportación con resolución independiente
+- **Canvas fijo + auto-fit**: El canvas usa `canvas.width/height * zoomScale`; si el texto lo sobrepasa, autoFitText() achica la fuente
+- **Viewport zoom**: El zoom slider controla `canvas.zoom` (0-300%) como multiplicador simple
+- **Texto se ajusta al canvas**: El tamaño de fuente se reduce (autoFitText) para encajar; nunca excede `font.size * zoomScale`
+- **Exportación independiente**: La exportación usa zoom 100 (1x) para resolución base consistente
 - **Eliminación de state.scale**: Removido `state.scale = 2` del renderizado en pantalla
+- **lineHeight default normal**: Cambiado a 1.2 (comportamiento tipográfico estándar)
+- **Centrado vertical real**: Usa ascent/descent del bounding box del glifo en lugar de fontSizePx
 
 ### ⏳ Pendiente (Fase 16)
 - **UI Polish**: Indicadores undo/redo, feedback visual, tooltips, transiciones y animaciones
@@ -446,15 +448,17 @@ window.TextMuyAPI = {
 - [ ] **T16.3** Verificar que todos los efectos tt-show-brother funcionen correctamente
 - [ ] **T16.4** Añadir tooltips descriptivos en controles complejos
 
-### Fase 17: Refactorizar Sistema de Zoom (TextStudio Style)
+### Fase 17: Sistema de Zoom Canvas-Fijo (0-300%)
 - [x] **T17.1** Investigar comportamiento de zoom en TextStudio (observación directa)
-- [x] **T17.2** Implementar cálculo dinámico de canvas basándose en contenido y ancho de visualización
-- [x] **T17.3** Modificar render() para usar dimensiones dinámicas en lugar de fijas
+- [x] **T17.2** Modelo canvas-fijo: el canvas NUNCA crece según texto; autoFitText() achica la fuente
+- [x] **T17.3** Zoom como multiplicador simple 0-300% (0% = 0x, 100% = tamaño base, 300% = 3x)
 - [x] **T17.4** Eliminar state.scale del renderizado en pantalla
-- [x] **T17.5** Implementar viewport zoom como factor de escala visual
-- [x] **T17.6** Asegurar que el texto siempre llene el canvas al 100%
-- [x] **T17.7** Implementar sistema de exportación con resolución independiente
-- [x] **T17.8** Actualizar el control de zoom para que afecte canvas.zoom, no font.size
+- [x] **T17.5** El zoom escala proporcionalmente el canvas y su contenido
+- [x] **T17.6** El texto se ajusta (achica fuente) si sobrepasa el canvas fijo; nunca excede font.size * zoomScale
+- [x] **T17.7** Exportación con resolución independiente (usa zoom 100 / 1x)
+- [x] **T17.8** Control de zoom en HTML: min=0, max=300, value=100, bubble "V+'%'"
+- [x] **T17.9** lineHeight default = 1.2 ("normal" tipográfico)
+- [x] **T17.10** Centrado vertical usando bounding box real (ascent/descent) en drawTextLines
 
 ---
 
