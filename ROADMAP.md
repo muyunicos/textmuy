@@ -72,8 +72,8 @@
 - **Problemas de compatibilidad resueltos**: 10/10 (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)
 - **Fase 18 (bugs de usuario)**: 8/8 tareas completadas (gradientes, contornos, estilos por línea, editor de paleta, tamaño de descarga, anti-drag, fix máscara de contorno, fix flujo de gradient colors)
 - **Fase 19 (Filling + Flag)**: 5/5 tareas completadas (gradiente bounds reales, motor de capas, UI de capas, compensación Flag, Boggle→Flag)
-- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19
-- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19
+- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19 + 5/5 de Fase 19.1 + 7/7 de Fase 19.2
+- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19, Fase 19.1, Fase 19.2
 
 ---
 
@@ -500,6 +500,15 @@ window.TextMuyAPI = {
 - [x] **T19.1.3** Pattern: nuevo selector **Fit** con 3 modos: `stretch` (deforma al tamaño del scope), `fit` (proporcional, contiene — como CSS contain), `fill` (proporcional, cubre — como CSS cover).
 - [x] **T19.1.4** Pattern: nuevo slider **Scale** 10%-100%. A 100% + stretch la imagen se estira exactamente al ancho/alto del scope (letra/palabra/línea/todo según el repeat de la capa); a menos del 100% mantiene proporción y se repite desde el origen seleccionado.
 - [x] **T19.1.5** Render: nuevo helper `computePatternPlacement()` que calcula el placement (escala sx/sy + origen tx/ty) según fit/scale/position; integrado en `createPatternForBox()` y `patternForBoxAtChar()` (con compensación Flag). `normalizeFillStyle()` preserva los nuevos campos.
+
+### Fase 19.2: Flag (bandera) restaurado + Boggle (desordenadas) + rotación desde centro
+- [x] **T19.2.1** Restaurar el efecto **Flag (bandera)** original: se renombró el campo `lettering.boggle` (que en realidad hacía de bandera) a `lettering.flag` y se restauró su comportamiento original de onda senoidal (`Math.sin`), que es el efecto de bandera/banner que el usuario recordaba.
+- [x] **T19.2.2** Nuevo efecto **Boggle (desordenadas)**: campo `lettering.boggle` independiente con letras dispersadas aleatoriamente. Rotación y offsets verticales pseudo-aleatorios deterministas (hash por índice de carácter) para que el layout no "baila" entre renders.
+- [x] **T19.2.3** Funciones de transform: `getFlagTransform` (bandera), `getBoggleTransform` (aleatorio), `getLetterTransform` (combinado). El objeto transform unificado usa `{ rot, offsetY }` (corrige el bug donde `drawFillUnits` usaba `tf.rot` pero la función devolvía `tf.rotation`).
+- [x] **T19.2.4** Rotación desde el **centro visual del glifo**: tanto Flag como Boggle rotan alrededor del centro del carácter (`glyphCenter = (ascent - descent)/2`), no desde la baseline (abajo). Aplicado en `drawTextWithSpacing` (outlines/sombras) y `drawFillUnits` (fill), con gradientes/patrones compensados (`gradTf` con `cx/cy` reales del pivote).
+- [x] **T19.2.5** Fix del editor flotante: el panel de estilos de relleno se cerraba al hacer click DENTRO de él (gradient handles, sliders). Se reemplazó el listener de cierre por un `contains(e.target)` check — solo cierra si el click cae FUERA del panel.
+- [x] **T19.2.6** UI: fieldset renombrado a "Flag (bandera)" con bindings `lettering.flag.*`, nuevo fieldset "Boggle (desordenadas)" con bindings `lettering.boggle.*` (Max rotation 0-360, Scatter height 0-100).
+- [x] **T19.2.7** Compatibilidad de presets: `loadPreset` migra el campo `lettering.boggle` legacy (que era bandera) a `lettering.flag`, y carga `lettering.boggle` nuevo solo cuando el preset también tiene `lettering.flag` (formato nuevo). `updateUIFromSettings` sincroniza ambos fieldsets.
 
 ---
 

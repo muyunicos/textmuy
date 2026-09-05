@@ -257,20 +257,36 @@
                                                 <span>Lettering</span>
                                             </label>
                                         </legend>
-                                        <fieldset id="tt-lettering-boggle-fieldset" data-autominimize="1">
+                                        <fieldset id="tt-lettering-flag-fieldset" data-autominimize="1">
                                             <legend>
-                                                <label for="tt-lettering-boggle-active-input">
-                                                    <input type="checkbox" id="tt-lettering-boggle-active-input" data-tt-option="lettering.boggle.active">
+                                                <label for="tt-lettering-flag-active-input">
+                                                    <input type="checkbox" id="tt-lettering-flag-active-input" data-tt-option="lettering.flag.active">
                                                     <span>Flag (bandera)</span>
                                                 </label>
                                             </legend>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-boggle-angle-input"><span>Angle</span></label>
-                                                <input type="range" min="-360" max="360" step="1" value="15" id="tt-lettering-boggle-angle-input" data-tt-option="lettering.boggle.angle">
+                                                <label class="tt-label" for="tt-lettering-flag-angle-input"><span>Angle</span></label>
+                                                <input type="range" min="-360" max="360" step="1" value="15" id="tt-lettering-flag-angle-input" data-tt-option="lettering.flag.angle">
                                             </div>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-boggle-amplitude-input"><span>Amplitude</span></label>
-                                                <input type="range" min="-100" max="100" step="1" value="30" id="tt-lettering-boggle-amplitude-input" data-tt-option="lettering.boggle.amplitude">
+                                                <label class="tt-label" for="tt-lettering-flag-amplitude-input"><span>Amplitude</span></label>
+                                                <input type="range" min="-100" max="100" step="1" value="30" id="tt-lettering-flag-amplitude-input" data-tt-option="lettering.flag.amplitude">
+                                            </div>
+                                        </fieldset>
+                                        <fieldset id="tt-lettering-boggle-fieldset" data-autominimize="1">
+                                            <legend>
+                                                <label for="tt-lettering-boggle-active-input">
+                                                    <input type="checkbox" id="tt-lettering-boggle-active-input" data-tt-option="lettering.boggle.active">
+                                                    <span>Boggle (desordenadas)</span>
+                                                </label>
+                                            </legend>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-boggle-angle-input"><span>Max rotation</span></label>
+                                                <input type="range" min="0" max="360" step="1" value="40" id="tt-lettering-boggle-angle-input" data-tt-option="lettering.boggle.angle">
+                                            </div>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-boggle-amplitude-input"><span>Scatter height</span></label>
+                                                <input type="range" min="0" max="100" step="1" value="50" id="tt-lettering-boggle-amplitude-input" data-tt-option="lettering.boggle.amplitude">
                                             </div>
                                         </fieldset>
                                         <fieldset id="tt-lettering-shadow-fieldset" data-autominimize="1">

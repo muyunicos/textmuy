@@ -226,6 +226,9 @@
 
         // LETTERING
         bindCheckbox('tt-lettering-active-input', 'lettering.active');
+        bindCheckbox('tt-lettering-flag-active-input', 'lettering.flag.active');
+        bindRange('tt-lettering-flag-angle-input', 'lettering.flag.angle', parseFloat);
+        bindRange('tt-lettering-flag-amplitude-input', 'lettering.flag.amplitude', parseFloat);
         bindCheckbox('tt-lettering-boggle-active-input', 'lettering.boggle.active');
         bindRange('tt-lettering-boggle-angle-input', 'lettering.boggle.angle', parseFloat);
         bindRange('tt-lettering-boggle-amplitude-input', 'lettering.boggle.amplitude', parseFloat);
@@ -1098,7 +1101,17 @@
             fillStyleEditorEl.remove();
             fillStyleEditorEl = null;
         }
-        document.removeEventListener('click', closeFillStyleEditor, true);
+        document.removeEventListener('click', fillStyleDocClick, true);
+    }
+
+    // Close only when the click lands OUTSIDE the panel. Capture-phase
+    // document listeners run before the panel's own stopPropagation, so the
+    // old "close on any click" approach killed every interaction inside it
+    // (gradient handles, sliders, buttons).
+    function fillStyleDocClick(e) {
+        if (fillStyleEditorEl && !fillStyleEditorEl.contains(e.target)) {
+            closeFillStyleEditor();
+        }
     }
 
     function openFillStyleEditor(layerIdx, styleIdx, anchor) {
@@ -1167,7 +1180,7 @@
         document.body.appendChild(panel);
         fillStyleEditorEl = panel;
         setTimeout(function() {
-            document.addEventListener('click', closeFillStyleEditor, true);
+            document.addEventListener('click', fillStyleDocClick, true);
         }, 0);
     }
 

@@ -1072,7 +1072,7 @@
     // offscreen spanning the block box and clipped to the text silhouette so
     // they are not rotated by the per-letter transforms.
     function drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, style, alpha, blendmode) {
-        const flagActive = isActive(s, 'lettering.boggle');
+        const flagActive = isActive(s, 'lettering.flag') || isActive(s, 'lettering.boggle');
         const box = getTextBlockBox(ctx, s, lines, fontSizePx);
 
         if (style.type === 'color' || !flagActive) {
@@ -1239,7 +1239,7 @@
     function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles) {
         const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const spacing = s.letterSpacing * fontSizePx * 0.1;
-        const flagActive = isActive(s, 'lettering.boggle');
+        const flagActive = isActive(s, 'lettering.flag') || isActive(s, 'lettering.boggle');
         const measure = ctx.measureText('Ag');
         const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
         const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
@@ -1308,13 +1308,16 @@
                     const ch = line[j];
                     if (ch === ' ') continue;
                     const p = positions[j];
-                    const tf = flagActive ? getFlagTransform(s, j, fontSizePx) : null;
+                    const tf = getLetterTransform(s, j, fontSizePx);
                     const charY = y + (tf ? tf.offsetY : 0);
+                    const glyphCenter = (ascent - descent) / 2;
+                    const pivotY = charY - glyphCenter;
+                    const gradTf = tf ? { rot: tf.rot, cx: p.x + p.width / 2, cy: pivotY } : null;
                     const charBox = { x: p.x, y: y - ascent, width: p.width, height: ascent + descent };
 
                     ctx.save();
                     if (tf) {
-                        ctx.translate(p.x + p.width / 2, charY);
+                        ctx.translate(p.x + p.width / 2, pivotY);
                         ctx.rotate(tf.rot);
                     }
                     if (style.type === 'color') {
@@ -1328,7 +1331,7 @@
                             ctx.fillStyle = gradientForBoxAtChar(ctx, style.gradient, localBox, null);
                         } else {
                             // Edge to edge of the unit, anchored to the layout
-                            ctx.fillStyle = gradientForBoxAtChar(ctx, style.gradient, unitBox, tf);
+                            ctx.fillStyle = gradientForBoxAtChar(ctx, style.gradient, unitBox, gradTf);
                         }
                     } else if (state.textureImages[style.texture.src]) {
                         if (repeat === 'letter') {
@@ -1337,11 +1340,11 @@
                                 : charBox;
                             ctx.fillStyle = patternForBoxAtChar(ctx, state.textureImages[style.texture.src], style.texture, localBox, null);
                         } else {
-                            ctx.fillStyle = patternForBoxAtChar(ctx, state.textureImages[style.texture.src], style.texture, unitBox, tf);
+                            ctx.fillStyle = patternForBoxAtChar(ctx, state.textureImages[style.texture.src], style.texture, unitBox, gradTf);
                         }
                     }
                     if (tf) {
-                        ctx.fillText(ch, -p.width / 2, 0);
+                        ctx.fillText(ch, -p.width / 2, glyphCenter);
                     } else {
                         ctx.fillText(ch, p.x, y);
                     }
@@ -1860,22 +1863,51 @@
         }
     }
 
-    // Flag (formerly "Boggle"): alternating per-letter banner effect.
-    // Even letters tilt +angle and shift up; odd letters tilt -angle and
-    // shift down (the pattern repeats inverted for each letter).
-    // angle: -360..360 degrees; amplitude: -100..100 (% of font size).
+    // Flag (bandera): original banner effect, restored from the old "boggle".
+    // Letters sway in a sine wave, alternating smoothly (waving banner).
+    // angle: -360..360 (wave phase); amplitude: -100..100 (% of font size).
     function getFlagTransform(s, charIndex, fontSizePx) {
-        if (!isActive(s, 'lettering.boggle')) return null;
-        const angle = safeGet(s, 'lettering.boggle.angle', 0) || 0;
-        const amplitude = safeGet(s, 'lettering.boggle.amplitude', 0) || 0;
-        const sign = (charIndex % 2 === 0) ? 1 : -1;
+        if (!isActive(s, 'lettering.flag')) return null;
+        const angle = safeGet(s, 'lettering.flag.angle', 12) || 0;
+        const amplitude = safeGet(s, 'lettering.flag.amplitude', 10) || 0;
+        const amp = amplitude / 100;
+        const t = charIndex * 0.5 + angle * 0.1;
         return {
-            rotation: (angle * Math.PI / 180) * sign,
-            offsetY: (amplitude / 100) * fontSizePx * 0.5 * -sign
+            rot: Math.sin(t) * amp * 0.3,
+            offsetY: Math.sin(t) * amp * fontSizePx * 0.5
         };
     }
 
-    // Draw text with manual letter spacing and the Flag effect
+    // Boggle: random-looking scattered letters. Deterministic per character
+    // index so the layout does not flicker between renders.
+    // angle: 0..360 (max rotation); amplitude: 0..100 (% of font size).
+    function hash01(seed) {
+        const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+        return x - Math.floor(x);
+    }
+
+    function getBoggleTransform(s, charIndex, fontSizePx) {
+        if (!isActive(s, 'lettering.boggle')) return null;
+        const angle = safeGet(s, 'lettering.boggle.angle', 40) || 0;
+        const amplitude = safeGet(s, 'lettering.boggle.amplitude', 50) || 0;
+        const rot = (hash01(charIndex * 37 + 1) - 0.5) * 2 * (angle * Math.PI / 180);
+        const offY = (hash01(charIndex * 37 + 2) - 0.5) * 2 * (amplitude / 100) * fontSizePx;
+        return { rot: rot, offsetY: offY };
+    }
+
+    // Combined transform (Flag and/or Boggle can be active at once).
+    function getLetterTransform(s, charIndex, fontSizePx) {
+        const flag = getFlagTransform(s, charIndex, fontSizePx);
+        const boggle = getBoggleTransform(s, charIndex, fontSizePx);
+        if (!flag && !boggle) return null;
+        return {
+            rot: (flag ? flag.rot : 0) + (boggle ? boggle.rot : 0),
+            offsetY: (flag ? flag.offsetY : 0) + (boggle ? boggle.offsetY : 0)
+        };
+    }
+
+    // Draw text with manual letter spacing plus the Flag/Boggle effects.
+    // Transforms rotate each glyph around its visual center (not baseline).
     function drawTextWithSpacing(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
         const align = safeGet(s, 'align', 'center');
 
@@ -1899,21 +1931,27 @@
             startX = x - totalWidth;
         }
 
+        const measure = ctx.measureText('Ag');
+        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const glyphCenter = (ascent - descent) / 2;
+
         let currentX = startX;
         for (let i = 0; i < chars.length; i++) {
             const char = chars[i];
-            const flag = getFlagTransform(s, i, fontSizePx);
-            const charY = y + (flag ? flag.offsetY : 0);
+            const tf = getLetterTransform(s, i, fontSizePx);
+            const charY = y + (tf ? tf.offsetY : 0);
 
-            ctx.save();
-            if (flag) {
-                ctx.translate(currentX + char.width / 2, charY);
-                ctx.rotate(flag.rotation);
+            if (tf) {
+                ctx.save();
+                ctx.translate(currentX + char.width / 2, charY - glyphCenter);
+                ctx.rotate(tf.rot);
                 if (isStroke) {
-                    ctx.strokeText(char.char, -char.width / 2, 0);
+                    ctx.strokeText(char.char, -char.width / 2, glyphCenter);
                 } else {
-                    ctx.fillText(char.char, -char.width / 2, 0);
+                    ctx.fillText(char.char, -char.width / 2, glyphCenter);
                 }
+                ctx.restore();
             } else {
                 if (isStroke) {
                     ctx.strokeText(char.char, currentX, charY);
@@ -1921,13 +1959,11 @@
                     ctx.fillText(char.char, currentX, charY);
                 }
             }
-            ctx.restore();
 
             currentX += char.width + spacing;
         }
     }
 
-    // Format a gradient colors array (settings format) into the picker string
     // format: "#rrggbb alpha pos%, ..." — used to mirror settings into the
     // hidden gradient inputs so the visual pickers can rebuild from them.
     function formatGradientColorsString(gradient) {
@@ -2489,16 +2525,26 @@
         if (preset.lettering) {
             if (preset.lettering.active !== undefined) s.lettering.active = Boolean(preset.lettering.active);
             if (preset.lettering.blendmode) s.lettering.blendmode = preset.lettering.blendmode;
-            if (preset.lettering.boggle) {
-                s.lettering.boggle.active = Boolean(preset.lettering.boggle.active);
-                if (preset.lettering.boggle.angle !== undefined) s.lettering.boggle.angle = clampValue(preset.lettering.boggle.angle, -360, 360, 15);
+            if (preset.lettering.flag) {
+                s.lettering.flag.active = Boolean(preset.lettering.flag.active);
+                if (preset.lettering.flag.angle !== undefined) s.lettering.flag.angle = clampValue(Number(preset.lettering.flag.angle), -360, 360, 12);
+                if (preset.lettering.flag.amplitude !== undefined) s.lettering.flag.amplitude = clampValue(Number(preset.lettering.flag.amplitude), -100, 100, 10);
+            }
+            if (preset.lettering.boggle && !preset.lettering.flag) {
+                // Legacy: old "boggle" field actually held the flag effect.
+                s.lettering.flag.active = Boolean(preset.lettering.boggle.active);
+                if (preset.lettering.boggle.angle !== undefined) s.lettering.flag.angle = clampValue(Number(preset.lettering.boggle.angle), -360, 360, 12);
                 if (preset.lettering.boggle.amplitude !== undefined) {
-                                    let flagAmp = Number(preset.lettering.boggle.amplitude) || 0;
-                                    if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
-                                    s.lettering.boggle.amplitude = clampValue(flagAmp, -100, 100, 30);
-                                }
-                                if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
-                                s.lettering.boggle.amplitude = clampValue(flagAmp, -100, 100, 30);
+                    let flagAmp = Number(preset.lettering.boggle.amplitude) || 0;
+                    if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
+                    s.lettering.flag.amplitude = clampValue(flagAmp, -100, 100, 10);
+                }
+            }
+            if (preset.lettering.boggle && preset.lettering.flag) {
+                // New format: boggle is the random scattered-letter effect.
+                s.lettering.boggle.active = Boolean(preset.lettering.boggle.active);
+                if (preset.lettering.boggle.angle !== undefined) s.lettering.boggle.angle = clampValue(Number(preset.lettering.boggle.angle), 0, 360, 40);
+                if (preset.lettering.boggle.amplitude !== undefined) s.lettering.boggle.amplitude = clampValue(Number(preset.lettering.boggle.amplitude), 0, 100, 50);
             }
             if (preset.lettering.reverseOverlap) {
                 s.lettering.reverseOverlap.active = (preset.lettering.reverseOverlap.letters > 0 || preset.lettering.reverseOverlap.lines > 0);
@@ -2656,6 +2702,9 @@
 
         // LETTERING
         setInputValue('tt-lettering-active-input', s.lettering && s.lettering.active);
+        setInputValue('tt-lettering-flag-active-input', s.lettering && s.lettering.flag && s.lettering.flag.active);
+        setInputValue('tt-lettering-flag-angle-input', s.lettering && s.lettering.flag && s.lettering.flag.angle);
+        setInputValue('tt-lettering-flag-amplitude-input', s.lettering && s.lettering.flag && s.lettering.flag.amplitude);
         setInputValue('tt-lettering-boggle-active-input', s.lettering && s.lettering.boggle && s.lettering.boggle.active);
         setInputValue('tt-lettering-boggle-angle-input', s.lettering && s.lettering.boggle && s.lettering.boggle.angle);
         setInputValue('tt-lettering-boggle-amplitude-input', s.lettering && s.lettering.boggle && s.lettering.boggle.amplitude);
