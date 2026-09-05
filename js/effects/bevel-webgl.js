@@ -83,6 +83,8 @@
         constructor() {
             this.gl = null;
             this.program = null;
+            this.vertexShader = null;
+            this.fragmentShader = null;
             this.initialized = false;
         }
 
@@ -97,6 +99,8 @@
                 // Create shaders
                 const vertexShader = this.createShader(this.gl.VERTEX_SHADER, vertexShaderSource);
                 const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, fragmentShaderSource);
+                this.vertexShader = vertexShader;
+                this.fragmentShader = fragmentShader;
 
                 // Create program
                 this.program = this.gl.createProgram();
@@ -296,10 +300,19 @@
         }
 
         destroy() {
-            if (this.gl && this.program) {
-                this.gl.deleteProgram(this.program);
-                this.initialized = false;
+            const gl = this.gl;
+            if (gl) {
+                if (this.program) gl.deleteProgram(this.program);
+                if (this.vertexShader) gl.deleteShader(this.vertexShader);
+                if (this.fragmentShader) gl.deleteShader(this.fragmentShader);
+                const lose = gl.getExtension('WEBGL_lose_context');
+                if (lose) lose.loseContext();
             }
+            this.gl = null;
+            this.program = null;
+            this.vertexShader = null;
+            this.fragmentShader = null;
+            this.initialized = false;
         }
     }
 

@@ -33,6 +33,18 @@
                         </div>
                     </div>
                 </div>
+<!-- Preset gallery (expandable bottom panel) -->
+                <div id="tt-preset-gallery" class="tt-preset-gallery">
+                    <button id="tt-preset-gallery-toggle" class="tt-gallery-toggle" type="button" aria-expanded="false" aria-controls="tt-gallery-body">
+                        <i class="fas fa-images"></i><span>Presets</span>
+                    </button>
+                    <div id="tt-gallery-body" class="tt-gallery-body">
+                        <div class="tt-gallery-toolbar">
+                            <input type="text" id="tt-gallery-search" placeholder="Filter presets...">
+                        </div>
+                        <div id="tt-gallery-grid" class="tt-gallery-grid"></div>
+                    </div>
+                </div>
             </div>
 
             <div id="tt-main-container">
@@ -1457,6 +1469,15 @@
                                             <input type="text" id="tt-import-url-input" placeholder="https://www.textstudio.com/logo/..." style="flex: 1;">
                                             <button id="tt-import-btn" class="tt-download-button" style="padding: 8px 16px;">Import</button>
                                         </div>
+                                    </fieldset>
+<fieldset class="tt-download-fieldset">
+                                        <legend>Local projects (.txm)</legend>
+                                        <div class="tt-projects-toolbar">
+                                            <button id="tt-project-pick-btn" class="tt-download-button" type="button">Open folder</button>
+                                            <button id="tt-project-save-btn" class="tt-download-button" type="button">Save project</button>
+                                        </div>
+                                        <div id="tt-project-status" class="tt-project-status"></div>
+                                        <ul id="tt-projects-list" class="tt-preset-list tt-projects-list"></ul>
                                     </fieldset>
                                 </div>
                             </div>

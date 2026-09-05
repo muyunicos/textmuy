@@ -236,6 +236,8 @@
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                const loseCtx = gl.getExtension('WEBGL_lose_context');
+                if (loseCtx) loseCtx.loseContext();
                 return output;
             } catch (_) {
                 return null;

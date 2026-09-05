@@ -4,6 +4,7 @@
     'use strict';
 
     let editor = null;
+    let currentPresetName = null;
 
     function init(editorInstance) {
         editor = editorInstance;
@@ -24,6 +25,8 @@
         initUndoRedo();
         initFillLayersUI();
         bindGradientColorInputs();
+        initPresetGallery();
+        initProjectManager();
     }
 
     // Helper: set nested setting and trigger render
@@ -1842,6 +1845,202 @@
                 reader.readAsDataURL(file);
             });
         }
+    }
+
+    // ===== PRESET GALLERY (expandable bottom panel with thumbnails) =====
+    function initPresetGallery() {
+        const gallery = document.getElementById('tt-preset-gallery');
+        const toggle = document.getElementById('tt-preset-gallery-toggle');
+        const grid = document.getElementById('tt-gallery-grid');
+        const search = document.getElementById('tt-gallery-search');
+        if (!gallery || !toggle || !grid) return;
+
+        let loaded = false;
+
+        toggle.addEventListener('click', function() {
+            const open = gallery.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open && !loaded) { loaded = true; populate(); }
+        });
+
+        if (search) search.addEventListener('input', filterTiles);
+
+        function presetNames() {
+            const names = [];
+            const seen = new Set();
+            const list = document.getElementById('tt-preset-list');
+            if (list) {
+                list.querySelectorAll('li[data-preset]').forEach(function(li) {
+                    const n = li.getAttribute('data-preset');
+                    if (n && !seen.has(n)) {
+                        seen.add(n);
+                        names.push({ name: n, category: li.getAttribute('data-category') || 'custom' });
+                    }
+                });
+            }
+            if (window.PresetManager) {
+                try {
+                    const all = PresetManager.getAllPresets();
+                    Object.keys(all).forEach(function(n) {
+                        if (!seen.has(n)) {
+                            seen.add(n);
+                            names.push({ name: n, category: all[n].category || 'custom' });
+                        }
+                    });
+                } catch (e) {}
+            }
+            return names;
+        }
+
+        function populate() {
+            grid.innerHTML = '';
+            presetNames().forEach(function(entry) {
+                const tile = document.createElement('button');
+                tile.type = 'button';
+                tile.className = 'tt-gallery-tile';
+                tile.dataset.preset = entry.name;
+                tile.dataset.category = entry.category;
+                tile.setAttribute('aria-label', entry.name);
+
+                const img = document.createElement('img');
+                img.alt = entry.name;
+                img.loading = 'lazy';
+                tile.appendChild(img);
+
+                const label = document.createElement('span');
+                label.className = 'tt-gallery-tile-label';
+                label.textContent = entry.name;
+                tile.appendChild(label);
+
+                tile.addEventListener('click', function() {
+                    if (window.PresetManager && PresetManager.loadPreset) {
+                        PresetManager.loadPreset(entry.name);
+                        currentPresetName = entry.name;
+                        markSelected();
+                    }
+                });
+
+                grid.appendChild(tile);
+
+                if (window.PresetManager && PresetManager.ensureThumbnail) {
+                    PresetManager.ensureThumbnail(entry.name).then(function(url) {
+                        if (url) img.src = url;
+                    });
+                }
+            });
+            markSelected();
+        }
+
+        function markSelected() {
+            grid.querySelectorAll('.tt-gallery-tile').forEach(function(t) {
+                t.classList.toggle('selected', t.dataset.preset === currentPresetName);
+            });
+        }
+
+        function filterTiles() {
+            const q = (search.value || '').toLowerCase();
+            grid.querySelectorAll('.tt-gallery-tile').forEach(function(t) {
+                const name = (t.dataset.preset || '').toLowerCase();
+                const cat = (t.dataset.category || '').toLowerCase();
+                t.style.display = (name.indexOf(q) !== -1 || cat.indexOf(q) !== -1) ? '' : 'none';
+            });
+        }
+    }
+
+    // ===== LOCAL PROJECT MANAGEMENT (.txm + .webp) =====
+    function initProjectManager() {
+        const pickBtn = document.getElementById('tt-project-pick-btn');
+        const saveBtn = document.getElementById('tt-project-save-btn');
+        const status = document.getElementById('tt-project-status');
+        const list = document.getElementById('tt-projects-list');
+        if (!pickBtn || !saveBtn || !list) return;
+
+        function setStatus(msg) {
+            if (status) status.textContent = msg || '';
+        }
+
+        function refreshProjects() {
+            if (!window.PresetManager || !PresetManager.hasProjectDirectory()) return;
+            list.innerHTML = '';
+            PresetManager.listProjects().then(function(names) {
+                if (!names.length) { setStatus('No projects in folder.'); return; }
+                setStatus(names.length + ' project(s) in "' + PresetManager.getProjectDirectoryName() + '"');
+                names.forEach(function(name) {
+                    const li = document.createElement('li');
+                    li.className = 'tt-project-item';
+                    li.dataset.project = name;
+
+                    const thumb = document.createElement('img');
+                    thumb.alt = name;
+                    PresetManager.readProjectThumbnailUrl(name).then(function(u) { if (u) thumb.src = u; });
+
+                    const span = document.createElement('span');
+                    span.textContent = name;
+
+                    const openBtn = document.createElement('button');
+                    openBtn.textContent = 'Open';
+                    openBtn.addEventListener('click', function() { openProject(name); });
+
+                    const delBtn = document.createElement('button');
+                    delBtn.textContent = 'Delete';
+                    delBtn.className = 'tt-project-delete';
+                    delBtn.addEventListener('click', function() { deleteProject(name); });
+
+                    li.appendChild(thumb);
+                    li.appendChild(span);
+                    li.appendChild(openBtn);
+                    li.appendChild(delBtn);
+                    list.appendChild(li);
+                });
+            }).catch(function(e) {
+                setStatus('Error listing projects: ' + e.message);
+            });
+        }
+
+        function pickDirectory() {
+            return window.PresetManager.pickProjectDirectory().then(function() {
+                setStatus('Folder: "' + PresetManager.getProjectDirectoryName() + '"');
+                refreshProjects();
+            }).catch(function(e) {
+                if (e && e.name !== 'AbortError') setStatus(e.message || 'Could not open folder');
+            });
+        }
+
+        function ensureDir() {
+            if (window.PresetManager && PresetManager.hasProjectDirectory()) return Promise.resolve();
+            return pickDirectory();
+        }
+
+        function openProject(name) {
+            window.PresetManager.openProject(name).then(function() {
+                currentPresetName = null;
+                setStatus('Opened "' + name + '"');
+            }).catch(function(e) { setStatus('Error opening project: ' + e.message); });
+        }
+
+        function deleteProject(name) {
+            if (!confirm('Delete project "' + name + '" (.txm and .webp)?')) return;
+            window.PresetManager.deleteProject(name).then(function() {
+                setStatus('Deleted "' + name + '"');
+                refreshProjects();
+            }).catch(function(e) { setStatus('Error deleting project: ' + e.message); });
+        }
+
+        pickBtn.addEventListener('click', pickDirectory);
+
+        saveBtn.addEventListener('click', function() {
+            if (!editor) return;
+            ensureDir().then(function() {
+                return window.PresetManager.saveProject(editor.getSettings().text, editor.getSettings());
+            }).then(function(res) {
+                setStatus('Saved "' + res.name + '" (.txm + .webp)');
+                refreshProjects();
+            }).catch(function(e) {
+                if (e && e.name !== 'AbortError') setStatus('Error saving project: ' + e.message);
+            });
+        });
+
+        if (window.PresetManager && PresetManager.hasProjectDirectory()) refreshProjects();
     }
 
     // Expose init

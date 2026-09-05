@@ -72,8 +72,8 @@
 - **Problemas de compatibilidad resueltos**: 10/10 (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)
 - **Fase 18 (bugs de usuario)**: 8/8 tareas completadas (gradientes, contornos, estilos por línea, editor de paleta, tamaño de descarga, anti-drag, fix máscara de contorno, fix flujo de gradient colors)
 - **Fase 19 (Filling + Flag)**: 5/5 tareas completadas (gradiente bounds reales, motor de capas, UI de capas, compensación Flag, Boggle→Flag)
-- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19 + 5/5 de Fase 19.1 + 7/7 de Fase 19.2
-- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19, Fase 19.1, Fase 19.2
+- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19 + 5/5 de Fase 19.1 + 7/7 de Fase 19.2 + 11/11 de Fase 20
+- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19, Fase 19.1, Fase 19.2, Fase 20
 
 ---
 
@@ -509,6 +509,38 @@ window.TextMuyAPI = {
 - [x] **T19.2.5** Fix del editor flotante: el panel de estilos de relleno se cerraba al hacer click DENTRO de él (gradient handles, sliders). Se reemplazó el listener de cierre por un `contains(e.target)` check — solo cierra si el click cae FUERA del panel.
 - [x] **T19.2.6** UI: fieldset renombrado a "Flag (bandera)" con bindings `lettering.flag.*`, nuevo fieldset "Boggle (desordenadas)" con bindings `lettering.boggle.*` (Max rotation 0-360, Scatter height 0-100).
 - [x] **T19.2.7** Compatibilidad de presets: `loadPreset` migra el campo `lettering.boggle` legacy (que era bandera) a `lettering.flag`, y carga `lettering.boggle` nuevo solo cuando el preset también tiene `lettering.flag` (formato nuevo). `updateUIFromSettings` sincroniza ambos fieldsets.
+
+---
+
+### Fase 20: Rendimiento + Galería visual + Proyectos locales (.txm)
+Documenta el plan aprobado: optimización de rendimiento, galería de presets con miniaturas y almacenamiento local de proyectos como pares `.txm` + `.webp`. Mantiene intacta la lógica actual de tamaño/proporción del canvas y conserva las exclusiones acordadas: animaciones (bounce/fade/beat), ABC styles, features premium, preview de fuente en el dropdown, estados de carga avanzados, optimización móvil, batch export, Text Warper con control points y export vectorial (AI/EPS).
+
+**Rendimiento**
+- [x] **T20.1** `render()`: reasignar `state.canvas.width/height` solo si el tamaño cambia (evita el reset del contexto 2D en cada frame).
+- [x] **T20.2** Pool de capas offscreen reutilizables (límite 4, tope de área 4096²) para la capa de composición de texto (`acquireCanvas`/`releaseCanvas`).
+- [x] **T20.3** Caché LRU de texturas (128 imágenes / ~64 MB) con protección de texturas en uso y `clearTextureCache()` exportado.
+- [x] **T20.4** Disposición completa de contextos WebGL (program + shaders + `WEBGL_lose_context`) en `bevel-webgl.js`, `specular-webgl.js` y `distort-engine.js` (arco).
+
+**Galería visual**
+- [x] **T20.5** Panel inferior expandible con grilla de miniaturas, búsqueda y selección activa (`index.html` + `css/style.css` + `js/controls.js`).
+- [x] **T20.6** `ensureThumbnail()`: genera WebP 100×200 (contain-fit) desde render offscreen, convirtiendo el preset crudo a settings internos; caché en memoria + `localStorage` (`textmuy_thumbnails`).
+- [x] **T20.7** `PresetManager.loadPreset(name)`: carga un preset (local/importado o embebido en `presets/`) al editor — corrige la referencia rota que usaba `controls.js`.
+
+**Proyectos locales**
+- [x] **T20.8** Formato `.txm` = delta solo de diferencias respecto a defaults (`diffSettings`/`settingsFromDelta`), sin miniatura embebida; el `.webp` acompañante es la miniatura de 100×200 px.
+- [x] **T20.9** File System Access API: `pickProjectDirectory`, `saveProject`, `listProjects`, `openProject`, `deleteProject`, `readProjectThumbnailUrl`.
+- [x] **T20.10** UI de gestión de proyectos en el panel DOWNLOAD ("Open folder" / "Save project" + lista con Open/Delete).
+- [x] **T20.11** Test `tests/preset-delta.test.js`: ida y vuelta del delta preservando `false`/`0`/`null`/`""` y podando ramas sin cambios.
+
+**Pendiente / consideraciones**
+- [ ] **T20.12** Persistir el `FileSystemDirectoryHandle` (IndexedDB) para no re-seleccionar la carpeta al recargar.
+- [ ] **T20.13** Pulido de UI restante (agrupación/colapsables y hover states — Fase 16).
+- [ ] **T20.14** Medir rendimiento before/after con DevTools Performance/Memory (meta: 30% menos render / 40% menos memoria, no garantizada).
+
+**Limitaciones conocidas**
+- `showDirectoryPicker` requiere Chrome/Edge y contexto seguro (HTTPS o `localhost`).
+- El handle de carpeta se mantiene en memoria (no persistido aún).
+- ZIP y AI/EPS quedan fuera de alcance.
 
 ---
 

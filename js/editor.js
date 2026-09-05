@@ -366,6 +366,11 @@
         return safeGet(obj, path + '.active', false);
     }
 
+// ---- Performance plumbing -------------------------------------------
+    const TEXTURE_CACHE_MAX_IMAGES = 128;            // hard cap on cached textures
+    const TEXTURE_CACHE_MAX_BYTES = 64 * 1024 * 1024; // ~64 MB estimated cache size
+    const CANVAS_POOL_MAX = 4;                        // reusable offscreen layers
+    const CANVAS_POOL_MAX_AREA = 4096 * 4096;         // don't park oversized layers
     // Editor state
     const state = {
         settings: JSON.parse(JSON.stringify(defaultSettings)),
@@ -376,7 +381,10 @@
         iconImg: null,
         bgImg: null,
         transparentOutput: false,
-        textureImages: {} // Store loaded texture images by src
+        textureImages: {}, // loaded texture images by src
+        textureOrder: [],  // LRU order (oldest first)
+        textureBytes: 0,   // estimated cached bytes
+        canvasPool: []     // reusable offscreen 2D canvases
     };
 
     // Initialize the editor
@@ -552,6 +560,109 @@
         return best;
     }
 
+    // ===== PERFORMANCE HELPERS =====
+    // Reusable offscreen canvases avoid churn on the large text-composition
+    // layer that is recreated on every frame.
+    function acquireCanvas(width, height) {
+        const pool = state.canvasPool;
+        for (let i = 0; i < pool.length; i++) {
+            const c = pool[i];
+            if (c.width === width && c.height === height) {
+                pool.splice(i, 1);
+                const cctx = c.getContext('2d');
+                cctx.setTransform(1, 0, 0, 1, 0, 0);
+                cctx.clearRect(0, 0, c.width, c.height);
+                return c;
+            }
+        }
+        const c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        return c;
+    }
+
+    function releaseCanvas(canvas) {
+        if (!canvas) return;
+        if (canvas.width * canvas.height > CANVAS_POOL_MAX_AREA) return;
+        if (state.canvasPool.length >= CANVAS_POOL_MAX) return;
+        state.canvasPool.push(canvas);
+    }
+
+    function estimateImageBytes(img) {
+        if (!img) return 0;
+        if (img.width && img.height) return img.width * img.height * 4;
+        return 1 * 1024 * 1024;
+    }
+
+    // Texture src referenced by the current settings, so the LRU never evicts
+    // an image the very next render would have to reload.
+    function activeTextureSrcs() {
+        const s = state.settings;
+        const srcs = new Set();
+        function add(v) { if (typeof v === 'string' && v) srcs.add(v); }
+        add(safeGet(s, 'fill.texture.src'));
+        add(safeGet(s, 'outline.first.fill.texture.src'));
+        add(safeGet(s, 'outline.second.fill.texture.src'));
+        add(safeGet(s, 'outline.global.fill.texture.src'));
+        add(safeGet(s, 'depth.fill.texture.src'));
+        add(safeGet(s, 'depth2.fill.texture.src'));
+        const layers = s.fill && s.fill.layers;
+        if (Array.isArray(layers)) {
+            layers.forEach(function(layer) {
+                (layer && Array.isArray(layer.styles) ? layer.styles : []).forEach(function(style) {
+                    if (style && style.texture) add(style.texture.src);
+                });
+            });
+        }
+        return srcs;
+    }
+
+    function cacheTexture(src, img) {
+        state.textureImages[src] = img;
+        state.textureBytes += estimateImageBytes(img);
+        state.textureOrder.push(src);
+        trimTextureCache();
+    }
+
+    function touchTexture(src) {
+        const idx = state.textureOrder.indexOf(src);
+        if (idx !== -1) state.textureOrder.splice(idx, 1);
+        state.textureOrder.push(src);
+    }
+
+    function removeTexture(src) {
+        const img = state.textureImages[src];
+        state.textureBytes -= estimateImageBytes(img);
+        delete state.textureImages[src];
+        const idx = state.textureOrder.indexOf(src);
+        if (idx !== -1) state.textureOrder.splice(idx, 1);
+    }
+
+    function trimTextureCache() {
+        const active = activeTextureSrcs();
+        while (
+            state.textureOrder.length > TEXTURE_CACHE_MAX_IMAGES ||
+            state.textureBytes > TEXTURE_CACHE_MAX_BYTES
+        ) {
+            if (!state.textureOrder.length) break;
+            const victim = state.textureOrder[0];
+            if (active.has(victim)) {
+                // Oldest candidate is still in use; evict the next free entry.
+                const next = state.textureOrder.find(function(src) { return !active.has(src); });
+                if (!next) break;
+                removeTexture(next);
+                continue;
+            }
+            removeTexture(victim);
+        }
+    }
+
+    function clearTextureCache() {
+        state.textureImages = {};
+        state.textureOrder = [];
+        state.textureBytes = 0;
+    }
+
     // Main render function
     function render() {
         if (state.isRendering || !state.ctx) return;
@@ -568,8 +679,10 @@
         const canvasWidth = dynamicSize.width;
         const canvasHeight = dynamicSize.height;
 
-        state.canvas.width = canvasWidth;
-        state.canvas.height = canvasHeight;
+        // Only reassign when the size actually changes: writing to
+        // .width/.height resets every 2D context property in most browsers.
+        if (state.canvas.width !== canvasWidth) state.canvas.width = canvasWidth;
+        if (state.canvas.height !== canvasHeight) state.canvas.height = canvasHeight;
 
         const displayWidth = calculateCanvasDisplaySize(canvasWidth, canvasHeight, s.canvas.zoom);
         state.canvas.style.width = displayWidth + 'px';
@@ -642,7 +755,7 @@
         const textLayerHeight = needsExpandedTextLayer
             ? Math.max(canvasHeight, sourceHeight, rotationValue > 0.0001 ? offscreenSide : 0)
             : canvasHeight;
-        const textLayer = document.createElement('canvas');
+        const textLayer = acquireCanvas(textLayerWidth, textLayerHeight);
         textLayer.width = textLayerWidth;
         textLayer.height = textLayerHeight;
         const textCtx = textLayer.getContext('2d');
@@ -761,6 +874,10 @@
         ctx.drawImage(rotateLayer, -rotateLayer.width / 2, -rotateLayer.height / 2);
         ctx.restore();
 
+        // The composed pixels have already been drawn into the target context,
+        // so the source layer can be parked for reuse on the next frame.
+        releaseCanvas(textLayer);
+
         state.isRendering = false;
     }
 
@@ -779,24 +896,24 @@
         img.src = src;
     }
 
-    // Load texture image
+    // Load texture image (LRU-cached)
     function loadTextureImage(src, callback) {
         if (!src) {
             if (callback) callback(null);
             return;
         }
         if (state.textureImages[src]) {
+            touchTexture(src);
             if (callback) callback(state.textureImages[src]);
             return;
         }
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = function() {
-            state.textureImages[src] = img;
+            cacheTexture(src, img);
             if (callback) callback(img);
         };
         img.onerror = function() {
-            state.textureImages[src] = null;
             if (callback) callback(null);
         };
         img.src = src;
@@ -3005,7 +3122,8 @@
         renderToCanvas: renderToCanvas,
         getSettings: getSettings,
         getCanvas: getCanvas,
-        getCtx: getCtx
+        getCtx: getCtx,
+        clearTextureCache: clearTextureCache
     };
 
 })();
