@@ -22,7 +22,6 @@
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
         // Persistent per-line overrides. The base settings above are All.
-        lineStyles: { 1: {}, 2: {}, 3: {} },
 
         // ===== 3D & FILLING =====
         // Filling (Relleno principal) - RGB format matching TextStudio
@@ -82,6 +81,7 @@
             first: {
                 active: false,
                 width: 0.1,
+                position: 'outside',
                 dash: 0,
                 join: 'round',
                 fill: {
@@ -95,6 +95,7 @@
             second: {
                 active: false,
                 width: 0.1,
+                position: 'outside',
                 dash: 0,
                 join: 'round',
                 fill: {
@@ -452,334 +453,14 @@
         return totalWidth;
     }
 
-    // ===== PER-CHARACTER METRICS SYSTEM =====
+    // Canvas pixels always keep their configured size. Zoom affects only the
     
-    /**
-     * CharacterMetrics - Stores detailed metrics for a single character
-     * This enables per-character effects and transformations
-     */
-    class CharacterMetrics {
-        constructor(char, index, lineIndex) {
-            this.char = char;
-            this.index = index;
-            this.lineIndex = lineIndex;
-            
-            // Position (relative to line origin)
-            this.x = 0;
-            this.y = 0;
-            
-            // Dimensions
-            this.width = 0;
-            this.height = 0;
-            
-            // Canvas text metrics (actualBoundingBox)
-            this.actualBoundingBoxLeft = 0;
-            this.actualBoundingBoxRight = 0;
-            this.actualBoundingBoxAscent = 0;
-            this.actualBoundingBoxDescent = 0;
-            
-            // Transformations
-            this.transform = {
-                x: 0,
-                y: 0,
-                rotation: 0,
-                scale: 1
-            };
-        }
-    }
-
-    /**
-     * TextLayout - Stores layout information for all text
-     * Organized by lines, with per-character metrics
-     */
-    class TextLayout {
-        constructor() {
-            this.lines = []; // Array of CharacterMetrics[][]
-            this.totalWidth = 0;
-            this.totalHeight = 0;
-            this.baseline = 0;
-            this.fontSize = 0;
-        }
-    }
-
-    /**
-     * Calculate detailed text layout with per-character metrics
-     * This is the foundation for per-character effects
-     */
-    function calculateTextLayout(ctx, text, settings, renderedFontSize) {
-        const layout = new TextLayout();
-        const s = settings;
-        
-        // Split text into lines
-        const lines = text.split('\n');
-        const fontSizePx = renderedFontSize || s.font.size;
-        layout.fontSize = fontSizePx;
-        
-        // Set font for measurements
-        setTextFont(ctx, s, fontSizePx);
-        
-        // Calculate metrics for each character in each line
-        const letterSpacing = s.letterSpacing || 0;
-        const spacingPx = letterSpacing * fontSizePx * 0.1;
-        
-        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-            const line = lines[lineIndex];
-            const charMetrics = [];
-            let currentX = 0;
-            
-            for (let charIndex = 0; charIndex < line.length; charIndex++) {
-                const char = line[charIndex];
-                const metrics = new CharacterMetrics(char, charIndex, lineIndex);
-                
-                // Measure character
-                const measure = ctx.measureText(char);
-                metrics.width = measure.width;
-                metrics.actualBoundingBoxLeft = measure.actualBoundingBoxLeft || 0;
-                metrics.actualBoundingBoxRight = measure.actualBoundingBoxRight || 0;
-                metrics.actualBoundingBoxAscent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
-                metrics.actualBoundingBoxDescent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
-                metrics.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-                
-                // Position character
-                metrics.x = currentX;
-                metrics.y = 0; // Will be adjusted for line alignment
-                
-                currentX += metrics.width + spacingPx;
-                
-                charMetrics.push(metrics);
-            }
-            
-            layout.lines.push(charMetrics);
-        }
-        
-        // Calculate total dimensions
-        let maxWidth = 0;
-        for (const line of layout.lines) {
-            if (line.length > 0) {
-                const lastChar = line[line.length - 1];
-                const lineWidth = lastChar.x + lastChar.width;
-                maxWidth = Math.max(maxWidth, lineWidth);
-            }
-        }
-        layout.totalWidth = maxWidth;
-        
-        const measure = ctx.measureText('Ag');
-        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
-        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
-        const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
-        layout.totalHeight = ascent + descent + (lines.length - 1) * lineAdvance;
-        layout.baseline = -layout.totalHeight / 2 + ascent;
-        
-        return layout;
-    }
-
-    // ===== PALETTE PER-LETTER SYSTEM =====
-    
-    /**
-     * Apply palette styles to characters based on method
-     * Methods: 'letter' (cycle per character), 'word' (cycle per word), 'line' (cycle per line)
-     */
-    function applyPaletteToLayout(layout, paletteConfig) {
-        if (!paletteConfig || !paletteConfig.active || !paletteConfig.styles || paletteConfig.styles.length === 0) {
-            return layout;
-        }
-        
-        const method = paletteConfig.lettering?.method || 'letter';
-        const styles = paletteConfig.styles;
-        
-        for (let lineIndex = 0; lineIndex < layout.lines.length; lineIndex++) {
-            const line = layout.lines[lineIndex];
-            
-            for (let charIndex = 0; charIndex < line.length; charIndex++) {
-                const charMetrics = line[charIndex];
-                
-                // Determine style index based on method
-                let styleIndex;
-                if (method === 'letter') {
-                    styleIndex = charIndex % styles.length;
-                } else if (method === 'word') {
-                    // Simple word detection (space-separated)
-                    const charBefore = charIndex > 0 ? line[charIndex - 1].char : '';
-                    const isWordStart = charBefore === ' ' || charBefore === '';
-                    const wordIndex = line.slice(0, charIndex).filter(c => c.char === ' ').length;
-                    styleIndex = wordIndex % styles.length;
-                } else if (method === 'line') {
-                    styleIndex = lineIndex % styles.length;
-                } else {
-                    styleIndex = charIndex % styles.length;
-                }
-                
-                // Apply style to character
-                const style = styles[styleIndex];
-                if (style) {
-                    charMetrics.paletteStyle = style;
-                }
-            }
-        }
-        
-        return layout;
-    }
-
-    /**
-     * Get color for a character considering palette
-     * Returns RGB object {r, g, b}
-     */
-    function getCharacterColor(charMetrics, baseColor, paletteConfig) {
-        if (!paletteConfig || !paletteConfig.active || !charMetrics.paletteStyle) {
-            return baseColor;
-        }
-        
-        const style = charMetrics.paletteStyle;
-        if (style.color) {
-            return style.color;
-        }
-        
-        return baseColor;
-    }
-
-    /**
-     * Get gradient for a character considering palette
-     */
-    function getCharacterGradient(charMetrics, baseGradient, paletteConfig) {
-        if (!paletteConfig || !paletteConfig.active || !charMetrics.paletteStyle) {
-            return baseGradient;
-        }
-        
-        const style = charMetrics.paletteStyle;
-        if (style.gradient) {
-            return style.gradient;
-        }
-        
-        return baseGradient;
-    }
-
-    // ===== LETTERING EFFECTS SYSTEM =====
-    
-    /**
-     * Apply boggle effect - random rotation and offset per character
-     */
-    function applyBoggleEffect(layout, boggleConfig) {
-        if (!boggleConfig || !boggleConfig.active) {
-            return layout;
-        }
-        
-        const angle = boggleConfig.angle || 12;
-        const amplitude = boggleConfig.amplitude || 0.1;
-        const angleRad = angle * Math.PI / 180;
-        
-        for (const line of layout.lines) {
-            for (const charMetrics of line) {
-                // Random rotation within angle range
-                const randomAngle = (Math.random() - 0.5) * 2 * angleRad;
-                charMetrics.transform.rotation = randomAngle;
-                
-                // Random offset within amplitude
-                const offsetX = (Math.random() - 0.5) * 2 * amplitude * layout.fontSize;
-                const offsetY = (Math.random() - 0.5) * 2 * amplitude * layout.fontSize;
-                charMetrics.transform.x = offsetX;
-                charMetrics.transform.y = offsetY;
-            }
-        }
-        
-        return layout;
-    }
+    // Canvas pixels always keep their configured size. Zoom affects only the
 
     /**
      * Apply reverse overlap effect - overlap letters in reverse order
      * This creates a stacked/overlapping effect
      */
-    function applyReverseOverlapEffect(layout, reverseOverlapConfig) {
-        if (!reverseOverlapConfig) {
-            return layout;
-        }
-        
-        const overlapLetters = reverseOverlapConfig.letters || 0;
-        const overlapLines = reverseOverlapConfig.lines || 0;
-        
-        if (overlapLetters > 0) {
-            for (const line of layout.lines) {
-                // Reverse order for overlap effect
-                for (let i = line.length - 1; i > 0; i--) {
-                    const charMetrics = line[i];
-                    const prevChar = line[i - 1];
-                    
-                    // Overlap with previous character
-                    const overlapAmount = charMetrics.width * 0.3; // 30% overlap
-                    charMetrics.transform.x = -overlapAmount * (line.length - i) * 0.1;
-                }
-            }
-        }
-        
-        if (overlapLines > 0) {
-            // Overlap lines vertically
-            for (let i = 1; i < layout.lines.length; i++) {
-                const line = layout.lines[i];
-                const lineHeightPx = layout.fontSize * (state.settings.lineHeight !== undefined ? state.settings.lineHeight : 1);
-                
-                for (const charMetrics of line) {
-                    charMetrics.transform.y = -lineHeightPx * 0.2 * i; // 20% overlap per line
-                }
-            }
-        }
-        
-        return layout;
-    }
-
-    /**
-     * Apply lettering shadow effect - individual shadow per character
-     */
-    function applyLetteringShadowEffect(layout, letteringShadowConfig) {
-        if (!letteringShadowConfig || !letteringShadowConfig.active) {
-            return layout;
-        }
-        
-        const size = letteringShadowConfig.size || 0.04;
-        const distance = letteringShadowConfig.distance || 0.02;
-        const angle = (letteringShadowConfig.angle || 180) * Math.PI / 180;
-        
-        const shadowOffsetX = Math.cos(angle) * distance * layout.fontSize;
-        const shadowOffsetY = Math.sin(angle) * distance * layout.fontSize;
-        
-        for (const line of layout.lines) {
-            for (const charMetrics of line) {
-                charMetrics.letteringShadow = {
-                    offsetX: shadowOffsetX,
-                    offsetY: shadowOffsetY,
-                    size: size * layout.fontSize,
-                    fill: letteringShadowConfig.fill
-                };
-            }
-        }
-        
-        return layout;
-    }
-
-    /**
-     * Apply all lettering effects to layout
-     */
-    function applyLetteringEffects(layout, letteringConfig) {
-        if (!letteringConfig || !letteringConfig.active) {
-            return layout;
-        }
-        
-        // Apply boggle effect
-        if (letteringConfig.boggle && letteringConfig.boggle.active) {
-            applyBoggleEffect(layout, letteringConfig.boggle);
-        }
-        
-        // Apply reverse overlap effect
-        if (letteringConfig.reverseOverlap) {
-            applyReverseOverlapEffect(layout, letteringConfig.reverseOverlap);
-        }
-        
-        // Apply lettering shadow effect
-        if (letteringConfig.shadow && letteringConfig.shadow.active) {
-            applyLetteringShadowEffect(layout, letteringConfig.shadow);
-        }
-        
-        return layout;
-    }
-
     // Canvas pixels always keep their configured size. Zoom affects only the
     // preview CSS size so it cannot alter the output or stretch its aspect ratio.
     function calculateDynamicCanvasSize(ctx, text, s) {
@@ -789,42 +470,6 @@
             width: Math.max(1, Math.round(baseCanvasWidth)),
             height: Math.max(1, Math.round(baseCanvasHeight))
         };
-    }
-
-    function cloneSettings(value) {
-        return JSON.parse(JSON.stringify(value));
-    }
-
-    function mergeSettings(target, source) {
-        if (!source || typeof source !== 'object') return target;
-        Object.keys(source).forEach(function(key) {
-            const value = source[key];
-            if (value && typeof value === 'object' && !Array.isArray(value)) {
-                if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) target[key] = {};
-                mergeSettings(target[key], value);
-            } else {
-                target[key] = value;
-            }
-        });
-        return target;
-    }
-
-    function getLineStyleSlot(lineIndex) {
-        return lineIndex === 0 ? 1 : lineIndex === 1 ? 2 : 3;
-    }
-
-    function getEffectiveLineSettings(settings, lineIndex) {
-        const effective = cloneSettings(settings);
-        const slot = getLineStyleSlot(lineIndex);
-        mergeSettings(effective, safeGet(settings, 'lineStyles.' + slot, {}));
-        return effective;
-    }
-
-    function hasLineStyleOverrides(settings) {
-        const styles = settings.lineStyles || {};
-        return [1, 2, 3].some(function(slot) {
-            return styles[slot] && Object.keys(styles[slot]).length > 0;
-        });
     }
 
     function calculateCanvasDisplaySize(canvasWidth, canvasHeight, zoomValue) {
@@ -952,29 +597,6 @@
         // Changing canvas dimensions resets every 2D context property.
         setTextFont(ctx, s, fontSizePx);
 
-        // ===== PER-CHARACTER LAYOUT SYSTEM =====
-        // Calculate detailed text layout with per-character metrics
-        const layout = calculateTextLayout(ctx, text, s, fontSizePx);
-        
-        // Apply palette effects if active
-        if (s.fill.palette && s.fill.palette.active) {
-            applyPaletteToLayout(layout, s.fill.palette);
-        }
-        if (s.outline.first.fill.palette && s.outline.first.fill.palette.active) {
-            applyPaletteToLayout(layout, s.outline.first.fill.palette);
-        }
-        if (s.outline.second.fill.palette && s.outline.second.fill.palette.active) {
-            applyPaletteToLayout(layout, s.outline.second.fill.palette);
-        }
-        
-        // Apply lettering effects if active
-        if (s.lettering && s.lettering.active) {
-            applyLetteringEffects(layout, s.lettering);
-        }
-        
-        // Store layout in state for use in render functions
-        state.layout = layout;
-        
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
 
@@ -1000,9 +622,19 @@
         const rotationValue = Math.abs(s.rotate || 0) * Math.PI / 180;
         const arcAngle = safeGet(s, 'distort.arc.angle', 0);
         const offscreenGutter = 4;
+        const textMetrics = ctx.measureText('Ag');
+        const textAscent = textMetrics.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const textDescent = textMetrics.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const lineAdvancePx = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
+        let textBlockWidth = 0;
+        for (let lw = 0; lw < lines.length; lw++) {
+            const w = measureTextWidth(ctx, lines[lw], s.letterSpacing, fontSizePx);
+            if (w > textBlockWidth) textBlockWidth = w;
+        }
+        const textBlockHeight = textAscent + textDescent + (lines.length - 1) * lineAdvancePx;
         const offscreenSide = Math.ceil(Math.hypot(canvasWidth, canvasHeight)) + offscreenGutter * 2;
-        const sourceWidth = Math.ceil(layout.totalWidth + calcExtraWidth(s, fontSizePx)) + offscreenGutter * 2;
-        const sourceHeight = Math.ceil(layout.totalHeight + calcExtraHeight(s, fontSizePx)) + offscreenGutter * 2;
+        const sourceWidth = Math.ceil(textBlockWidth + calcExtraWidth(s, fontSizePx)) + offscreenGutter * 2;
+        const sourceHeight = Math.ceil(textBlockHeight + calcExtraHeight(s, fontSizePx)) + offscreenGutter * 2;
         const needsExpandedTextLayer = rotationValue > 0.0001 || Math.abs(arcAngle) >= 0.1;
         const textLayerWidth = needsExpandedTextLayer
             ? Math.max(canvasWidth, sourceWidth, rotationValue > 0.0001 ? offscreenSide : 0)
@@ -1334,48 +966,392 @@
     }
 
     // Draw text fill
-    function drawFill(ctx, text, lines, fontSizePx, s) {
-        const alpha = safeGet(s, 'fill.alpha', 1);
+    // ===== FILL LAYER ENGINE =====
+    // fill.layers: [{ active, alpha, blendmode, repeat, styles: [...] }]
+    // style:  { type: 'color'|'gradient'|'texture', color?, gradient?{angle,colors}, texture?{src,repeat} }
+    // repeat: 'none' (style spans the whole text block, styles stack in order)
+    //         'letter'|'word'|'line' (styles cycle per unit, painted edge to edge)
+    const MAX_FILL_LAYERS = 4;
 
-        // Check if palette is active (per-letter coloring)
-        if (isActive(s, 'fill.palette') && safeGet(s, 'fill.palette.styles') && s.fill.palette.styles.length > 0) {
-            drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha);
+    function normalizeFillStyle(style) {
+        if (typeof style === 'string') return { type: 'color', color: style };
+        if (!style || typeof style !== 'object') return { type: 'color', color: '#ffffff' };
+        if (style.type === 'gradient' || (style.gradient && !style.type)) {
+            const g = style.gradient || {};
+            return { type: 'gradient', gradient: { angle: g.angle || 0, colors: Array.isArray(g.colors) ? g.colors : [] } };
+        }
+        if (style.type === 'texture' || (style.texture && !style.type)) {
+            const t = style.texture || {};
+            return { type: 'texture', texture: {
+                src: t.src || null,
+                repeat: t.repeat || 'repeat',
+                position: t.position || 'center',
+                fit: t.fit || 'fill',
+                scale: t.scale !== undefined ? t.scale : 1
+            } };
+        }
+        return { type: 'color', color: style.color !== undefined ? style.color : '#ffffff' };
+    }
+
+    // Build fill layers from the legacy fields (color/gradient/texture/palette)
+    function migrateLegacyFillLayers(fill) {
+        const baseAlpha = fill.alpha !== undefined ? fill.alpha : 1;
+        if (fill.palette && fill.palette.active && Array.isArray(fill.palette.styles) && fill.palette.styles.length) {
+            const method = (fill.palette.lettering && fill.palette.lettering.method) || 'letter';
+            return [{
+                active: true,
+                alpha: baseAlpha,
+                blendmode: 'source-over',
+                repeat: method,
+                styles: fill.palette.styles.map(normalizeFillStyle)
+            }];
+        }
+        if (fill.gradient && fill.gradient.active && Array.isArray(fill.gradient.colors) && fill.gradient.colors.length >= 2) {
+            return [{
+                active: true,
+                alpha: baseAlpha,
+                blendmode: 'source-over',
+                repeat: 'none',
+                styles: [{ type: 'gradient', gradient: { angle: fill.gradient.angle || 0, colors: fill.gradient.colors } }]
+            }];
+        }
+        if (fill.texture && fill.texture.active && fill.texture.src) {
+            return [{
+                active: true,
+                alpha: baseAlpha * (fill.texture.alpha !== undefined ? fill.texture.alpha : 1),
+                blendmode: fill.texture.blendmode === 'over' ? 'source-over' : (fill.texture.blendmode || 'source-over'),
+                repeat: 'none',
+                styles: [{ type: 'texture', texture: { src: fill.texture.src, repeat: fill.texture.repeat || 'repeat' } }]
+            }];
+        }
+        return [{
+            active: true,
+            alpha: baseAlpha,
+            blendmode: 'source-over',
+            repeat: 'none',
+            styles: [{ type: 'color', color: fill.color !== undefined ? fill.color : '#ffffff' }]
+        }];
+    }
+
+    function getFillLayers(s) {
+        if (Array.isArray(s.fill.layers) && s.fill.layers.length) return s.fill.layers;
+        return migrateLegacyFillLayers(s.fill);
+    }
+
+    function drawFill(ctx, text, lines, fontSizePx, s) {
+        getFillLayers(s).forEach(function(layer) {
+            if (!layer || layer.active === false) return;
+            drawFillLayer(ctx, text, lines, fontSizePx, s, layer);
+        });
+    }
+
+    function drawFillLayer(ctx, text, lines, fontSizePx, s, layer) {
+        const styles = (Array.isArray(layer.styles) ? layer.styles : []).filter(Boolean);
+        if (!styles.length) return;
+        const repeat = layer.repeat || 'none';
+        const alpha = layer.alpha !== undefined ? layer.alpha : 1;
+        if (alpha <= 0) return;
+        const blendmode = layer.blendmode === 'over' ? 'source-over' : (layer.blendmode || 'source-over');
+
+        if (repeat === 'none') {
+            // Each style paints the whole text block, stacked in order
+            styles.forEach(function(style) {
+                drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, normalizeFillStyle(style), alpha, blendmode);
+            });
+        } else {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.globalCompositeOperation = blendmode;
+            drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles.map(normalizeFillStyle));
+            ctx.restore();
+        }
+    }
+
+    // Paint one style across the whole text block. Solid colors paint
+    // directly; gradients/patterns with the Flag effect active are painted
+    // offscreen spanning the block box and clipped to the text silhouette so
+    // they are not rotated by the per-letter transforms.
+    function drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, style, alpha, blendmode) {
+        const flagActive = isActive(s, 'lettering.boggle');
+        const box = getTextBlockBox(ctx, s, lines, fontSizePx);
+
+        if (style.type === 'color' || !flagActive) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.globalCompositeOperation = blendmode;
+            if (style.type === 'color') {
+                ctx.fillStyle = getColorValue(style.color, 1);
+            } else if (style.type === 'gradient') {
+                if (!style.gradient.colors || style.gradient.colors.length < 2) { ctx.restore(); return; }
+                ctx.fillStyle = createGradientInBox(ctx, style.gradient, box);
+            } else {
+                const img = state.textureImages[style.texture.src];
+                if (!img) {
+                    if (style.texture.src) loadTextureImage(style.texture.src);
+                    ctx.restore();
+                    return;
+                }
+                ctx.fillStyle = createPatternForBox(ctx, img, style.texture, box);
+            }
+            ctx.strokeStyle = 'transparent';
+            drawTextLines(ctx, text, lines, fontSizePx, s, false);
+            ctx.restore();
             return;
         }
 
-        // Check if texture is active
-        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src')) {
-            const textureImg = state.textureImages[s.fill.texture.src];
-            if (textureImg) {
-                ctx.save();
-                if (s.fill.texture.blendmode) {
-                    ctx.globalCompositeOperation = s.fill.texture.blendmode;
-                }
-                const pattern = ctx.createPattern(textureImg, s.fill.texture.repeat || 'repeat');
-                ctx.globalAlpha = alpha * s.fill.texture.alpha;
-                ctx.fillStyle = pattern;
-                ctx.strokeStyle = 'transparent';
-                drawTextLines(ctx, text, lines, fontSizePx, s);
-                ctx.restore();
+        // Flag active + gradient/texture: mask approach so the style spans
+        // the block in global space, unaffected by per-letter transforms.
+        if (style.type === 'gradient' && (!style.gradient.colors || style.gradient.colors.length < 2)) return;
+        if (style.type === 'texture' && !style.texture.src) return;
+
+        const W = ctx.canvas.width;
+        const H = ctx.canvas.height;
+
+        const mask = document.createElement('canvas');
+        mask.width = W; mask.height = H;
+        const mctx = mask.getContext('2d');
+        mctx.setTransform(ctx.getTransform());
+        mctx.fillStyle = '#ffffff';
+        drawTextLines(mctx, text, lines, fontSizePx, s, false);
+
+        const styled = document.createElement('canvas');
+        styled.width = W; styled.height = H;
+        const sctx = styled.getContext('2d');
+        sctx.setTransform(ctx.getTransform());
+        if (style.type === 'gradient') {
+            sctx.fillStyle = createGradientInBox(sctx, style.gradient, box);
+        } else {
+            const img = state.textureImages[style.texture.src];
+            if (!img) {
+                loadTextureImage(style.texture.src);
                 return;
             }
+            sctx.fillStyle = createPatternForBox(sctx, img, style.texture, box);
         }
+        sctx.fillRect(box.x - 2, box.y - 2, box.width + 4, box.height + 4);
+
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.globalCompositeOperation = 'destination-in';
+        sctx.drawImage(mask, 0, 0);
 
         ctx.save();
-        if (isActive(s, 'fill.gradient')) {
-            const gradient = createGradient(ctx, text, lines, fontSizePx, s.fill.gradient, s);
-            ctx.fillStyle = gradient;
-        } else {
-            const color = s.fill.color || { r: 255, g: 255, b: 255 };
-            ctx.fillStyle = getColorValue(color, alpha);
-        }
-
-        ctx.strokeStyle = 'transparent';
-        drawTextLines(ctx, text, lines, fontSizePx, s);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = alpha;
+        ctx.globalCompositeOperation = blendmode;
+        ctx.drawImage(styled, 0, 0);
         ctx.restore();
     }
 
-    // Draw text outline
+    // Pattern stretched so it covers 'box' edge to edge
+    // Compute the pattern placement (scale + origin) inside 'box' from the
+    // texture options:
+    //   fit:   'stretch' (non-proportional fill) | 'fit' (proportional contain)
+    //          | 'fill' (proportional cover)
+    //   scale: 0.1..1.0 fraction of the box the pattern targets
+    //   position: 9-position origin (left top .. right bottom)
+    function computePatternPlacement(img, texture, box) {
+        const fit = texture.fit || 'fill';
+        const scale = texture.scale !== undefined ? texture.scale : 1;
+        let sx, sy;
+        if (fit === 'stretch') {
+            sx = (box.width * scale) / img.width;
+            sy = (box.height * scale) / img.height;
+        } else if (fit === 'fit') {
+            const s = Math.min(box.width * scale / img.width, box.height * scale / img.height);
+            sx = s; sy = s;
+        } else {
+            const s = Math.max(box.width * scale / img.width, box.height * scale / img.height);
+            sx = s; sy = s;
+        }
+        const w = img.width * sx;
+        const h = img.height * sy;
+        const pos = texture.position || 'center';
+        let tx, ty;
+        if (pos.indexOf('left') !== -1) tx = box.x;
+        else if (pos.indexOf('right') !== -1) tx = box.x + box.width - w;
+        else tx = box.x + (box.width - w) / 2;
+        if (pos.indexOf('top') !== -1) ty = box.y;
+        else if (pos.indexOf('bottom') !== -1) ty = box.y + box.height - h;
+        else ty = box.y + (box.height - h) / 2;
+        return { sx: sx, sy: sy, tx: tx, ty: ty };
+    }
+
+    function createPatternForBox(c, img, texture, box) {
+        const pattern = c.createPattern(img, texture.repeat === 'no-repeat' ? 'no-repeat' : 'repeat');
+        const p = computePatternPlacement(img, texture, box);
+        if (typeof pattern.setTransform === 'function') {
+            pattern.setTransform(new DOMMatrix([p.sx, 0, 0, p.sy, p.tx, p.ty]));
+        }
+        return pattern;
+    }
+
+    // Gradient endpoints (global coordinates) for a box and angle
+    function gradientEndpointsForBox(box, angleDeg) {
+        const angle = angleDeg * Math.PI / 180;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height / 2;
+        const half = (Math.abs(cos) * box.width + Math.abs(sin) * box.height) / 2;
+        return { x1: cx - cos * half, y1: cy - sin * half, x2: cx + cos * half, y2: cy + sin * half };
+    }
+
+    // Gradient for a box; when the char is Flag-transformed the endpoints are
+    // mapped through the inverse of T(cx,cy)·R(rot) so the gradient stays
+    // anchored to the global layout instead of rotating with the letter.
+    function gradientForBoxAtChar(ctx, gradient, box, tf) {
+        const g = gradientEndpointsForBox(box, gradient.angle || 0);
+        let x1 = g.x1, y1 = g.y1, x2 = g.x2, y2 = g.y2;
+        if (tf) {
+            const cos = Math.cos(tf.rot);
+            const sin = Math.sin(tf.rot);
+            const map = function(px, py) {
+                const dx = px - tf.cx;
+                const dy = py - tf.cy;
+                return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+            };
+            const p1 = map(g.x1, g.y1);
+            const p2 = map(g.x2, g.y2);
+            x1 = p1.x; y1 = p1.y; x2 = p2.x; y2 = p2.y;
+        }
+        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+        addGradientStops(grad, gradient);
+        return grad;
+    }
+
+    // Pattern fitted to a box; 'tf' is the char Flag transform — the pattern
+    // matrix is compensated with its inverse so the pattern stays anchored to
+    // the global layout.
+    function patternForBoxAtChar(ctx, img, texture, box, tf) {
+        const pattern = ctx.createPattern(img, texture.repeat === 'no-repeat' ? 'no-repeat' : 'repeat');
+        const p = computePatternPlacement(img, texture, box);
+        let m = new DOMMatrix([p.sx, 0, 0, p.sy, p.tx, p.ty]);
+        if (tf) {
+            const inv = new DOMMatrix().rotate(-tf.rot * 180 / Math.PI).translate(-tf.cx, -tf.cy);
+            m = inv.multiply(m);
+        }
+        if (typeof pattern.setTransform === 'function') pattern.setTransform(m);
+        return pattern;
+    }
+
+    // letter/word/line units: each unit cycles through the layer styles and
+    // is painted edge to edge of its own box.
+    function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles) {
+        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
+        const spacing = s.letterSpacing * fontSizePx * 0.1;
+        const flagActive = isActive(s, 'lettering.boggle');
+        const measure = ctx.measureText('Ag');
+        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+
+        const lineWidths = [];
+        let maxLineWidth = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const lw = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            lineWidths.push(lw);
+            if (lw > maxLineWidth) maxLineWidth = lw;
+        }
+
+        let unitIndex = 0;
+        for (let li = 0; li < lines.length; li++) {
+            const line = lines[li];
+            const y = blockMetrics.firstBaseline + li * blockMetrics.lineAdvance;
+            let lineStartX = -lineWidths[li] / 2;
+            if (s.align === 'left') lineStartX = -maxLineWidth / 2;
+            else if (s.align === 'right') lineStartX = maxLineWidth / 2 - lineWidths[li];
+
+            const positions = [];
+            let px = lineStartX;
+            for (let j = 0; j < line.length; j++) {
+                const cw = ctx.measureText(line[j]).width;
+                positions.push({ x: px, width: cw });
+                px += cw + spacing;
+            }
+
+            const units = [];
+            if (repeat === 'letter') {
+                for (let j = 0; j < line.length; j++) units.push([j]);
+            } else if (repeat === 'word') {
+                let start = 0;
+                for (let j = 0; j <= line.length; j++) {
+                    if (j === line.length || line[j] === ' ') {
+                        if (j > start) {
+                            const idxs = [];
+                            for (let k = start; k < j; k++) idxs.push(k);
+                            units.push(idxs);
+                        }
+                        start = j + 1;
+                    }
+                }
+            } else {
+                const idxs = [];
+                for (let j = 0; j < line.length; j++) idxs.push(j);
+                if (idxs.length) units.push(idxs);
+            }
+
+            for (const charIdxs of units) {
+                const style = styles[unitIndex % styles.length];
+                unitIndex++;
+                if (!style) continue;
+                if (line[charIdxs[0]] === ' ') continue;
+
+                const first = positions[charIdxs[0]];
+                const last = positions[charIdxs[charIdxs.length - 1]];
+                const unitBox = { x: first.x, y: y - ascent, width: last.x + last.width - first.x, height: ascent + descent };
+
+                if (style.type === 'texture' && style.texture.src && !state.textureImages[style.texture.src]) {
+                    loadTextureImage(style.texture.src);
+                    continue;
+                }
+
+                for (const j of charIdxs) {
+                    const ch = line[j];
+                    if (ch === ' ') continue;
+                    const p = positions[j];
+                    const tf = flagActive ? getFlagTransform(s, j, fontSizePx) : null;
+                    const charY = y + (tf ? tf.offsetY : 0);
+                    const charBox = { x: p.x, y: y - ascent, width: p.width, height: ascent + descent };
+
+                    ctx.save();
+                    if (tf) {
+                        ctx.translate(p.x + p.width / 2, charY);
+                        ctx.rotate(tf.rot);
+                    }
+                    if (style.type === 'color') {
+                        ctx.fillStyle = getColorValue(style.color, 1);
+                    } else if (style.type === 'gradient') {
+                        if (repeat === 'letter') {
+                            // Edge to edge of each letter, in its own space
+                            const localBox = tf
+                                ? { x: -p.width / 2, y: -ascent, width: p.width, height: ascent + descent }
+                                : charBox;
+                            ctx.fillStyle = gradientForBoxAtChar(ctx, style.gradient, localBox, null);
+                        } else {
+                            // Edge to edge of the unit, anchored to the layout
+                            ctx.fillStyle = gradientForBoxAtChar(ctx, style.gradient, unitBox, tf);
+                        }
+                    } else if (state.textureImages[style.texture.src]) {
+                        if (repeat === 'letter') {
+                            const localBox = tf
+                                ? { x: -p.width / 2, y: -ascent, width: p.width, height: ascent + descent }
+                                : charBox;
+                            ctx.fillStyle = patternForBoxAtChar(ctx, state.textureImages[style.texture.src], style.texture, localBox, null);
+                        } else {
+                            ctx.fillStyle = patternForBoxAtChar(ctx, state.textureImages[style.texture.src], style.texture, unitBox, tf);
+                        }
+                    }
+                    if (tf) {
+                        ctx.fillText(ch, -p.width / 2, 0);
+                    } else {
+                        ctx.fillText(ch, p.x, y);
+                    }
+                    ctx.restore();
+                }
+            }
+        }
+    }
+
+        // Draw text outline
     function drawOutline(ctx, text, lines, fontSizePx, s) {
         // Support both legacy structure and new TextStudio structure
         const outlineConfig = s.outline.first || s.outline;
@@ -1418,7 +1394,60 @@
         ctx.lineCap = 'round';
         ctx.fillStyle = 'transparent';
 
-        drawTextLines(ctx, text, lines, fontSizePx, s, true);
+        const alignment = outlineConfig.position || 'outside';
+        drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment);
+        ctx.restore();
+    }
+
+    // Stroke the text honoring a stroke alignment (inside / center / outside).
+    // Canvas strokeText always draws a centered stroke, so 'inside' and
+    // 'outside' are achieved with an offscreen stroke masked by the glyph
+    // shape (destination-in / destination-out).
+    function drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment) {
+        if (alignment !== 'inside' && alignment !== 'outside') {
+            // 'center' (legacy behavior): plain centered stroke
+            ctx.lineWidth = width;
+            drawTextLines(ctx, text, lines, fontSizePx, s, true);
+            return;
+        }
+
+        // 1. Render the stroke on an offscreen canvas that mirrors the current
+        //    transform, using double width for 'outside' (half of it will be
+        //    removed by the mask, leaving `width` fully outside the glyphs).
+        const off = document.createElement('canvas');
+        off.width = ctx.canvas.width;
+        off.height = ctx.canvas.height;
+        const offCtx = off.getContext('2d');
+        offCtx.setTransform(ctx.getTransform());
+        offCtx.lineJoin = 'round';
+        offCtx.lineCap = 'round';
+        offCtx.strokeStyle = ctx.strokeStyle;
+        offCtx.lineWidth = alignment === 'outside' ? width * 2 : width;
+        drawTextLines(offCtx, text, lines, fontSizePx, s, true);
+
+        // 2. Build a glyph mask (solid filled text) with the same transform.
+        const mask = document.createElement('canvas');
+        mask.width = off.width;
+        mask.height = off.height;
+        const maskCtx = mask.getContext('2d');
+        maskCtx.setTransform(ctx.getTransform());
+        maskCtx.fillStyle = '#ffffff';
+        drawTextLines(maskCtx, text, lines, fontSizePx, s, false);
+
+        // 3. Mask the stroke: keep only pixels inside or outside the glyphs.
+        //    The transform must be reset first, otherwise the mask is drawn
+        //    offset by the text translate (it would land half a canvas away
+        //    and 'inside' would erase everything / 'outside' erase nothing).
+        offCtx.globalCompositeOperation = alignment === 'outside' ? 'destination-out' : 'destination-in';
+        offCtx.setTransform(1, 0, 0, 1, 0, 0);
+        offCtx.drawImage(mask, 0, 0);
+
+        // 4. Blit the masked stroke 1:1 onto the target context.
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(off, 0, 0);
         ctx.restore();
     }
 
@@ -1561,7 +1590,8 @@
         ctx.lineCap = 'round';
         ctx.fillStyle = 'transparent';
 
-        drawTextLines(ctx, text, lines, fontSizePx, s, true);
+        const alignment = outlineConfig.position || 'outside';
+        drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment);
         ctx.restore();
     }
 
@@ -1830,83 +1860,24 @@
         }
     }
 
-    // Draw text with palette (per-letter coloring)
-    function drawTextWithPalette(ctx, text, lines, fontSizePx, s, alpha) {
-        const spacing = s.letterSpacing * fontSizePx * 0.1;
-        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
-        const styles = s.fill.palette.styles;
-        const method = s.fill.palette.method || 'letter';
-
-        // Calculate widths for alignment
-        const lineWidths = [];
-        let maxLineWidth = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            lineWidths.push(lineWidth);
-            if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
-        }
-
-        let charIndex = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const y = blockMetrics.firstBaseline + i * blockMetrics.lineAdvance;
-            
-            // Calculate X offset based on alignment
-            let currentX = -lineWidths[i] / 2;
-            if (s.align === 'left') {
-                currentX = -maxLineWidth / 2;
-            } else if (s.align === 'right') {
-                currentX = maxLineWidth / 2 - lineWidths[i];
-            }
-            for (let j = 0; j < line.length; j++) {
-                const char = line[j];
-                const charWidth = ctx.measureText(char).width;
-                
-                // Get color from palette based on method
-                let color;
-                if (method === 'letter') {
-                    // Color per letter
-                    color = styles[charIndex % styles.length];
-                } else if (method === 'word') {
-                    // Color per word (space resets index)
-                    if (char === ' ') charIndex = 0;
-                    color = styles[charIndex % styles.length];
-                    if (char !== ' ') charIndex++;
-                } else {
-                    // Default to letter method
-                    color = styles[charIndex % styles.length];
-                    charIndex++;
-                }
-
-                // Convert color to rgba
-                let fillColor;
-                if (typeof color === 'string' && color.startsWith('#')) {
-                    fillColor = hexToRgba(color, alpha);
-                } else if (color && color.r !== undefined) {
-                    fillColor = `rgba(${color.r},${color.g},${color.b},${alpha})`;
-                } else {
-                    fillColor = hexToRgba(s.fill.color, alpha);
-                }
-
-                ctx.fillStyle = fillColor;
-                ctx.strokeStyle = 'transparent';
-                ctx.fillText(char, currentX, y);
-                
-                currentX += charWidth + spacing;
-            }
-
-            if (method === 'letter') {
-                charIndex += line.length;
-            }
-        }
+    // Flag (formerly "Boggle"): alternating per-letter banner effect.
+    // Even letters tilt +angle and shift up; odd letters tilt -angle and
+    // shift down (the pattern repeats inverted for each letter).
+    // angle: -360..360 degrees; amplitude: -100..100 (% of font size).
+    function getFlagTransform(s, charIndex, fontSizePx) {
+        if (!isActive(s, 'lettering.boggle')) return null;
+        const angle = safeGet(s, 'lettering.boggle.angle', 0) || 0;
+        const amplitude = safeGet(s, 'lettering.boggle.amplitude', 0) || 0;
+        const sign = (charIndex % 2 === 0) ? 1 : -1;
+        return {
+            rotation: (angle * Math.PI / 180) * sign,
+            offsetY: (amplitude / 100) * fontSizePx * 0.5 * -sign
+        };
     }
 
-    // Draw text with manual letter spacing and boggle
+    // Draw text with manual letter spacing and the Flag effect
     function drawTextWithSpacing(ctx, text, x, y, spacing, isStroke, s, fontSizePx) {
         const align = safeGet(s, 'align', 'center');
-        const boggle = isActive(s, 'lettering.boggle');
-        const boggleAngle = boggle ? safeGet(s, 'lettering.boggle.angle', 0) : 0;
-        const boggleAmp = boggle ? safeGet(s, 'lettering.boggle.amplitude', 0) : 0;
 
         let startX = x;
         const chars = [];
@@ -1920,36 +1891,29 @@
         }
         totalWidth += spacing * (text.length - 1);
 
-        // Ajustar posición X según alineación
         if (align === 'center') {
-            startX = x - totalWidth / 2; // Centrar el texto en x
+            startX = x - totalWidth / 2;
         } else if (align === 'left') {
-            startX = x; // x es el borde izquierdo del contenedor
+            startX = x;
         } else if (align === 'right') {
-            startX = x - totalWidth; // x es el borde derecho del contenedor
+            startX = x - totalWidth;
         }
 
         let currentX = startX;
         for (let i = 0; i < chars.length; i++) {
             const char = chars[i];
-            let charY = y;
-
-            if (boggle) {
-                const wave = Math.sin(i * 0.5 + boggleAngle * 0.1) * boggleAmp * fontSizePx * 0.5;
-                charY = y + wave;
-            }
+            const flag = getFlagTransform(s, i, fontSizePx);
+            const charY = y + (flag ? flag.offsetY : 0);
 
             ctx.save();
-            if (boggle) {
-                const rotation = Math.sin(i * 0.5 + boggleAngle * 0.1) * boggleAmp * 0.3;
+            if (flag) {
                 ctx.translate(currentX + char.width / 2, charY);
-                ctx.rotate(rotation);
+                ctx.rotate(flag.rotation);
                 if (isStroke) {
                     ctx.strokeText(char.char, -char.width / 2, 0);
                 } else {
                     ctx.fillText(char.char, -char.width / 2, 0);
                 }
-                ctx.restore();
             } else {
                 if (isStroke) {
                     ctx.strokeText(char.char, currentX, charY);
@@ -1957,9 +1921,37 @@
                     ctx.fillText(char.char, currentX, charY);
                 }
             }
+            ctx.restore();
 
             currentX += char.width + spacing;
         }
+    }
+
+    // Format a gradient colors array (settings format) into the picker string
+    // format: "#rrggbb alpha pos%, ..." — used to mirror settings into the
+    // hidden gradient inputs so the visual pickers can rebuild from them.
+    function formatGradientColorsString(gradient) {
+        const colors = gradient && gradient.colors;
+        if (!Array.isArray(colors)) return '';
+        return colors.map(function(stop) {
+            let hex;
+            if (typeof stop === 'string') {
+                hex = stop.replace('#', '');
+            } else if (stop && stop.color) {
+                hex = String(stop.color).replace('#', '');
+            } else if (stop && stop.r !== undefined) {
+                hex = [stop.r, stop.g, stop.b].map(function(v) {
+                    return ('0' + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2);
+                }).join('');
+            } else {
+                return null;
+            }
+            if (hex.length === 3) hex = hex.split('').map(function(c) { return c + c; }).join('');
+            hex = hex.slice(0, 6);
+            if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+            const pos = Math.round(Math.max(0, Math.min(1, stop.pos !== undefined ? Number(stop.pos) : 0)) * 100);
+            return '#' + hex + 'ff ' + pos + '%';
+        }).filter(Boolean).join(', ');
     }
 
     // Add color stops to a canvas gradient from settings
@@ -2026,25 +2018,42 @@
         });
     }
 
-    // Create gradient
-    function createGradient(ctx, text, lines, fontSizePx, gradient, s) {
-        const metrics = ctx.measureText(text.replace(/\n/g, ' '));
-        const textWidth = metrics.width;
-        const textHeight = fontSizePx * 1.3 * lines.length;
+    // Compute the real bounding box of the text block, centered like the
+    // rendered text (drawTextLines centers every line around the origin).
+    function getTextBlockBox(ctx, s, lines, fontSizePx) {
+        let width = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
+            if (w > width) width = w;
+        }
+        const measure = ctx.measureText('Ag');
+        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
+        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const lineHeight = safeGet(s, 'lineHeight', 1.2);
+        const height = ascent + descent + (lines.length - 1) * fontSizePx * lineHeight;
+        return { x: -width / 2, y: -height / 2, width: width, height: height };
+    }
 
-        const angle = (gradient.angle * Math.PI) / 180;
+    // Create a gradient spanning the box along the angle (degrees), edge to edge.
+    function createGradientInBox(ctx, gradient, box) {
+        const angle = ((gradient.angle || 0) * Math.PI) / 180;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-
-        const x1 = -textWidth / 2 + cos * textWidth / 2 - sin * textHeight / 2;
-        const y1 = -textHeight / 2 + sin * textWidth / 2 + cos * textHeight / 2;
-        const x2 = -textWidth / 2 - cos * textWidth / 2 + sin * textHeight / 2;
-        const y2 = -textHeight / 2 - sin * textWidth / 2 - cos * textHeight / 2;
-
-        const gradientObj = ctx.createLinearGradient(x1, y1, x2, y2);
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height / 2;
+        const halfLength = (Math.abs(cos) * box.width + Math.abs(sin) * box.height) / 2;
+        const gradientObj = ctx.createLinearGradient(
+            cx - cos * halfLength, cy - sin * halfLength,
+            cx + cos * halfLength, cy + sin * halfLength
+        );
         addGradientStops(gradientObj, gradient);
-
         return gradientObj;
+    }
+
+    // Create gradient across the whole text block (real bounds)
+    function createGradient(ctx, text, lines, fontSizePx, gradient, s) {
+        const box = getTextBlockBox(ctx, s, lines, fontSizePx);
+        return createGradientInBox(ctx, gradient, box);
     }
 
     // Convert hex color to rgba
@@ -2482,8 +2491,14 @@
             if (preset.lettering.blendmode) s.lettering.blendmode = preset.lettering.blendmode;
             if (preset.lettering.boggle) {
                 s.lettering.boggle.active = Boolean(preset.lettering.boggle.active);
-                if (preset.lettering.boggle.angle !== undefined) s.lettering.boggle.angle = clampValue(preset.lettering.boggle.angle, 0, 360, 5);
-                if (preset.lettering.boggle.amplitude !== undefined) s.lettering.boggle.amplitude = clampValue(preset.lettering.boggle.amplitude, 0, 1, 0.1);
+                if (preset.lettering.boggle.angle !== undefined) s.lettering.boggle.angle = clampValue(preset.lettering.boggle.angle, -360, 360, 15);
+                if (preset.lettering.boggle.amplitude !== undefined) {
+                                    let flagAmp = Number(preset.lettering.boggle.amplitude) || 0;
+                                    if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
+                                    s.lettering.boggle.amplitude = clampValue(flagAmp, -100, 100, 30);
+                                }
+                                if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
+                                s.lettering.boggle.amplitude = clampValue(flagAmp, -100, 100, 30);
             }
             if (preset.lettering.reverseOverlap) {
                 s.lettering.reverseOverlap.active = (preset.lettering.reverseOverlap.letters > 0 || preset.lettering.reverseOverlap.lines > 0);
@@ -2638,15 +2653,6 @@
 
         // FILL
         setInputValue('tt-fill-active-input', s.fill.active);
-        setInputValue('tt-fill-color-input', s.fill.color);
-        setInputValue('tt-fill-gradient-active-input', s.fill.gradient && s.fill.gradient.active);
-        setInputValue('tt-fill-gradient-angle-input', s.fill.gradient && s.fill.gradient.angle);
-        setInputValue('tt-fill-alpha-input', s.fill.alpha);
-        setInputValue('tt-fill-texture-active-input', s.fill.texture && s.fill.texture.active);
-        setInputValue('tt-fill-texture-alpha-input', s.fill.texture && s.fill.texture.alpha);
-        setInputValue('tt-fill-texture-lettering-input', s.fill.texture && s.fill.texture.lettering);
-        setInputValue('tt-fill-palette-active-input', s.fill.palette && s.fill.palette.active);
-        setInputValue('tt-fill-palette-lettering-method-input', s.fill.palette && s.fill.palette.lettering && s.fill.palette.lettering.method);
 
         // LETTERING
         setInputValue('tt-lettering-active-input', s.lettering && s.lettering.active);
@@ -2686,6 +2692,7 @@
         // OUTLINE #1
         setInputValue('tt-outline-first-active-input', s.outline && s.outline.first && s.outline.first.active);
         setInputValue('tt-outline-first-width-input', s.outline && s.outline.first && s.outline.first.width);
+        setInputValue('tt-outline-first-position-input', s.outline && s.outline.first && s.outline.first.position || 'outside');
         setInputValue('tt-outline-first-fill-color-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.color);
         setInputValue('tt-outline-first-fill-gradient-active-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.gradient && s.outline.first.fill.gradient.active);
         setInputValue('tt-outline-first-fill-gradient-angle-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.gradient && s.outline.first.fill.gradient.angle);
@@ -2724,6 +2731,7 @@
         // OUTLINE #2
         setInputValue('tt-outline-second-active-input', s.outline && s.outline.second && s.outline.second.active);
         setInputValue('tt-outline-second-width-input', s.outline && s.outline.second && s.outline.second.width);
+        setInputValue('tt-outline-second-position-input', s.outline && s.outline.second && s.outline.second.position || 'outside');
         setInputValue('tt-outline-second-fill-color-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.color);
         setInputValue('tt-outline-second-fill-gradient-active-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.gradient && s.outline.second.fill.gradient.active);
         setInputValue('tt-outline-second-dash-input', s.outline && s.outline.second && s.outline.second.dash);
@@ -2857,6 +2865,26 @@
         document.querySelectorAll('input[type="range"]').forEach(function(range) {
             updateRangeFill(range);
         });
+
+        // Gradient pickers: mirror the settings colors into the hidden inputs
+        // (string format) so the pickers rebuild with the loaded colors.
+        const gradientColorTargets = [
+            ['tt-depth-fill-gradient-colors-input', s.depth && s.depth.fill && s.depth.fill.gradient],
+            ['tt-depth2-fill-gradient-colors-input', s.depth2 && s.depth2.fill && s.depth2.fill.gradient],
+            ['tt-outline-first-fill-gradient-colors-input', s.outline && s.outline.first && s.outline.first.fill && s.outline.first.fill.gradient],
+            ['tt-outline-second-fill-gradient-colors-input', s.outline && s.outline.second && s.outline.second.fill && s.outline.second.fill.gradient],
+            ['tt-outline-global-fill-gradient-colors-input', s.outline && s.outline.global && s.outline.global.fill && s.outline.global.fill.gradient],
+            ['tt-shadow-outer-fill-gradient-colors-input', s.shadow && s.shadow.outer && s.shadow.outer.fill && s.shadow.outer.fill.gradient],
+            ['tt-background-fill-gradient-colors-input', s.background && s.background.fill && s.background.fill.gradient]
+        ];
+        gradientColorTargets.forEach(function(entry) {
+            const el = document.getElementById(entry[0]);
+            if (el) el.value = formatGradientColorsString(entry[1]);
+        });
+
+        // Notify other modules (e.g. palette styles editor) that the settings
+        // were reloaded from a preset or undo/redo operation.
+        document.dispatchEvent(new CustomEvent('textmuy:settings-updated'));
     }
 
     function updateRangeFill(el) {

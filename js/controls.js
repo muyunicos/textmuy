@@ -22,6 +22,8 @@
         initFontFilters();
         initActiveFieldsets();
         initUndoRedo();
+        initFillLayersUI();
+        bindGradientColorInputs();
     }
 
     // Helper: set nested setting and trigger render
@@ -221,19 +223,6 @@
 
         // FILL
         bindCheckbox('tt-fill-active-input', 'fill.active');
-        bindColor('tt-fill-color-input', 'fill.color');
-        bindCheckbox('tt-fill-gradient-active-input', 'fill.gradient.active');
-        bindRange('tt-fill-gradient-angle-input', 'fill.gradient.angle', parseFloat);
-        bindRange('tt-fill-alpha-input', 'fill.alpha', parseFloat);
-        bindCheckbox('tt-fill-texture-active-input', 'fill.texture.active');
-        bindSelect('tt-fill-texture-blendmode-input', 'fill.texture.blendmode');
-        bindSelect('tt-fill-texture-repeat-input', 'fill.texture.repeat');
-        bindSelect('tt-fill-texture-position-input', 'fill.texture.position');
-        bindSelect('tt-fill-texture-size-input', 'fill.texture.size');
-        bindRange('tt-fill-texture-alpha-input', 'fill.texture.alpha', parseFloat);
-        bindCheckbox('tt-fill-texture-lettering-input', 'fill.texture.lettering');
-        bindCheckbox('tt-fill-palette-active-input', 'fill.palette.active');
-        bindSelect('tt-fill-palette-lettering-method-input', 'fill.palette.lettering.method');
 
         // LETTERING
         bindCheckbox('tt-lettering-active-input', 'lettering.active');
@@ -280,6 +269,7 @@
         bindRange('tt-outline-first-fill-gradient-angle-input', 'outline.first.fill.gradient.angle', parseFloat);
         bindCheckbox('tt-outline-first-fill-palette-active-input', 'outline.first.fill.palette.active');
         bindSelect('tt-outline-first-fill-palette-lettering-method-input', 'outline.first.fill.palette.lettering.method');
+        bindSelect('tt-outline-first-position-input', 'outline.first.position');
         bindRange('tt-outline-first-dash-input', 'outline.first.dash', parseFloat);
         bindRange('tt-outline-first-fill-alpha-input', 'outline.first.fill.alpha', parseFloat);
         bindCheckbox('tt-outline-first-fill-texture-active-input', 'outline.first.fill.texture.active');
@@ -307,6 +297,7 @@
         // OUTLINE #2
         bindCheckbox('tt-outline-second-active-input', 'outline.second.active');
         bindRange('tt-outline-second-width-input', 'outline.second.width', parseFloat);
+        bindSelect('tt-outline-second-position-input', 'outline.second.position');
         bindColor('tt-outline-second-fill-color-input', 'outline.second.fill.color');
         bindCheckbox('tt-outline-second-fill-gradient-active-input', 'outline.second.fill.gradient.active');
         bindRange('tt-outline-second-dash-input', 'outline.second.dash', parseFloat);
@@ -869,26 +860,580 @@
         });
     }
 
+    // ===== GRADIENT COLOR INPUTS =====
+    // The visual gradient pickers write "#rrggbbaa pos%, ..." strings into
+    // hidden inputs and dispatch an 'input' event, but nothing listened to
+    // those inputs, so the gradient colors never reached the settings and the
+    // renderer fell back to its white->black default gradient.
+    const GRADIENT_PICKER_DEFAULT = '#ff0000ff 0%, #00ff00ff 100%';
+
+    function parseGradientColorsString(value) {
+        const stops = [];
+        String(value || '').split(',').forEach(function(part) {
+            const match = part.trim().match(/^#([0-9a-f]{6})(?:[0-9a-f]{2})?\s+(\d+(?:\.\d+)?)\s*%$/i);
+            if (match) {
+                stops.push({
+                    color: '#' + match[1],
+                    pos: Math.max(0, Math.min(1, parseFloat(match[2]) / 100))
+                });
+            }
+        });
+        return stops;
+    }
+
+    function bindGradientColorInputs() {
+        document.querySelectorAll('input[type="hidden"][data-tt-option*="gradient.colors"]').forEach(function(input) {
+            const path = input.getAttribute('data-tt-option');
+
+            // Seed the picker default when the setting has no colors yet, so
+            // enabling the gradient shows colors instead of white/black.
+            const current = getNestedSetting(path);
+            if (!Array.isArray(current) || current.length < 2) {
+                input.value = GRADIENT_PICKER_DEFAULT;
+                input.dispatchEvent(new Event('input'));
+            }
+
+            input.addEventListener('input', function() {
+                setNestedSetting(path, parseGradientColorsString(this.value));
+            });
+        });
+
+        // Rebuild the pickers when settings are reloaded from a preset or
+        // undo/redo, so they display the loaded gradient colors.
+        document.addEventListener('textmuy:settings-updated', function() {
+            if (window.GradientPicker && window.GradientPicker.init) {
+                window.GradientPicker.init();
+            }
+        });
+    }
+
+    // ===== FILL LAYERS UI =====
+    const MAX_FILL_LAYERS = 4;
+    const FILL_BLEND_MODES = ['source-over', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity'];
+    const FILL_REPEATS = [['none', 'no repeat'], ['letter', '1 style / letter'], ['word', '1 style / word'], ['line', '1 style / line']];
+    const FILL_STYLE_RAMP = ['#ff3b3b', '#ffb400', '#ffe600', '#2ecc40', '#00a8ff', '#8e44ad'];
+
+    function getFillLayers() {
+        const layers = getNestedSetting('fill.layers');
+        return Array.isArray(layers) ? layers : [];
+    }
+
+    function setFillLayers(layers) {
+        setNestedSetting('fill.layers', layers);
+        renderFillLayersUI();
+    }
+
+    function fillStylePreview(style) {
+        if (!style) return '#ffffff';
+        if (style.type === 'gradient' && style.gradient && Array.isArray(style.gradient.colors) && style.gradient.colors.length) {
+            const stops = style.gradient.colors.map(function(s) {
+                const color = typeof s === 'string' ? s : (s && s.color) || '#ffffff';
+                const pos = s && s.pos !== undefined ? Math.round(s.pos * 100) : null;
+                return pos !== null ? color + ' ' + pos + '%' : color;
+            }).join(', ');
+            return 'linear-gradient(90deg, ' + stops + ')';
+        }
+        if (style.type === 'texture' && style.texture && style.texture.src) {
+            return 'url(' + style.texture.src + ') center/cover';
+        }
+        return (style.color && typeof style.color === 'string') ? style.color : '#ffffff';
+    }
+
+    function renderFillLayersUI() {
+        const container = document.getElementById('tt-fill-layers');
+        if (!container) return;
+        const layers = getFillLayers();
+        container.innerHTML = '';
+        layers.forEach(function(layer, li) {
+            container.appendChild(buildFillLayerRow(layer, li, layers.length));
+        });
+        const addBtn = document.getElementById('tt-fill-add-layer-btn');
+        if (addBtn) addBtn.style.display = layers.length >= MAX_FILL_LAYERS ? 'none' : 'block';
+    }
+
+
+    function buildFillLayerRow(layer, li, total) {
+        const wrap = document.createElement('div');
+        wrap.className = 'tt-fill-layer';
+
+        const head = document.createElement('div');
+        head.className = 'tt-fill-layer-head';
+
+        const num = document.createElement('span');
+        num.className = 'tt-fill-layer-num';
+        num.textContent = '#' + (li + 1);
+        head.appendChild(num);
+
+        const repeat = document.createElement('select');
+        repeat.className = 'tt-fill-layer-repeat';
+        repeat.title = 'How the styles repeat';
+        FILL_REPEATS.forEach(function(r) {
+            const opt = document.createElement('option');
+            opt.value = r[0];
+            opt.textContent = r[1];
+            repeat.appendChild(opt);
+        });
+        repeat.value = layer.repeat || 'none';
+        repeat.addEventListener('change', function() {
+            const layers = getFillLayers();
+            layers[li].repeat = this.value;
+            setFillLayers(layers);
+        });
+        head.appendChild(repeat);
+
+        const alpha = document.createElement('input');
+        alpha.type = 'range';
+        alpha.min = '0'; alpha.max = '1'; alpha.step = '0.01';
+        alpha.value = layer.alpha !== undefined ? layer.alpha : 1;
+        alpha.title = 'Opacity';
+        alpha.addEventListener('input', function() {
+            const layers = getFillLayers();
+            layers[li].alpha = parseFloat(this.value);
+            setNestedSetting('fill.layers', layers);
+        });
+        head.appendChild(alpha);
+
+        const blend = document.createElement('select');
+        blend.className = 'tt-fill-layer-blend';
+        blend.title = 'Blend mode';
+        FILL_BLEND_MODES.forEach(function(m) {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            blend.appendChild(opt);
+        });
+        blend.value = layer.blendmode || 'source-over';
+        blend.addEventListener('change', function() {
+            const layers = getFillLayers();
+            layers[li].blendmode = this.value;
+            setFillLayers(layers);
+        });
+        head.appendChild(blend);
+
+        if (total > 1) {
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.textContent = '✕';
+            rm.title = 'Remove layer';
+            rm.className = 'tt-fill-layer-remove';
+            rm.addEventListener('click', function() {
+                const layers = getFillLayers();
+                layers.splice(li, 1);
+                setFillLayers(layers);
+            });
+            head.appendChild(rm);
+        }
+        wrap.appendChild(head);
+
+        const stylesList = document.createElement('ul');
+        stylesList.className = 'tt-fill-styles';
+        (layer.styles || []).forEach(function(style, si) {
+            stylesList.appendChild(buildFillStyleRow(layer, li, si));
+        });
+        wrap.appendChild(stylesList);
+
+        const addStyle = document.createElement('button');
+        addStyle.type = 'button';
+        addStyle.className = 'tt-fill-add-style-btn';
+        addStyle.textContent = '+ Add style';
+        addStyle.addEventListener('click', function() {
+            const layers = getFillLayers();
+            layers[li].styles.push({ type: 'color', color: FILL_STYLE_RAMP[layers[li].styles.length % FILL_STYLE_RAMP.length] });
+            setFillLayers(layers);
+        });
+        wrap.appendChild(addStyle);
+
+        return wrap;
+    }
+
+    function buildFillStyleRow(layer, li, si) {
+        const style = layer.styles[si];
+        const row = document.createElement('li');
+        row.className = 'tt-fill-style';
+
+        const preview = document.createElement('button');
+        preview.type = 'button';
+        preview.className = 'tt-fill-style-preview';
+        preview.title = 'Edit style';
+        preview.style.background = fillStylePreview(style);
+        preview.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openFillStyleEditor(li, si, preview);
+        });
+        row.appendChild(preview);
+
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.textContent = '✎';
+        edit.title = 'Edit style';
+        edit.className = 'tt-fill-style-edit';
+        edit.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openFillStyleEditor(li, si, preview);
+        });
+        row.appendChild(edit);
+
+        if (layer.styles.length > 1) {
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.textContent = '✕';
+            rm.title = 'Remove style';
+            rm.className = 'tt-fill-style-remove';
+            rm.addEventListener('click', function() {
+                const layers = getFillLayers();
+                layers[li].styles.splice(si, 1);
+                setFillLayers(layers);
+            });
+            row.appendChild(rm);
+        }
+        return row;
+    }
+
+
+    // Floating style editor: Color / Gradient / Pattern
+    let fillStyleEditorEl = null;
+
+    function closeFillStyleEditor() {
+        if (fillStyleEditorEl) {
+            fillStyleEditorEl.remove();
+            fillStyleEditorEl = null;
+        }
+        document.removeEventListener('click', closeFillStyleEditor, true);
+    }
+
+    function openFillStyleEditor(layerIdx, styleIdx, anchor) {
+        closeFillStyleEditor();
+        const layer = getFillLayers()[layerIdx];
+        if (!layer || !layer.styles[styleIdx]) return;
+        let style = layer.styles[styleIdx];
+
+        const panel = document.createElement('div');
+        panel.id = 'tt-fill-style-editor';
+        panel.className = 'tt-fill-style-editor';
+        const rect = anchor.getBoundingClientRect();
+        panel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 250)) + 'px';
+        panel.style.top = Math.min(rect.bottom + 6, window.innerHeight - 280) + 'px';
+        panel.addEventListener('click', function(e) { e.stopPropagation(); });
+
+        const tabs = document.createElement('div');
+        tabs.className = 'tt-fill-style-tabs';
+        const TABS = [['color', 'Color'], ['gradient', 'Gradient'], ['texture', 'Pattern']];
+        const body = document.createElement('div');
+        body.className = 'tt-fill-style-body';
+
+        // Rebuilds body + tab selection in-place (panel keeps its position)
+        function refreshEditorBody() {
+            const layers = getFillLayers();
+            if (!layers[layerIdx] || !layers[layerIdx].styles[styleIdx]) return;
+            style = layers[layerIdx].styles[styleIdx];
+            tabs.querySelectorAll('.tt-fill-style-tab').forEach(function(tab, i) {
+                tab.classList.toggle('selected', TABS[i][0] === style.type);
+            });
+            body.innerHTML = '';
+            buildFillStyleEditorBody(body, style, layerIdx, styleIdx, refreshEditorBody);
+        }
+
+        TABS.forEach(function(t) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = t[1];
+            b.className = 'tt-fill-style-tab' + (style.type === t[0] ? ' selected' : '');
+            b.addEventListener('click', function() {
+                const layers = getFillLayers();
+                const st = layers[layerIdx].styles[styleIdx];
+                if (!st) return;
+                if (t[0] === 'color' && !st.color) st.color = '#ffffff';
+                if (t[0] === 'gradient' && !st.gradient) {
+                    st.gradient = { angle: 0, colors: [{ color: '#ff0000', pos: 0 }, { color: '#00ff00', pos: 1 }] };
+                }
+                if (t[0] === 'texture' && !st.texture) {
+                    st.texture = { src: null, repeat: 'repeat', position: 'center', fit: 'fill', scale: 1 };
+                }
+                st.type = t[0];
+                // setFillLayers renders the canvas + rebuilds the layer rows
+                // (chip previews update) but the floating panel is a separate
+                // element, so it keeps its position. The body is refreshed
+                // in-place instead of re-opening with a detached anchor
+                // (whose getBoundingClientRect returns zeros -> position bug).
+                setFillLayers(layers);
+                refreshEditorBody();
+            });
+            tabs.appendChild(b);
+        });
+        // Initial body build (refreshEditorBody only runs on tab switches)
+        buildFillStyleEditorBody(body, style, layerIdx, styleIdx, refreshEditorBody);
+        panel.appendChild(tabs);
+        panel.appendChild(body);
+        document.body.appendChild(panel);
+        fillStyleEditorEl = panel;
+        setTimeout(function() {
+            document.addEventListener('click', closeFillStyleEditor, true);
+        }, 0);
+    }
+
+    function buildFillStyleEditorBody(body, style, layerIdx, styleIdx, refreshEditorBody) {
+        if (style.type === 'color') {
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = /^#[0-9a-fA-F]{6}$/.test(style.color || '') ? style.color : '#ffffff';
+            input.addEventListener('input', function() {
+                const layers = getFillLayers();
+                layers[layerIdx].styles[styleIdx].color = this.value;
+                setNestedSetting('fill.layers', layers);
+                renderFillLayersUI();
+            });
+            body.appendChild(input);
+            return;
+        }
+
+        if (style.type === 'gradient') {
+            const colorsInput = document.createElement('input');
+            colorsInput.type = 'hidden';
+            colorsInput.id = 'tt-fill-style-gradient-colors-' + layerIdx + '-' + styleIdx;
+            colorsInput.value = gradientColorsToPickerString(style.gradient);
+            colorsInput.addEventListener('input', function() {
+                const layers = getFillLayers();
+                layers[layerIdx].styles[styleIdx].gradient.colors = parseGradientColorsString(this.value);
+                setNestedSetting('fill.layers', layers);
+                renderFillLayersUI();
+            });
+            body.appendChild(colorsInput);
+
+            const pickerDiv = document.createElement('div');
+            pickerDiv.className = 'tt-gradient-picker';
+            pickerDiv.setAttribute('data-update-input', colorsInput.id);
+            body.appendChild(pickerDiv);
+
+            const angleRow = document.createElement('div');
+            angleRow.className = 'tt-fill-style-angle';
+            const angleLabel = document.createElement('span');
+            angleLabel.className = 'tt-label';
+            angleLabel.textContent = 'Direction:';
+            const angle = document.createElement('input');
+            angle.type = 'range';
+            angle.min = '-180'; angle.max = '180'; angle.step = '2.5';
+            angle.value = (style.gradient && style.gradient.angle) || 0;
+            angle.addEventListener('input', function() {
+                const layers = getFillLayers();
+                layers[layerIdx].styles[styleIdx].gradient.angle = parseFloat(this.value);
+                setNestedSetting('fill.layers', layers);
+            });
+            angleRow.appendChild(angleLabel);
+            angleRow.appendChild(angle);
+            body.appendChild(angleRow);
+
+            if (window.GradientPicker && window.GradientPicker.init) {
+                window.GradientPicker.init();
+            }
+            return;
+        }
+
+        // ===== PATTERN (texture) =====
+        const tex = style.texture || {};
+
+        const hint = document.createElement('div');
+        hint.className = 'tt-label';
+        hint.textContent = 'Pattern image:';
+        body.appendChild(hint);
+
+        const file = document.createElement('input');
+        file.type = 'file';
+        file.accept = 'image/*';
+        file.addEventListener('change', function(e) {
+            const f = e.target.files[0];
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const layers = getFillLayers();
+                layers[layerIdx].styles[styleIdx].texture.src = ev.target.result;
+                setFillLayers(layers);
+                if (refreshEditorBody) refreshEditorBody();
+            };
+            reader.readAsDataURL(f);
+        });
+        body.appendChild(file);
+
+        // --- Fit: stretch / fit / fill ---
+        const fitRow = document.createElement('div');
+        fitRow.className = 'tt-fill-style-angle';
+        const fitLabel = document.createElement('span');
+        fitLabel.className = 'tt-label';
+        fitLabel.textContent = 'Fit:';
+        const fit = document.createElement('select');
+        [['stretch', 'stretch'], ['fit', 'fit'], ['fill', 'fill']].forEach(function(f) {
+            const opt = document.createElement('option');
+            opt.value = f[0];
+            opt.textContent = f[1];
+            fit.appendChild(opt);
+        });
+        fit.value = tex.fit || 'fill';
+        fit.addEventListener('change', function() {
+            const layers = getFillLayers();
+            layers[layerIdx].styles[styleIdx].texture.fit = this.value;
+            setNestedSetting('fill.layers', layers);
+        });
+        fitRow.appendChild(fitLabel);
+        fitRow.appendChild(fit);
+        body.appendChild(fitRow);
+
+        // --- Scale: 10% to 100% ---
+        const scaleRow = document.createElement('div');
+        scaleRow.className = 'tt-fill-style-angle';
+        const scaleLabel = document.createElement('span');
+        scaleLabel.className = 'tt-label';
+        scaleLabel.textContent = 'Scale:';
+        const scale = document.createElement('input');
+        scale.type = 'range';
+        scale.min = '10'; scale.max = '100'; scale.step = '5';
+        scale.value = Math.round((tex.scale !== undefined ? tex.scale : 1) * 100);
+        const scaleBubble = document.createElement('span');
+        scaleBubble.className = 'tt-label';
+        scaleBubble.textContent = scale.value + '%';
+        scale.addEventListener('input', function() {
+            scaleBubble.textContent = this.value + '%';
+            const layers = getFillLayers();
+            layers[layerIdx].styles[styleIdx].texture.scale = parseFloat(this.value) / 100;
+            setNestedSetting('fill.layers', layers);
+        });
+        scaleRow.appendChild(scaleLabel);
+        scaleRow.appendChild(scale);
+        scaleRow.appendChild(scaleBubble);
+        body.appendChild(scaleRow);
+
+        // --- Repeat ---
+        const repeat = document.createElement('select');
+        [['repeat', 'repeat'], ['no-repeat', 'no-repeat']].forEach(function(r) {
+            const opt = document.createElement('option');
+            opt.value = r[0];
+            opt.textContent = r[1];
+            repeat.appendChild(opt);
+        });
+        repeat.value = tex.repeat || 'repeat';
+        repeat.addEventListener('change', function() {
+            const layers = getFillLayers();
+            layers[layerIdx].styles[styleIdx].texture.repeat = this.value;
+            setNestedSetting('fill.layers', layers);
+        });
+        body.appendChild(repeat);
+
+        // --- Position: 3x3 origin grid ---
+        const POSITIONS = [
+            ['left top', 'center top', 'right top'],
+            ['left center', 'center', 'right center'],
+            ['left bottom', 'center bottom', 'right bottom']
+        ];
+        const gridLabel = document.createElement('div');
+        gridLabel.className = 'tt-label';
+        gridLabel.textContent = 'Origin:';
+        body.appendChild(gridLabel);
+        const grid = document.createElement('div');
+        grid.className = 'tt-fill-position-grid';
+        POSITIONS.forEach(function(rowOpts) {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'tt-fill-position-grid-row';
+            rowOpts.forEach(function(pos) {
+                const cell = document.createElement('button');
+                cell.type = 'button';
+                cell.className = 'tt-fill-position-cell' + ((tex.position || 'center') === pos ? ' selected' : '');
+                cell.title = pos;
+                cell.addEventListener('click', function() {
+                    grid.querySelectorAll('.tt-fill-position-cell').forEach(function(c2) { c2.classList.remove('selected'); });
+                    cell.classList.add('selected');
+                    const layers = getFillLayers();
+                    layers[layerIdx].styles[styleIdx].texture.position = pos;
+                    setNestedSetting('fill.layers', layers);
+                });
+                rowEl.appendChild(cell);
+            });
+            grid.appendChild(rowEl);
+        });
+        body.appendChild(grid);
+    }
+    function gradientColorsToPickerString(gradient) {
+        const colors = gradient && gradient.colors;
+        if (!Array.isArray(colors)) return '';
+        return colors.map(function(stop) {
+            let hex;
+            if (typeof stop === 'string') hex = stop.replace('#', '');
+            else if (stop && stop.color) hex = String(stop.color).replace('#', '');
+            else return null;
+            if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            hex = hex.slice(0, 6);
+            const pos = Math.round((stop && stop.pos !== undefined ? Number(stop.pos) : 0) * 100);
+            return '#' + hex + 'ff ' + pos + '%';
+        }).filter(Boolean).join(', ');
+    }
+
+    function initFillLayersUI() {
+        const addBtn = document.getElementById('tt-fill-add-layer-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', function() {
+                const layers = getFillLayers();
+                if (layers.length >= MAX_FILL_LAYERS) return;
+                layers.push({ active: true, alpha: 1, blendmode: 'source-over', repeat: 'none', styles: [{ type: 'color', color: '#ffffff' }] });
+                setFillLayers(layers);
+            });
+        }
+        document.addEventListener('textmuy:settings-updated', renderFillLayersUI);
+        renderFillLayersUI();
+    }
+
     // ===== DOWNLOAD CONTROLS =====
+    // The download size must match the canvas size the user configured in the
+    // TEXT section, so both inputs stay synced with settings.canvas.
+    function syncDownloadSizeInputs() {
+        if (!editor) return;
+        const settings = editor.getSettings();
+        if (!settings.canvas) return;
+        const wInput = document.getElementById('tt-download-width-input');
+        const hInput = document.getElementById('tt-download-height-input');
+        if (wInput && settings.canvas.width) wInput.value = settings.canvas.width;
+        if (hInput && settings.canvas.height) hInput.value = settings.canvas.height;
+    }
+
     function bindDownloadControls() {
         const downloadBtn = document.getElementById('tt-download-btn');
         if (downloadBtn) {
             downloadBtn.addEventListener('click', function() {
                 if (window.TextMuyAPI && editor) {
-                    const width = parseInt(document.getElementById('tt-download-width-input')?.value || 240);
-                    const height = parseInt(document.getElementById('tt-download-height-input')?.value || 600);
+                    const settings = editor.getSettings();
+                    const width = parseInt(document.getElementById('tt-download-width-input')?.value) ||
+                        (settings.canvas && settings.canvas.width) || 240;
+                    const height = parseInt(document.getElementById('tt-download-height-input')?.value) ||
+                        (settings.canvas && settings.canvas.height) || 600;
                     const scale = parseFloat(document.getElementById('tt-download-scale-input')?.value || 1);
                     // Render from the current editor state (settings) so the
                     // downloaded PNG matches what the user sees.
                     TextMuyAPI.downloadPNG({
-                        settings: editor.getSettings(),
-                        text: editor.getSettings().text,
-                        width: width * scale,
-                        height: height * scale
+                        settings: settings,
+                        text: settings.text,
+                        width: Math.round(width * scale),
+                        height: Math.round(height * scale)
                     });
                 }
             });
         }
+
+        // Editing the download size also resizes the canvas (single source of
+        // truth: settings.canvas.width/height).
+        const dlWidthInput = document.getElementById('tt-download-width-input');
+        const dlHeightInput = document.getElementById('tt-download-height-input');
+        if (dlWidthInput) {
+            dlWidthInput.addEventListener('input', function() {
+                const w = parseInt(this.value);
+                if (w > 0) setNestedSetting('canvas.width', w);
+            });
+        }
+        if (dlHeightInput) {
+            dlHeightInput.addEventListener('input', function() {
+                const h = parseInt(this.value);
+                if (h > 0) setNestedSetting('canvas.height', h);
+            });
+        }
+        // Keep the download inputs aligned with the canvas when a preset is
+        // loaded, undo/redo runs, or the canvas inputs change.
+        document.addEventListener('textmuy:settings-updated', syncDownloadSizeInputs);
+        syncDownloadSizeInputs();
 
         const copyBtn = document.getElementById('tt-copy-image-btn');
         if (copyBtn) {

@@ -4,6 +4,15 @@
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Prevent native HTML5 drag ghosts while dragging controls (sliders,
+        // gradient handles...): the "no-drop" cursor and the dragged element
+        // come from the browser's built-in drag behavior, not from the app.
+        document.addEventListener('dragstart', function(e) {
+            if (e.target && e.target.closest && e.target.closest('#tt')) {
+                e.preventDefault();
+            }
+        });
+
         // Initialize editor
         TextEditor.init('tt-canvas');
         

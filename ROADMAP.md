@@ -6,7 +6,7 @@
 
 ## Resumen de Progreso
 
-### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz, Fase 11-15, Fase 17)
+### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz, Fase 11-15, Fase 17, Fase 18, Fase 19)
 - **Canvas fijo con auto-fit**: El canvas usa dimensiones fijas de `settings.canvas.width/height` y el texto se ajusta automáticamente con `autoFitText()`
 - **Inputs de tamaño custom**: Conectados al editor mediante `bindCanvasDimension()` en `controls.js`
 - **Exportación PNG transparente**: Simplificado en `export.js` con fondo transparente por defecto
@@ -47,7 +47,22 @@
 - **Exportación independiente**: La exportación usa zoom 100 (1x) para resolución base consistente
 - **Eliminación de state.scale**: Removido `state.scale = 2` del renderizado en pantalla
 - **lineHeight default normal**: Cambiado a 1.2 (comportamiento tipográfico estándar)
-- **Centrado vertical real**: Usa ascent/descent del bounding box del glifo en lugar de fontSizePx
+- **Eliminación de código muerto**: removido el sistema de layout completo que nunca se usaba (`calculateTextLayout`, `applyPaletteToLayout`, `getCharacterColor`, `getCharacterGradient`, `applyBoggleEffect` random, `applyReverseOverlapEffect`, `applyLetteringShadowEffect`, `applyLetteringEffects`, `cloneSettings`, `mergeSettings`, `getLineStyleSlot`, `getEffectiveLineSettings`, `hasLineStyleOverrides`, `state.layout`, las clases `TextLayout`/`CharacterMetrics`, y el sistema `lineStyles`). Ahora el render usa un único motor per-carácter: `drawTextLines → drawTextWithSpacing`.
+- **Fase 19 — Rediseño del sistema de Filling + Flag (bandera)**:
+  - **Gradientes**: `createGradient()` recalculado con bounds reales del texto (ancho de la línea más ancha letra a letra + altura real ascent/descent); helper `createGradientInBox()` reutilizable. Afecta fill, contornos, depth, depth2 y background.
+  - **Nuevo motor de Filling por capas** (`js/editor.js`): `fill.layers[]` — cada capa `{ active, alpha, blendmode, repeat, styles[] }`. Cada estilo puede ser `color`, `gradient` o `texture`. El `repeat` define el alcance: `none` = el estilo abarca todo el bloque de texto (los estilos se apilan en orden); `letter`/`word`/`line` = los estilos ciclan por unidad, pintándose de extremo a extremo de cada letra/palabra/línea. Migración automática de los campos legacy (`fill.color/gradient/texture/palette`) al cargar presets.
+  - **UI de capas** (`js/controls.js`): dentro de cada capa, lista de estilos con preview editable (menú flútil con pestañas Color/Gradient/Pattern), botones "+ Add style", selector de repetición, opacidad y blend mode. Capas dinámicas con "+ Add layer" (máx. 4). Sincronización con presets/undo-redo vía evento `textmuy:settings-updated`.
+  - **Compensación con Flag**: cuando el efecto bandera está activo, gradientes y patrones se anclan al espacio global (mediante la transformada inversa `T⁻¹·R⁻¹`) para que no roten con cada letra — así "no repeat" queda realmente global.
+  - **Boggle → "Flag (bandera)"**: renombrado. Nuevos controles según especificación: **Angle** (-360° a +360°, rotación de cada letra) y **Amplitude** (-100% a +100%, altura como % del tamaño de fuente). Patrón alternado invertido: letra par rota +angle y sube, letra impar rota -angle y baja (zigzag de bandera). Determinista (sin random).
+  - **Compatibilidad**: heurística en loadPreset para presets legacy que guardan amplitude como ratio 0-1 (se convierte a %). Los presets propios ahora guardan/cargan `fill.layers` intactos.
+- **Fase 18 — Correcciones de bugs reportados por el usuario**:
+  - **Gradientes**: `createGradient()` recalculado — el gradiente ahora se centra en el texto (que se dibuja centrado en el origen) y cubre todo el bounding box; usa `lineHeight` real en vez de 1.3 fijo. Afecta a fill, outline, depth, depth2 y background.
+  - **Contornos**: Nuevo select "Position" (Outside / Centered / Inside) para Outline #1 y Outline #2. El trazo con alineación usa máscara de glifos (canvas offscreen + `destination-in`/`destination-out`) vía `drawTextStrokeAligned()`. Por defecto **Outside** (comportamiento TextStudio), lo que corrige que antes solo se veía la mitad exterior del contorno.
+  - **Estilos por línea (paleta)**: `drawTextWithPalette()` leía el método desde un path inexistente (`fill.palette.method`); corregido a `fill.palette.lettering.method`. Implementado el método **1 style / line** (`lineIndex % styles.length`) y corregida la lógica de 1 style / word (antes reiniciaba el índice en cada espacio, pintando todo igual).
+  - **Editor de paleta de estilos**: El bloque `.tt-palette` del HTML era UI muerta (sin lógica JS). Reemplazado por un editor funcional: lista de colores con "+ Add style" que puebla `fill.palette.styles`, con edición y borrado por color. Se sincroniza al cargar presets/undo-redo vía evento `textmuy:settings-updated`.
+  - **Tamaño de descarga**: Los inputs del panel DOWNLOAD (240×600 por defecto) no estaban sincronizados con el tamaño del canvas. Ahora `settings.canvas.width/height` es la única fuente de verdad: los inputs de descarga se sincronizan (init + evento `settings-updated`) y editarlos redimensiona el canvas; el multiplicador Scale se aplica sobre ese tamaño base.
+  - **Drag fantasma / cursor de bloqueo**: Al arrastrar sliders y controles el navegador iniciaba un drag nativo del HTML. Añadido `preventDefault` de `dragstart` dentro de `#tt` y CSS `user-select: none` en controles (con excepciones para textarea/inputs de texto) e `-webkit-user-drag: none` en imágenes/iconos.
+  - **Limpieza**: Eliminado archivo residual `ROADMAP.md.tmp` (contenido "test").
 
 ### ⏳ Pendiente (Fase 16)
 - **UI Polish**: Indicadores undo/redo, feedback visual, tooltips, transiciones y animaciones
@@ -55,8 +70,10 @@
 ### 📊 Estadísticas
 - **Problemas críticos resueltos**: 7/7 (B1, B2, D1, D2, D3, D4, C1-C3)
 - **Problemas de compatibilidad resueltos**: 10/10 (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)
-- **Tareas completadas**: 22/25 (88%)
-- **Fases completadas**: 8/9 (Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17)
+- **Fase 18 (bugs de usuario)**: 8/8 tareas completadas (gradientes, contornos, estilos por línea, editor de paleta, tamaño de descarga, anti-drag, fix máscara de contorno, fix flujo de gradient colors)
+- **Fase 19 (Filling + Flag)**: 5/5 tareas completadas (gradiente bounds reales, motor de capas, UI de capas, compensación Flag, Boggle→Flag)
+- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19
+- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19
 
 ---
 
@@ -459,6 +476,30 @@ window.TextMuyAPI = {
 - [x] **T17.8** Control de zoom en HTML: min=0, max=300, value=100, bubble "V+'%'"
 - [x] **T17.9** lineHeight default = 1.2 ("normal" tipográfico)
 - [x] **T17.10** Centrado vertical usando bounding box real (ascent/descent) en drawTextLines
+
+### Fase 18: Correcciones de bugs reportados por el usuario
+- [x] **T18.1** Corregir `createGradient()`: gradiente centrado en el texto, cubriendo el bounding box completo según el ángulo; usar `lineHeight` real (afecta fill, outline, depth, depth2, background).
+- [x] **T18.2** Añadir alineación de contorno (Outside / Centered / Inside) para `outline.first` y `outline.second`: select en `index.html`, `position` en `defaultSettings`, binding en `controls.js`, sincronización en `updateUIFromSettings()` y render con máscara de glifos en `drawTextStrokeAligned()`.
+- [x] **T18.3** Corregir path del método de lettering en `drawTextWithPalette()` (`fill.palette.lettering.method`) e implementar método "1 style / line"; corregir lógica "1 style / word".
+- [x] **T18.4** Editor de estilos de paleta: reemplazar UI muerta `.tt-palette` por lista funcional de colores ("+ Add style", editar, eliminar) que puebla `fill.palette.styles`; sincronizada con presets/undo-redo vía evento `textmuy:settings-updated`.
+- [x] **T18.5** Sincronizar tamaño de descarga con `settings.canvas` (fuente única de verdad): inputs del panel DOWNLOAD bidireccionales + Scale como multiplicador; Ctrl+Enter usa el mismo tamaño.
+- [x] **T18.6** Anti-drag: `preventDefault` en `dragstart` dentro de `#tt`, `user-select: none` en controles y `-webkit-user-drag: none` en imágenes/iconos. Eliminar `ROADMAP.md.tmp` residual.
+- [x] **T18.7** Fix de la máscara de alineación de contorno (verificación de usuario): `drawTextStrokeAligned()` dibujaba la máscara sin resetear el transform, quedaba desplazada medio lienzo → "inside" borraba todo (invisible) y "outside" no borraba nada (stroke doble centrado). Fix: `setTransform` a identidad antes de `drawImage(mask)`.
+- [x] **T18.8** Fix del flujo de gradient colors (verificación de usuario): los gradient pickers escriben strings `"#rrggbbaa pos%, ..."` en inputs ocultos pero nada los escuchaba → `fill.gradient.colors` quedaba vacío y el render caía al gradiente blanco/negro por defecto. Añadido `bindGradientColorInputs()` (binding genérico de los 8 inputs ocultos con `parseGradientColorsString()`), seed del default rojo/verde al iniciar, y sincronización inversa en `updateUIFromSettings()` (`formatGradientColorsString()`) con rebuild de pickers vía `GradientPicker.init()` al cargar presets/undo-redo.
+
+### Fase 19: Rediseño del sistema de Filling + Flag (bandera)
+- [x] **T19.1** Gradiente con bounds reales: `createGradient()` refactorizado para recibir el bounding box destino `(x, y, w, h)` calculado con el ancho de la línea más ancha (letra a letra) y altura real (ascent/descent). Helper `createGradientInBox()` reutilizable. Afecta fill, contornos, depth, depth2 y background.
+- [x] **T19.2** Motor de Filling por capas (`js/editor.js`): `fill.layers[]` donde cada capa es `{ active, alpha, blendmode, repeat, styles[] }`. Cada estilo puede ser `color`, `gradient` o `texture`. El `repeat` define el alcance del estilo: `none` = abarca todo el bloque de texto (los estilos se apilan en orden); `letter`/`word`/`line` = los estilos ciclan por unidad pintándose de extremo a extremo de cada letra/palabra/línea. Migración automática de los campos legacy (`fill.color/gradient/texture/palette`) al cargar presets vía `migrateLegacyFillLayers()`.
+- [x] **T19.3** UI de capas (`js/controls.js`): dentro de cada capa, lista de estilos con preview editable (menú flotante con pestañas Color/Gradient/Pattern), botones "+ Add style", selector de repetición, opacidad y blend mode. Capas dinámicas con "+ Add layer" (máx. 4). Sincronización con presets/undo-redo vía evento `textmuy:settings-updated`. Eliminado el código del antiguo editor de paleta y los bindings obsoletos de fill.
+- [x] **T19.4** Compensación con Flag: cuando el efecto bandera está activo, gradientes y patrones se anclan al espacio global aplicando la transformada inversa `R(-θ)·T(-cx,-cy)` a sus endpoints/matriz, para que no roten con cada letra — así "no repeat" queda realmente global.
+- [x] **T19.5** Boggle → "Flag (bandera)": renombrado en UI. Nuevos controles según especificación: **Angle** (-360° a +360°, rotación de cada letra) y **Amplitude** (-100% a +100%, altura como % del tamaño de fuente). Patrón alternado invertido: letra par rota `+angle` y sube, letra impar rota `-angle` y baja (zigzag de bandera). Determinista (sin random). Heurística en loadPreset para presets legacy que guardan amplitude como ratio 0-1 (se convierte a %).
+
+### Fase 19.1: Correcciones del editor flotante + Pattern mejorado
+- [x] **T19.1.1** Fix posición del editor flotante: al cambiar de tab (Color/Gradient/Pattern) se llamaba `setFillLayers()` + `openFillStyleEditor()` con el anchor original, pero `setFillLayers` reconstruye el DOM de capas → el anchor quedaba desvinculado → `getBoundingClientRect()` devolvía ceros → el panel saltaba a la esquina (8, ~0). Fix: el panel ahora se actualiza **in-place** con `refreshEditorBody()` (reconstruye solo el body y la selección de tabs) sin re-abrir ni re-posicionar.
+- [x] **T19.1.2** Pattern: nuevo selector de origen 3×3 (9 cuadraditos estilo diseño gráfico: left top … right bottom) que determina desde dónde se ancla/repite el patrón dentro del scope.
+- [x] **T19.1.3** Pattern: nuevo selector **Fit** con 3 modos: `stretch` (deforma al tamaño del scope), `fit` (proporcional, contiene — como CSS contain), `fill` (proporcional, cubre — como CSS cover).
+- [x] **T19.1.4** Pattern: nuevo slider **Scale** 10%-100%. A 100% + stretch la imagen se estira exactamente al ancho/alto del scope (letra/palabra/línea/todo según el repeat de la capa); a menos del 100% mantiene proporción y se repite desde el origen seleccionado.
+- [x] **T19.1.5** Render: nuevo helper `computePatternPlacement()` que calcula el placement (escala sx/sy + origen tx/ty) según fit/scale/position; integrado en `createPatternForBox()` y `patternForBoxAtChar()` (con compensación Flag). `normalizeFillStyle()` preserva los nuevos campos.
 
 ---
 

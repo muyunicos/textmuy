@@ -239,103 +239,10 @@
                                                 <span>Filling</span>
                                             </label>
                                         </legend>
-                                        <div class="tt-option tt-inline" id="tt-fill-color-option">
-                                            <label class="tt-label" for="tt-fill-color-input">Color:</label>
-                                            <input type="color" class="tt-color" value="#ffffff" id="tt-fill-color-input" data-tt-option="fill.color">
+                                                                                <div class="tt-option">
+                                            <div id="tt-fill-layers" class="tt-fill-layers"></div>
+                                            <button type="button" id="tt-fill-add-layer-btn" class="tt-fill-add-layer-btn">+ Add layer</button>
                                         </div>
-                                        <fieldset id="tt-fill-gradient-fieldset" data-autominimize="1">
-                                            <legend>
-                                                <label for="tt-fill-gradient-active-input">
-                                                    <input type="checkbox" id="tt-fill-gradient-active-input" data-tt-option="fill.gradient.active">
-                                                    <span>Gradient</span>
-                                                </label>
-                                            </legend>
-                                            <div class="tt-option">
-                                                <input type="hidden" id="tt-fill-gradient-colors-input" data-tt-option="fill.gradient.colors">
-                                                <div class="tt-gradient-picker" data-update-input="tt-fill-gradient-colors-input"></div>
-                                            </div>
-                                            <div class="tt-option" id="tt-fill-gradient-angle-option">
-                                                <label class="tt-label" for="tt-fill-gradient-angle-input"><span>Gradient direction:</span></label>
-                                                <input type="range" min="-180" max="180" step="2.5" value="0" id="tt-fill-gradient-angle-input" data-tt-option="fill.gradient.angle">
-                                            </div>
-                                        </fieldset>
-                                        <fieldset id="tt-fill-palette-fieldset" data-autominimize="1">
-                                            <legend>
-                                                <label for="tt-fill-palette-active-input">
-                                                    <input type="checkbox" id="tt-fill-palette-active-input" data-tt-option="fill.palette.active">
-                                                    <span>Style palette</span>
-                                                </label>
-                                            </legend>
-                                            <div class="tt-option">
-                                                <div class="tt-palette" data-palette="fill.palette" data-title="Style palette / Filling">
-                                                    <div><ul></ul><button>Edit</button></div>
-                                                </div>
-                                            </div>
-                                            <div class="tt-option">
-                                                <select id="tt-fill-palette-lettering-method-input" data-tt-option="fill.palette.lettering.method">
-                                                    <option value="letter">1 style / letter</option>
-                                                    <option value="line">1 style / line</option>
-                                                    <option value="word">1 style / word</option>
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                        <div class="tt-option">
-                                            <label class="tt-label" for="tt-fill-alpha-input"><span>Color opacity:</span></label>
-                                            <input type="range" min="0" max="1" step="0.01" value="1" id="tt-fill-alpha-input" data-tt-option="fill.alpha">
-                                        </div>
-                                        <fieldset id="tt-fill-texture-fieldset" data-autominimize="1">
-                                            <legend>
-                                                <label for="tt-fill-texture-active-input">
-                                                    <input type="checkbox" id="tt-fill-texture-active-input" data-tt-option="fill.texture.active">
-                                                    <span>Fill pattern</span>
-                                                </label>
-                                            </legend>
-                                            <div class="tt-option">
-                                                <label for="tt-fill-texture-import-input" class="tt-texture-label" >
-                                                    <input type="file" accept="image/*" id="tt-fill-texture-import-input" data-tt-option="fill.texture.src">
-                                                    <span>Import image</span>
-                                                </label>
-                                                <div class="tt-texture-preview" style="display: none;">
-                                                    <div><img class="tt-texture-preview-image"><span class="tt-texture-delete-icon" title="Delete fill pattern"></span></div>
-                                                    <select class="tt-blendmode-select" id="tt-fill-texture-blendmode-input" data-tt-option="fill.texture.blendmode" title="Blend modes">
-                                                        <optgroup label="Blend modes">
-                                                            <option value="over">over</option><option value="mask">mask</option><option value="lighter">lighter</option>
-                                                            <option value="multiply">multiply</option><option value="screen">screen</option><option value="overlay">overlay</option>
-                                                            <option value="darken">darken</option><option value="lighten">lighten</option>
-                                                            <option value="color-dodge">color-dodge</option><option value="color-burn">color-burn</option>
-                                                            <option value="hard-light">hard-light</option><option value="soft-light">soft-light</option>
-                                                            <option value="difference">difference</option><option value="exclusion">exclusion</option>
-                                                            <option value="hue">hue</option><option value="saturation">saturation</option>
-                                                            <option value="color">color</option><option value="luminosity">luminosity</option>
-                                                        </optgroup>
-                                                    </select>
-                                                    <select class="tt-texture-repeat-select" id="tt-fill-texture-repeat-input" data-tt-option="fill.texture.repeat" title="Repetition">
-                                                        <option value="repeat">repeat</option><option value="no-repeat">no-repeat</option>
-                                                    </select>
-                                                    <select class="tt-texture-position-select" id="tt-fill-texture-position-input" data-tt-option="fill.texture.position" title="Position">
-                                                        <option value="left top">left top</option><option value="center top">center top</option><option value="right top">right top</option>
-                                                        <option value="left center">left center</option><option value="center">center</option><option value="right center">right center</option>
-                                                        <option value="left bottom">left bottom</option><option value="center bottom">center bottom</option><option value="right bottom">right bottom</option>
-                                                    </select>
-                                                    <select class="tt-texture-size-select" id="tt-fill-texture-size-input" data-tt-option="fill.texture.size" title="Pattern size">
-                                                        <option value="stretch">stretch</option><option value="stretch-x">stretch-x</option><option value="stretch-y">stretch-y</option>
-                                                        <option value="1">100%</option><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.7">70%</option>
-                                                        <option value="0.6">60%</option><option value="0.5">50%</option><option value="0.4">40%</option><option value="0.3">30%</option>
-                                                        <option value="0.2">20%</option><option value="0.1">10%</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="tt-option">
-                                                <label class="tt-label" for="tt-fill-texture-alpha-input"><span>Pattern opacity:</span></label>
-                                                <input type="range" min="0" max="1" step="0.01" value="0" id="tt-fill-texture-alpha-input" data-tt-option="fill.texture.alpha">
-                                            </div>
-                                            <div class="tt-option">
-                                                <label class="tt-label" for="tt-fill-texture-lettering-input">
-                                                    <input type="checkbox" class="tt-checkbox" id="tt-fill-texture-lettering-input" data-tt-option="fill.texture.lettering">
-                                                    <span>Lettering</span>
-                                                </label>
-                                            </div>
-                                        </fieldset>
                                     </fieldset>
                                 </div>
                             </div>
@@ -354,16 +261,16 @@
                                             <legend>
                                                 <label for="tt-lettering-boggle-active-input">
                                                     <input type="checkbox" id="tt-lettering-boggle-active-input" data-tt-option="lettering.boggle.active">
-                                                    <span>Boggle</span>
+                                                    <span>Flag (bandera)</span>
                                                 </label>
                                             </legend>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-boggle-angle-input"><span>Angle</span></label>
-                                                <input type="range" min="0" max="180" step="1" value="0" id="tt-lettering-boggle-angle-input" data-tt-option="lettering.boggle.angle">
+                                                <input type="range" min="-360" max="360" step="1" value="15" id="tt-lettering-boggle-angle-input" data-tt-option="lettering.boggle.angle">
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-boggle-amplitude-input"><span>Amplitude</span></label>
-                                                <input type="range" min="0" max="1" step="0.01" value="0" id="tt-lettering-boggle-amplitude-input" data-tt-option="lettering.boggle.amplitude">
+                                                <input type="range" min="-100" max="100" step="1" value="30" id="tt-lettering-boggle-amplitude-input" data-tt-option="lettering.boggle.amplitude">
                                             </div>
                                         </fieldset>
                                         <fieldset id="tt-lettering-shadow-fieldset" data-autominimize="1">
@@ -578,6 +485,14 @@
                                             <label class="tt-label" for="tt-outline-first-width-input"><span>Size:</span></label>
                                             <input type="range" min="0" max=".5" step="0.005" value=".1" id="tt-outline-first-width-input" data-tt-option="outline.first.width">
                                         </div>
+                                        <div class="tt-option">
+                                            <label class="tt-label" for="tt-outline-first-position-input"><span>Position:</span></label>
+                                            <select id="tt-outline-first-position-input" data-tt-option="outline.first.position">
+                                                <option value="outside" selected>Outside</option>
+                                                <option value="center">Centered</option>
+                                                <option value="inside">Inside</option>
+                                            </select>
+                                        </div>
                                         <div class="tt-option tt-inline">
                                             <label class="tt-label" for="tt-outline-first-fill-color-input">Color:</label>
                                             <input type="color" class="tt-color" value="#000000" id="tt-outline-first-fill-color-input" data-tt-option="outline.first.fill.color">
@@ -765,6 +680,14 @@
                                         <div class="tt-option">
                                             <label class="tt-label" for="tt-outline-second-width-input"><span>Size:</span></label>
                                             <input type="range" min="0" max="0.5" step="0.005" value="0.1" id="tt-outline-second-width-input" data-tt-option="outline.second.width">
+                                        </div>
+                                        <div class="tt-option">
+                                            <label class="tt-label" for="tt-outline-second-position-input"><span>Position:</span></label>
+                                            <select id="tt-outline-second-position-input" data-tt-option="outline.second.position">
+                                                <option value="outside" selected>Outside</option>
+                                                <option value="center">Centered</option>
+                                                <option value="inside">Inside</option>
+                                            </select>
                                         </div>
                                         <div class="tt-option tt-inline">
                                             <label class="tt-label" for="tt-outline-second-fill-color-input">Color:</label>
