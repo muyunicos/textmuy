@@ -230,11 +230,15 @@
         // LETTERING
         bindCheckbox('tt-lettering-active-input', 'lettering.active');
         bindCheckbox('tt-lettering-flag-active-input', 'lettering.flag.active');
-        bindRange('tt-lettering-flag-angle-input', 'lettering.flag.angle', parseFloat);
-        bindRange('tt-lettering-flag-amplitude-input', 'lettering.flag.amplitude', parseFloat);
+        bindRangeWithRender('tt-lettering-flag-tilt-input', 'lettering.flag.tilt', parseFloat);
+        bindSelect('tt-lettering-flag-tilt-mode-input', 'lettering.flag.tiltMode');
+        bindRangeWithRender('tt-lettering-flag-rise-input', 'lettering.flag.rise', parseFloat);
+        bindRangeWithRender('tt-lettering-flag-wave-width-input', 'lettering.flag.waveWidth', parseFloat);
+        bindRangeWithRender('tt-lettering-flag-wave-shift-input', 'lettering.flag.waveShift', parseFloat);
+        bindSelect('tt-lettering-flag-shape-input', 'lettering.flag.shape');
         bindCheckbox('tt-lettering-boggle-active-input', 'lettering.boggle.active');
-        bindRange('tt-lettering-boggle-angle-input', 'lettering.boggle.angle', parseFloat);
-        bindRange('tt-lettering-boggle-amplitude-input', 'lettering.boggle.amplitude', parseFloat);
+        bindRange('tt-lettering-boggle-max-rotation-input', 'lettering.boggle.maxRotation', parseFloat);
+        bindRange('tt-lettering-boggle-scatter-height-input', 'lettering.boggle.scatterHeight', parseFloat);
         bindCheckbox('tt-lettering-shadow-active-input', 'lettering.shadow.active');
         bindRange('tt-lettering-shadow-size-input', 'lettering.shadow.size', parseFloat);
         bindRange('tt-lettering-shadow-fill-alpha-input', 'lettering.shadow.fill.alpha', parseFloat);
@@ -920,7 +924,21 @@
     const FILL_STYLE_RAMP = ['#ff3b3b', '#ffb400', '#ffe600', '#2ecc40', '#00a8ff', '#8e44ad'];
 
     function getFillLayers() {
-        const layers = getNestedSetting('fill.layers');
+        let layers = getNestedSetting('fill.layers');
+        if ((!Array.isArray(layers) || !layers.length) && editor) {
+            // The renderer migrates legacy fill.* fields on the fly, but that
+            // array is never stored in settings — so the panel used to edit a
+            // different (or empty) layer list and its changes (fit, scale,
+            // colors...) never reached the canvas. Seed settings.fill.layers
+            // with the migrated layers once so both sides share one array.
+            const migrated = window.TextEditor && window.TextEditor.getFillLayers
+                ? window.TextEditor.getFillLayers(editor.getSettings())
+                : null;
+            if (Array.isArray(migrated) && migrated.length) {
+                setNestedSetting('fill.layers', migrated);
+                layers = getNestedSetting('fill.layers');
+            }
+        }
         return Array.isArray(layers) ? layers : [];
     }
 
@@ -1176,11 +1194,15 @@
             });
             tabs.appendChild(b);
         });
-        // Initial body build (refreshEditorBody only runs on tab switches)
-        buildFillStyleEditorBody(body, style, layerIdx, styleIdx, refreshEditorBody);
+        // The initial body must be built AFTER the panel is attached to the
+        // document: the gradient tab locates its picker with
+        // document.querySelectorAll('.tt-gradient-picker'), which cannot see
+        // elements inside a detached subtree (this is why the picker only
+        // appeared after clicking the Gradient tab).
         panel.appendChild(tabs);
         panel.appendChild(body);
         document.body.appendChild(panel);
+        buildFillStyleEditorBody(body, style, layerIdx, styleIdx, refreshEditorBody);
         fillStyleEditorEl = panel;
         setTimeout(function() {
             document.addEventListener('click', fillStyleDocClick, true);
@@ -1238,7 +1260,12 @@
             angleRow.appendChild(angle);
             body.appendChild(angleRow);
 
-            if (window.GradientPicker && window.GradientPicker.init) {
+            // Initialize ONLY this panel's picker. The global init() rebuilds
+            // every picker on the page; the targeted create() keeps the
+            // static pickers (and their state) untouched.
+            if (window.GradientPicker && window.GradientPicker.create) {
+                window.GradientPicker.create(pickerDiv, colorsInput);
+            } else if (window.GradientPicker && window.GradientPicker.init) {
                 window.GradientPicker.init();
             }
             return;

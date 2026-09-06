@@ -277,12 +277,34 @@
                                                 </label>
                                             </legend>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-flag-angle-input"><span>Angle</span></label>
-                                                <input type="range" min="-360" max="360" step="1" value="15" id="tt-lettering-flag-angle-input" data-tt-option="lettering.flag.angle">
+                                                <label class="tt-label" for="tt-lettering-flag-tilt-input" title="Inclinación máxima de las letras, en grados. En Follow wave cae a mitad del viaje (subiendo/bajando); en By position cae en la primera y última letra"><span>Tilt</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-lettering-flag-tilt-input" data-tt-option="lettering.flag.tilt" data-bubble="V+'\u00B0'"><output>0&#176;</output></div>
                                             </div>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-flag-amplitude-input"><span>Amplitude</span></label>
-                                                <input type="range" min="-100" max="100" step="1" value="30" id="tt-lettering-flag-amplitude-input" data-tt-option="lettering.flag.amplitude">
+                                                <label class="tt-label" for="tt-lettering-flag-tilt-mode-input" title="Cómo se inclinan las letras: siguiendo la pendiente de la onda (bandera natural: máx inclinación al subir/bajar, casi verticales en crestas y valles) o por posición (arco progresivo de + a −)"><span>Tilt mode</span></label>
+                                                <select id="tt-lettering-flag-tilt-mode-input" data-tt-option="lettering.flag.tiltMode">
+                                                    <option value="wave">Follow wave</option>
+                                                    <option value="position">By position</option>
+                                                </select>
+                                            </div>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-flag-rise-input" title="Cuánto sube (o baja, en negativo) cada letra en los extremos, en % del tamaño de fuente"><span>Rise</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="-100" max="100" step="1" value="0" id="tt-lettering-flag-rise-input" data-tt-option="lettering.flag.rise" data-bubble="V+'%'"><output>0%</output></div>
+                                            </div>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-flag-wave-width-input" title="% del texto que ocupa cada oscilación: 100% = un solo barrido de + a − a lo largo del texto; mínimo = zigzag letra por letra"><span>Wave width</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="1" max="100" step="1" value="100" id="tt-lettering-flag-wave-width-input" data-tt-option="lettering.flag.waveWidth" data-bubble="V+'%'"><output>100%</output></div>
+                                            </div>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-flag-wave-shift-input" title="Corre el patrón de la onda a lo largo del texto: dónde empieza la oscilación (% del ancho de onda)"><span>Wave shift</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="0" id="tt-lettering-flag-wave-shift-input" data-tt-option="lettering.flag.waveShift" data-bubble="V+'%'"><output>0%</output></div>
+                                            </div>
+                                            <div class="tt-option">
+                                                <label class="tt-label" for="tt-lettering-flag-shape-input" title="Forma de la onda: suave (coseno) o lineal (rampa exacta entre + y −)"><span>Shape</span></label>
+                                                <select id="tt-lettering-flag-shape-input" data-tt-option="lettering.flag.shape">
+                                                    <option value="smooth">Smooth</option>
+                                                    <option value="linear">Linear</option>
+                                                </select>
                                             </div>
                                         </fieldset>
                                         <fieldset id="tt-lettering-boggle-fieldset" data-autominimize="1">
@@ -293,12 +315,12 @@
                                                 </label>
                                             </legend>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-boggle-angle-input"><span>Max rotation</span></label>
-                                                <input type="range" min="0" max="360" step="1" value="40" id="tt-lettering-boggle-angle-input" data-tt-option="lettering.boggle.angle">
+                                                <label class="tt-label" for="tt-lettering-boggle-max-rotation-input" title="Rotación máxima aleatoria de cada letra"><span>Max rotation</span></label>
+                                                <input type="range" min="0" max="360" step="1" value="40" id="tt-lettering-boggle-max-rotation-input" data-tt-option="lettering.boggle.maxRotation">
                                             </div>
                                             <div class="tt-option">
-                                                <label class="tt-label" for="tt-lettering-boggle-amplitude-input"><span>Scatter height</span></label>
-                                                <input type="range" min="0" max="100" step="1" value="50" id="tt-lettering-boggle-amplitude-input" data-tt-option="lettering.boggle.amplitude">
+                                                <label class="tt-label" for="tt-lettering-boggle-scatter-height-input" title="Dispersión vertical aleatoria de cada letra (% del tamaño de fuente)"><span>Scatter height</span></label>
+                                                <input type="range" min="0" max="100" step="1" value="50" id="tt-lettering-boggle-scatter-height-input" data-tt-option="lettering.boggle.scatterHeight">
                                             </div>
                                         </fieldset>
                                         <fieldset id="tt-lettering-shadow-fieldset" data-autominimize="1">

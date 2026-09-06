@@ -115,23 +115,34 @@
                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
                 `;
 
-                // Color picker
-                handle.addEventListener('dblclick', () => {
+                // Color picker: the hidden input must live INSIDE the picker container (and
+                // therefore inside any floating editor panel). A programmatic
+                // .click() bubbles to the document, and the fill-style editor
+                // closes on outside-clicks detected in the capture phase — an
+                // input appended to document.body closed the panel instantly.
+                handle.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (this._colorInput && this._colorInput.parentNode) {
+                        this._colorInput.parentNode.removeChild(this._colorInput);
+                    }
                     const colorInput = document.createElement('input');
                     colorInput.type = 'color';
                     colorInput.value = stop.color;
                     colorInput.style.display = 'none';
-                    document.body.appendChild(colorInput);
-                    colorInput.click();
-                    colorInput.addEventListener('input', (e) => {
-                        stop.color = e.target.value;
+                    this.container.appendChild(colorInput);
+                    this._colorInput = colorInput;
+                    colorInput.addEventListener('input', (ev) => {
+                        stop.color = ev.target.value;
                         handle.style.background = stop.color;
                         this.updatePreview();
                         this.updateInputValue();
                     });
                     colorInput.addEventListener('change', () => {
-                        document.body.removeChild(colorInput);
+                        if (colorInput.parentNode) colorInput.parentNode.removeChild(colorInput);
+                        if (this._colorInput === colorInput) this._colorInput = null;
                     });
+                    colorInput.click();
                 });
 
                 // Delete on right-click (except first and last)
@@ -221,13 +232,12 @@
             
             this.updateInput.value = value;
             
-            // Trigger setting update
-            const settingPath = this.updateInput.dataset.ttOption;
-            if (settingPath && window.Controls) {
-                // Access the setNestedSetting function from controls.js
-                // This will be called through the input's change event
-                this.updateInput.dispatchEvent(new Event('input'));
-            }
+            // Always notify listeners: the static hidden inputs are bound via
+            // bindGradientColorInputs() and the fill-style editor's input has
+            // its own listener. The old `dataset.ttOption` gate silently
+            // dropped updates for inputs without the attribute, so gradient
+            // edits never reached the settings or the canvas.
+            this.updateInput.dispatchEvent(new Event('input'));
         }
 
         bindEvents() {
@@ -268,6 +278,7 @@
 
     // Expose for manual initialization
     window.GradientPicker = {
-        init: initGradientPickers
+        init: initGradientPickers,
+        create: function(container, updateInput) { return new GradientPicker(container, updateInput); }
     };
 })();

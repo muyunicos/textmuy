@@ -39,7 +39,11 @@
             editable: true,
             active: false,
             blendmode: 'over',
-            boggle: { active: false, angle: 12, amplitude: 0.1 },
+            // Flag v2: wave model shared by Tilt/Rise (per-letter actions) and
+            // Wave width/Wave shift/Shape (wave geometry). See flagWaveAt().
+            flag: { active: false, tilt: 0, rise: 0, waveWidth: 100, waveShift: 0, shape: 'smooth', tiltMode: 'wave' },
+            // Keys match the UI labels ("Max rotation", "Scatter height").
+            boggle: { active: false, maxRotation: 40, scatterHeight: 50 },
             reverseOverlap: { letters: 1, lines: 0 },
             shadow: { active: false, size: 0.04, distance: 0.02, angle: 180, fill: { alpha: 1, color: { r: 0, g: 0, b: 0 } } }
         },
@@ -912,6 +916,10 @@
         img.onload = function() {
             cacheTexture(src, img);
             if (callback) callback(img);
+            // Textures decode asynchronously: repaint right away so a freshly
+            // uploaded pattern appears without needing another interaction
+            // (icons and background images already do this).
+            render();
         };
         img.onerror = function() {
             if (callback) callback(null);
@@ -1138,7 +1146,7 @@
                 alpha: baseAlpha * (fill.texture.alpha !== undefined ? fill.texture.alpha : 1),
                 blendmode: fill.texture.blendmode === 'over' ? 'source-over' : (fill.texture.blendmode || 'source-over'),
                 repeat: 'none',
-                styles: [{ type: 'texture', texture: { src: fill.texture.src, repeat: fill.texture.repeat || 'repeat' } }]
+                styles: [{ type: 'texture', texture: { src: fill.texture.src, repeat: fill.texture.repeat || 'repeat', position: 'center', fit: 'fill', scale: 1 } }]
             }];
         }
         return [{
@@ -1189,7 +1197,7 @@
     // offscreen spanning the block box and clipped to the text silhouette so
     // they are not rotated by the per-letter transforms.
     function drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, style, alpha, blendmode) {
-        const flagActive = isActive(s, 'lettering.flag') || isActive(s, 'lettering.boggle');
+        const flagActive = !isFlagNeutral(s) || isActive(s, 'lettering.boggle');
         const box = getTextBlockBox(ctx, s, lines, fontSizePx);
 
         if (style.type === 'color' || !flagActive) {
@@ -1356,7 +1364,7 @@
     function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles) {
         const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const spacing = s.letterSpacing * fontSizePx * 0.1;
-        const flagActive = isActive(s, 'lettering.flag') || isActive(s, 'lettering.boggle');
+        const flagActive = !isFlagNeutral(s) || isActive(s, 'lettering.boggle');
         const measure = ctx.measureText('Ag');
         const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
         const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
@@ -1425,7 +1433,7 @@
                     const ch = line[j];
                     if (ch === ' ') continue;
                     const p = positions[j];
-                    const tf = getLetterTransform(s, j, fontSizePx);
+                    const tf = getLetterTransform(s, j, fontSizePx, line.length);
                     const charY = y + (tf ? tf.offsetY : 0);
                     const glyphCenter = (ascent - descent) / 2;
                     const pivotY = charY - glyphCenter;
@@ -1980,24 +1988,112 @@
         }
     }
 
-    // Flag (bandera): original banner effect, restored from the old "boggle".
-    // Letters sway in a sine wave, alternating smoothly (waving banner).
-    // angle: -360..360 (wave phase); amplitude: -100..100 (% of font size).
-    function getFlagTransform(s, charIndex, fontSizePx) {
-        if (!isActive(s, 'lettering.flag')) return null;
-        const angle = safeGet(s, 'lettering.flag.angle', 12) || 0;
-        const amplitude = safeGet(s, 'lettering.flag.amplitude', 10) || 0;
-        const amp = amplitude / 100;
-        const t = charIndex * 0.5 + angle * 0.1;
+    // ===== Flag (bandera) — wave model =====
+    // Every letter i of a line of n characters samples the same wave w in
+    // [-1, 1].  Tilt (degrees) rotates each letter and Rise (% of font size)
+    // shifts it vertically — both scale w, so tilt and rise always move
+    // together like a waving banner.
+    //
+    //   waveWidth: % of the text that one swing (up -> down) takes.
+    //     100% -> the whole line is a single sweep from +tilt to -tilt
+    //     1%   -> neighbouring letters alternate (+10, -10, +10, ...)
+    //   waveShift: % of the wave width the pattern slides along the text
+    //     (50% puts the valley in the middle of the line).
+    //   shape: 'smooth' (cosine) or 'linear' (straight ramp; 6 letters at
+    //     100% width sample +1, .6, .2, -.2, -.6, -1 -> 5, 3, 1, -1, -3, -5
+    //     with a 5 degree tilt).
+    //
+    // The wave resolves per line, so multi-line texts wave line by line.
+    // Pure function (no settings access) and exposed on window.TextEditor
+    // for unit tests, like DistortEngine.getArcGeometry.
+    function flagWaveAt(charIndex, lineLength, waveWidth, waveShift, shape) {
+        const n = Math.max(1, lineLength || 1);
+        const width = clampValue(Number(waveWidth), 1, 100, 100);
+        const shift = clampValue(Number(waveShift), 0, 100, 0);
+        const half = Math.max(1, (width / 100) * (n - 1));
+        const x = (charIndex + (shift / 100) * half) / half;
+        if (shape === 'linear') {
+            const m = x % 2;
+            return m <= 1 ? 1 - 2 * m : 2 * m - 3;
+        }
+        return Math.cos(Math.PI * x);
+    }
+
+    // Per-letter rotation source for Tilt mode "follow wave": the wave slope —
+    // how much and toward which direction the height changes from this letter
+    // to the next. Letters lean into the movement (downhill when descending,
+    // uphill when rising) and stay nearly vertical at the crest/trough, where
+    // the wave flattens. At minimum wave width the travel between adjacent
+    // letters is maximal and alternates even/odd, so letters keep the classic
+    // alternating flag zigzag tilt.
+    //
+    // Raw slopes are normalized by the steepest letter of the line, so the
+    // Tilt slider always means "maximum real degrees" regardless of wave
+    // width. The wave is sampled one step past the last letter (the wave
+    // continues beyond the text) to keep the even/odd alternation unbroken.
+    // Pure function, exposed on window.TextEditor for unit tests.
+    function flagWaveSlopes(lineLength, waveWidth, waveShift, shape) {
+        const n = Math.max(1, lineLength || 1);
+        const raw = [];
+        for (let i = 0; i < n; i++) {
+            raw.push((flagWaveAt(i, n, waveWidth, waveShift, shape) -
+                      flagWaveAt(i + 1, n, waveWidth, waveShift, shape)) / 2);
+        }
+        let maxAbs = 0;
+        for (let i = 0; i < n; i++) maxAbs = Math.max(maxAbs, Math.abs(raw[i]));
+        if (maxAbs < 1e-9) {
+            for (let i = 0; i < n; i++) raw[i] = 0;
+        } else {
+            for (let i = 0; i < n; i++) raw[i] = raw[i] / maxAbs;
+        }
+        return raw;
+    }
+
+    // Flag is "neutral" when Tilt and Rise are both 0: every transform it
+    // could produce is the identity, so the text renders exactly as if the
+    // effect were off. Used to bypass per-letter transforms and the
+    // gradient/texture mask path when the effect is enabled but untouched.
+    function isFlagNeutral(s) {
+        if (!isActive(s, 'lettering.flag')) return true;
+        const tilt = clampValue(safeGet(s, 'lettering.flag.tilt', 0), -360, 360, 0);
+        const rise = clampValue(safeGet(s, 'lettering.flag.rise', 0), -100, 100, 0);
+        return tilt === 0 && rise === 0;
+    }
+
+    // Applies Tilt/Rise on top of the shared wave for a single letter.
+    // tiltMode 'wave' rotates each letter by the wave slope (natural flag);
+    // 'position' rotates by the wave value (progressive arc/cascade look).
+    function getFlagTransform(s, charIndex, fontSizePx, lineLength) {
+        if (isFlagNeutral(s)) return null;
+        const tilt = clampValue(safeGet(s, 'lettering.flag.tilt', 0), -360, 360, 0);
+        const rise = clampValue(safeGet(s, 'lettering.flag.rise', 0), -100, 100, 0);
+        const tiltMode = safeGet(s, 'lettering.flag.tiltMode', 'wave') === 'position' ? 'position' : 'wave';
+        const w = flagWaveAt(
+            charIndex,
+            lineLength,
+            safeGet(s, 'lettering.flag.waveWidth', 100),
+            safeGet(s, 'lettering.flag.waveShift', 0),
+            safeGet(s, 'lettering.flag.shape', 'smooth')
+        );
+        let rotationSource = w;
+        if (tiltMode === 'wave') {
+            const slopes = flagWaveSlopes(
+                lineLength,
+                safeGet(s, 'lettering.flag.waveWidth', 100),
+                safeGet(s, 'lettering.flag.waveShift', 0),
+                safeGet(s, 'lettering.flag.shape', 'smooth')
+            );
+            rotationSource = slopes[Math.min(charIndex, slopes.length - 1)] || 0;
+        }
         return {
-            rot: Math.sin(t) * amp * 0.3,
-            offsetY: Math.sin(t) * amp * fontSizePx * 0.5
+            rot: tilt * Math.PI / 180 * rotationSource,
+            offsetY: (rise / 100) * fontSizePx * w
         };
     }
 
     // Boggle: random-looking scattered letters. Deterministic per character
     // index so the layout does not flicker between renders.
-    // angle: 0..360 (max rotation); amplitude: 0..100 (% of font size).
+    // maxRotation: 0..360 (max rotation); scatterHeight: 0..100 (% of font size).
     function hash01(seed) {
         const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
         return x - Math.floor(x);
@@ -2005,16 +2101,16 @@
 
     function getBoggleTransform(s, charIndex, fontSizePx) {
         if (!isActive(s, 'lettering.boggle')) return null;
-        const angle = safeGet(s, 'lettering.boggle.angle', 40) || 0;
-        const amplitude = safeGet(s, 'lettering.boggle.amplitude', 50) || 0;
+        const angle = clampValue(safeGet(s, 'lettering.boggle.maxRotation', 40), 0, 360, 40);
+        const amplitude = clampValue(safeGet(s, 'lettering.boggle.scatterHeight', 50), 0, 100, 50);
         const rot = (hash01(charIndex * 37 + 1) - 0.5) * 2 * (angle * Math.PI / 180);
         const offY = (hash01(charIndex * 37 + 2) - 0.5) * 2 * (amplitude / 100) * fontSizePx;
         return { rot: rot, offsetY: offY };
     }
 
     // Combined transform (Flag and/or Boggle can be active at once).
-    function getLetterTransform(s, charIndex, fontSizePx) {
-        const flag = getFlagTransform(s, charIndex, fontSizePx);
+    function getLetterTransform(s, charIndex, fontSizePx, lineLength) {
+        const flag = getFlagTransform(s, charIndex, fontSizePx, lineLength);
         const boggle = getBoggleTransform(s, charIndex, fontSizePx);
         if (!flag && !boggle) return null;
         return {
@@ -2056,7 +2152,7 @@
         let currentX = startX;
         for (let i = 0; i < chars.length; i++) {
             const char = chars[i];
-            const tf = getLetterTransform(s, i, fontSizePx);
+            const tf = getLetterTransform(s, i, fontSizePx, chars.length);
             const charY = y + (tf ? tf.offsetY : 0);
 
             if (tf) {
@@ -2173,7 +2269,13 @@
 
     // Compute the real bounding box of the text block, centered like the
     // rendered text (drawTextLines centers every line around the origin).
+    // setTextFont() guarantees the block is measured with the real font even
+    // when this runs before any draw pass (fill is the first pipeline pass on
+    // a fresh export/thumbnail canvas, whose context defaults to 10px
+    // sans-serif). Without it, "no repeat" fills were anchored to a tiny
+    // wrong box, so stretch/fit/fill never spanned the full text frame.
     function getTextBlockBox(ctx, s, lines, fontSizePx) {
+        setTextFont(ctx, s, fontSizePx);
         let width = 0;
         for (let i = 0; i < lines.length; i++) {
             const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
@@ -2182,7 +2284,9 @@
         const measure = ctx.measureText('Ag');
         const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
         const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
-        const lineHeight = safeGet(s, 'lineHeight', 1.2);
+        // Keep lineHeight default in sync with getTextBlockMetrics()/autoFitText()
+        // (1.0) so the block height matches the real line advance on multi-line text.
+        const lineHeight = s.lineHeight !== undefined ? s.lineHeight : 1;
         const height = ascent + descent + (lines.length - 1) * fontSizePx * lineHeight;
         return { x: -width / 2, y: -height / 2, width: width, height: height };
     }
@@ -2274,6 +2378,7 @@
 
     // Helper: Convert RGB object to hex with validation
     function rgbToHex(rgb) {
+        if (typeof rgb === 'string') return rgb; // already hex — pass through
         if (!rgb || typeof rgb !== 'object') return '#ffffff';
         const r = Math.max(0, Math.min(255, Math.round(rgb.r || 0)));
         const g = Math.max(0, Math.min(255, Math.round(rgb.g || 0)));
@@ -2557,18 +2662,17 @@
             if (preset.depth.active !== undefined) s.depth.active = Boolean(preset.depth.active);
             if (preset.depth.length !== undefined) s.depth.length = clampValue(preset.depth.length, 0, 1, 0.2);
             if (preset.depth.angle !== undefined) s.depth.angle = clampValue(preset.depth.angle, 0, 360, 135);
-            if (preset.depth.fill && preset.depth.fill.color) s.depth.color = rgbToHex(preset.depth.fill.color);
-            if (preset.depth.fill && preset.depth.fill.alpha !== undefined) s.depth.alpha = clampValue(preset.depth.fill.alpha, 0, 1, 1);
+            if (preset.depth.fill && preset.depth.fill.color) s.depth.fill.color = rgbToHex(preset.depth.fill.color);
+            if (preset.depth.fill && preset.depth.fill.alpha !== undefined) s.depth.fill.alpha = clampValue(preset.depth.fill.alpha, 0, 1, 1);
             if (preset.depth.fill && preset.depth.fill.gradient) {
-                s.depth.gradient.active = Boolean(preset.depth.fill.gradient.active);
-                if (preset.depth.fill.gradient.angle !== undefined) s.depth.gradient.angle = clampValue(preset.depth.fill.gradient.angle, 0, 360, 0);
+                s.depth.fill.gradient.active = Boolean(preset.depth.fill.gradient.active);
+                if (preset.depth.fill.gradient.angle !== undefined) s.depth.fill.gradient.angle = clampValue(preset.depth.fill.gradient.angle, 0, 360, 0);
                 if (preset.depth.fill.gradient.colors && preset.depth.fill.gradient.colors.length >= 2) {
-                    s.depth.gradient.startColor = rgbToHex(preset.depth.fill.gradient.colors[0]);
-                    s.depth.gradient.endColor = rgbToHex(preset.depth.fill.gradient.colors[1]);
+                    s.depth.fill.gradient.colors = preset.depth.fill.gradient.colors;
                 }
             }
             if (preset.depth.fill && preset.depth.fill.texture) {
-                if (preset.depth.fill.texture.blendmode) s.depth.texture.blendmode = preset.depth.fill.texture.blendmode;
+                if (preset.depth.fill.texture.blendmode) s.depth.fill.texture.blendmode = preset.depth.fill.texture.blendmode;
             }
         } else {
             s.depth.active = false;
@@ -2579,14 +2683,13 @@
             if (preset.depth2.active !== undefined) s.depth2.active = Boolean(preset.depth2.active);
             if (preset.depth2.length !== undefined) s.depth2.length = clampValue(preset.depth2.length, 0, 1, 0.2);
             if (preset.depth2.angle !== undefined) s.depth2.angle = clampValue(preset.depth2.angle, 0, 360, 135);
-            if (preset.depth2.fill && preset.depth2.fill.color) s.depth2.color = rgbToHex(preset.depth2.fill.color);
-            if (preset.depth2.fill && preset.depth2.fill.alpha !== undefined) s.depth2.alpha = clampValue(preset.depth2.fill.alpha, 0, 1, 1);
+            if (preset.depth2.fill && preset.depth2.fill.color) s.depth2.fill.color = rgbToHex(preset.depth2.fill.color);
+            if (preset.depth2.fill && preset.depth2.fill.alpha !== undefined) s.depth2.fill.alpha = clampValue(preset.depth2.fill.alpha, 0, 1, 1);
             if (preset.depth2.fill && preset.depth2.fill.gradient) {
-                s.depth2.gradient.active = Boolean(preset.depth2.fill.gradient.active);
-                if (preset.depth2.fill.gradient.angle !== undefined) s.depth2.gradient.angle = clampValue(preset.depth2.fill.gradient.angle, 0, 360, 0);
+                s.depth2.fill.gradient.active = Boolean(preset.depth2.fill.gradient.active);
+                if (preset.depth2.fill.gradient.angle !== undefined) s.depth2.fill.gradient.angle = clampValue(preset.depth2.fill.gradient.angle, 0, 360, 0);
                 if (preset.depth2.fill.gradient.colors && preset.depth2.fill.gradient.colors.length >= 2) {
-                    s.depth2.gradient.startColor = rgbToHex(preset.depth2.fill.gradient.colors[0]);
-                    s.depth2.gradient.endColor = rgbToHex(preset.depth2.fill.gradient.colors[1]);
+                    s.depth2.fill.gradient.colors = preset.depth2.fill.gradient.colors;
                 }
             }
         } else {
@@ -2643,25 +2746,42 @@
             if (preset.lettering.active !== undefined) s.lettering.active = Boolean(preset.lettering.active);
             if (preset.lettering.blendmode) s.lettering.blendmode = preset.lettering.blendmode;
             if (preset.lettering.flag) {
-                s.lettering.flag.active = Boolean(preset.lettering.flag.active);
-                if (preset.lettering.flag.angle !== undefined) s.lettering.flag.angle = clampValue(Number(preset.lettering.flag.angle), -360, 360, 12);
-                if (preset.lettering.flag.amplitude !== undefined) s.lettering.flag.amplitude = clampValue(Number(preset.lettering.flag.amplitude), -100, 100, 10);
+                // Flag v2 keys (tilt/rise/waveWidth/waveShift/shape). Legacy
+                // flag.angle/amplitude map onto tilt/rise with the same values.
+                const pf = preset.lettering.flag;
+                s.lettering.flag.active = Boolean(pf.active);
+                if (pf.tilt !== undefined) s.lettering.flag.tilt = clampValue(Number(pf.tilt), -360, 360, 0);
+                else if (pf.angle !== undefined) s.lettering.flag.tilt = clampValue(Number(pf.angle), -360, 360, 0);
+                if (pf.rise !== undefined) s.lettering.flag.rise = clampValue(Number(pf.rise), -100, 100, 0);
+                else if (pf.amplitude !== undefined) {
+                    let flagRise = Number(pf.amplitude) || 0;
+                    if (flagRise > -1 && flagRise < 1) flagRise = flagRise * 100; // legacy ratio -> percent
+                    s.lettering.flag.rise = clampValue(flagRise, -100, 100, 0);
+                }
+                if (pf.waveWidth !== undefined) s.lettering.flag.waveWidth = clampValue(Number(pf.waveWidth), 1, 100, 100);
+                if (pf.waveShift !== undefined) s.lettering.flag.waveShift = clampValue(Number(pf.waveShift), 0, 100, 0);
+                if (pf.shape !== undefined) s.lettering.flag.shape = (pf.shape === 'linear') ? 'linear' : 'smooth';
+                if (pf.tiltMode !== undefined) s.lettering.flag.tiltMode = (pf.tiltMode === 'position') ? 'position' : 'wave';
             }
             if (preset.lettering.boggle && !preset.lettering.flag) {
                 // Legacy: old "boggle" field actually held the flag effect.
                 s.lettering.flag.active = Boolean(preset.lettering.boggle.active);
-                if (preset.lettering.boggle.angle !== undefined) s.lettering.flag.angle = clampValue(Number(preset.lettering.boggle.angle), -360, 360, 12);
+                if (preset.lettering.boggle.angle !== undefined) s.lettering.flag.tilt = clampValue(Number(preset.lettering.boggle.angle), -360, 360, 0);
                 if (preset.lettering.boggle.amplitude !== undefined) {
                     let flagAmp = Number(preset.lettering.boggle.amplitude) || 0;
                     if (flagAmp > -1 && flagAmp < 1) flagAmp = flagAmp * 100; // legacy ratio -> percent
-                    s.lettering.flag.amplitude = clampValue(flagAmp, -100, 100, 10);
+                    s.lettering.flag.rise = clampValue(flagAmp, -100, 100, 0);
                 }
             }
             if (preset.lettering.boggle && preset.lettering.flag) {
                 // New format: boggle is the random scattered-letter effect.
-                s.lettering.boggle.active = Boolean(preset.lettering.boggle.active);
-                if (preset.lettering.boggle.angle !== undefined) s.lettering.boggle.angle = clampValue(Number(preset.lettering.boggle.angle), 0, 360, 40);
-                if (preset.lettering.boggle.amplitude !== undefined) s.lettering.boggle.amplitude = clampValue(Number(preset.lettering.boggle.amplitude), 0, 100, 50);
+                // Keys match its UI labels; legacy angle/amplitude are accepted.
+                const pb = preset.lettering.boggle;
+                s.lettering.boggle.active = Boolean(pb.active);
+                if (pb.maxRotation !== undefined) s.lettering.boggle.maxRotation = clampValue(Number(pb.maxRotation), 0, 360, 40);
+                else if (pb.angle !== undefined) s.lettering.boggle.maxRotation = clampValue(Number(pb.angle), 0, 360, 40);
+                if (pb.scatterHeight !== undefined) s.lettering.boggle.scatterHeight = clampValue(Number(pb.scatterHeight), 0, 100, 50);
+                else if (pb.amplitude !== undefined) s.lettering.boggle.scatterHeight = clampValue(Number(pb.amplitude), 0, 100, 50);
             }
             if (preset.lettering.reverseOverlap) {
                 s.lettering.reverseOverlap.active = (preset.lettering.reverseOverlap.letters > 0 || preset.lettering.reverseOverlap.lines > 0);
@@ -2673,8 +2793,8 @@
                 if (preset.lettering.shadow.size !== undefined) s.lettering.shadow.size = clampValue(preset.lettering.shadow.size, 0, 1, 0.04);
                 if (preset.lettering.shadow.distance !== undefined) s.lettering.shadow.distance = clampValue(preset.lettering.shadow.distance, 0, 1, 0.02);
                 if (preset.lettering.shadow.angle !== undefined) s.lettering.shadow.angle = clampValue(preset.lettering.shadow.angle, 0, 360, 180);
-                if (preset.lettering.shadow.fill && preset.lettering.shadow.fill.color) s.lettering.shadow.color = rgbToHex(preset.lettering.shadow.fill.color);
-                if (preset.lettering.shadow.fill && preset.lettering.shadow.fill.alpha !== undefined) s.lettering.shadow.alpha = clampValue(preset.lettering.shadow.fill.alpha, 0, 1, 1);
+                if (preset.lettering.shadow.fill && preset.lettering.shadow.fill.color) s.lettering.shadow.fill.color = rgbToHex(preset.lettering.shadow.fill.color);
+                if (preset.lettering.shadow.fill && preset.lettering.shadow.fill.alpha !== undefined) s.lettering.shadow.fill.alpha = clampValue(preset.lettering.shadow.fill.alpha, 0, 1, 1);
             }
         }
 
@@ -2712,22 +2832,21 @@
         if (preset.background) {
             if (preset.background.active !== undefined) s.background.active = Boolean(preset.background.active);
             if (preset.background.composite) s.background.composite = preset.background.composite;
-            if (preset.background.fill && preset.background.fill.color) s.background.color = rgbToHex(preset.background.fill.color);
-            if (preset.background.fill && preset.background.fill.alpha !== undefined) s.background.alpha = clampValue(preset.background.fill.alpha, 0, 1, 1);
+            if (preset.background.fill && preset.background.fill.color) s.background.fill.color = rgbToHex(preset.background.fill.color);
+            if (preset.background.fill && preset.background.fill.alpha !== undefined) s.background.fill.alpha = clampValue(preset.background.fill.alpha, 0, 1, 1);
             if (preset.background.fill && preset.background.fill.image) {
-                s.background.image.active = Boolean(preset.background.fill.image.active);
-                if (preset.background.fill.image.src) s.background.image.src = preset.background.fill.image.src;
-                if (preset.background.fill.image.size) s.background.image.size = preset.background.fill.image.size;
-                if (preset.background.fill.image.repeat) s.background.image.repeat = preset.background.fill.image.repeat;
-                if (preset.background.fill.image.alpha !== undefined) s.background.image.alpha = clampValue(preset.background.fill.image.alpha, 0, 1, 1);
+                s.background.fill.image.active = Boolean(preset.background.fill.image.active);
+                if (preset.background.fill.image.src) s.background.fill.image.src = preset.background.fill.image.src;
+                if (preset.background.fill.image.size) s.background.fill.image.size = preset.background.fill.image.size;
+                if (preset.background.fill.image.repeat) s.background.fill.image.repeat = preset.background.fill.image.repeat;
+                if (preset.background.fill.image.alpha !== undefined) s.background.fill.image.alpha = clampValue(preset.background.fill.image.alpha, 0, 1, 1);
             }
             if (preset.background.fill && preset.background.fill.gradient) {
-                s.background.gradient.active = Boolean(preset.background.fill.gradient.active);
-                if (preset.background.fill.gradient.angle !== undefined) s.background.gradient.angle = clampValue(preset.background.fill.gradient.angle, 0, 360, 0);
-                if (preset.background.fill.gradient.type) s.background.gradient.type = preset.background.fill.gradient.type;
+                s.background.fill.gradient.active = Boolean(preset.background.fill.gradient.active);
+                if (preset.background.fill.gradient.angle !== undefined) s.background.fill.gradient.angle = clampValue(preset.background.fill.gradient.angle, 0, 360, 0);
+                if (preset.background.fill.gradient.type) s.background.fill.gradient.type = preset.background.fill.gradient.type;
                 if (preset.background.fill.gradient.colors && preset.background.fill.gradient.colors.length >= 2) {
-                    s.background.gradient.startColor = rgbToHex(preset.background.fill.gradient.colors[0]);
-                    s.background.gradient.endColor = rgbToHex(preset.background.fill.gradient.colors[1]);
+                    s.background.fill.gradient.colors = preset.background.fill.gradient.colors;
                 }
             }
         }
@@ -2820,11 +2939,15 @@
         // LETTERING
         setInputValue('tt-lettering-active-input', s.lettering && s.lettering.active);
         setInputValue('tt-lettering-flag-active-input', s.lettering && s.lettering.flag && s.lettering.flag.active);
-        setInputValue('tt-lettering-flag-angle-input', s.lettering && s.lettering.flag && s.lettering.flag.angle);
-        setInputValue('tt-lettering-flag-amplitude-input', s.lettering && s.lettering.flag && s.lettering.flag.amplitude);
+        setInputValue('tt-lettering-flag-tilt-input', s.lettering && s.lettering.flag && s.lettering.flag.tilt);
+        setInputValue('tt-lettering-flag-tilt-mode-input', s.lettering && s.lettering.flag && s.lettering.flag.tiltMode);
+        setInputValue('tt-lettering-flag-rise-input', s.lettering && s.lettering.flag && s.lettering.flag.rise);
+        setInputValue('tt-lettering-flag-wave-width-input', s.lettering && s.lettering.flag && s.lettering.flag.waveWidth);
+        setInputValue('tt-lettering-flag-wave-shift-input', s.lettering && s.lettering.flag && s.lettering.flag.waveShift);
+        setInputValue('tt-lettering-flag-shape-input', s.lettering && s.lettering.flag && s.lettering.flag.shape);
         setInputValue('tt-lettering-boggle-active-input', s.lettering && s.lettering.boggle && s.lettering.boggle.active);
-        setInputValue('tt-lettering-boggle-angle-input', s.lettering && s.lettering.boggle && s.lettering.boggle.angle);
-        setInputValue('tt-lettering-boggle-amplitude-input', s.lettering && s.lettering.boggle && s.lettering.boggle.amplitude);
+        setInputValue('tt-lettering-boggle-max-rotation-input', s.lettering && s.lettering.boggle && s.lettering.boggle.maxRotation);
+        setInputValue('tt-lettering-boggle-scatter-height-input', s.lettering && s.lettering.boggle && s.lettering.boggle.scatterHeight);
         setInputValue('tt-lettering-shadow-active-input', s.lettering && s.lettering.shadow && s.lettering.shadow.active);
         setInputValue('tt-lettering-shadow-size-input', s.lettering && s.lettering.shadow && s.lettering.shadow.size);
         setInputValue('tt-lettering-shadow-fill-alpha-input', s.lettering && s.lettering.shadow && s.lettering.shadow.fill && s.lettering.shadow.fill.alpha);
@@ -3123,7 +3246,11 @@
         getSettings: getSettings,
         getCanvas: getCanvas,
         getCtx: getCtx,
-        clearTextureCache: clearTextureCache
+        getFillLayers: getFillLayers,
+        clearTextureCache: clearTextureCache,
+        getTextBlockBox: getTextBlockBox,
+        flagWaveAt: flagWaveAt,
+        flagWaveSlopes: flagWaveSlopes
     };
 
 })();

@@ -6,7 +6,7 @@
 
 ## Resumen de Progreso
 
-### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz, Fase 11-15, Fase 17, Fase 18, Fase 19)
+### ✅ Completado (Fases 1-2, 3, 4, 5, 6, 7, 8 parcial, Efectos WebGL, Interfaz, Fase 11-15, Fase 17, Fase 18, Fase 19, Fase 21)
 - **Canvas fijo con auto-fit**: El canvas usa dimensiones fijas de `settings.canvas.width/height` y el texto se ajusta automáticamente con `autoFitText()`
 - **Inputs de tamaño custom**: Conectados al editor mediante `bindCanvasDimension()` en `controls.js`
 - **Exportación PNG transparente**: Simplificado en `export.js` con fondo transparente por defecto
@@ -72,8 +72,9 @@
 - **Problemas de compatibilidad resueltos**: 10/10 (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)
 - **Fase 18 (bugs de usuario)**: 8/8 tareas completadas (gradientes, contornos, estilos por línea, editor de paleta, tamaño de descarga, anti-drag, fix máscara de contorno, fix flujo de gradient colors)
 - **Fase 19 (Filling + Flag)**: 5/5 tareas completadas (gradiente bounds reales, motor de capas, UI de capas, compensación Flag, Boggle→Flag)
-- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19 + 5/5 de Fase 19.1 + 7/7 de Fase 19.2 + 11/11 de Fase 20
-- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19, Fase 19.1, Fase 19.2, Fase 20
+- **Fase 21 (Flag v2)**: 8/8 tareas completadas (modelo de onda Tilt/Rise/Wave width/Wave shift/Shape con claves alineadas a la UI, selector Tilt mode Follow wave/By position, defaults neutros, migraciones legacy, tests propios)
+- **Tareas completadas**: 22/25 (88%) + 8/8 de Fase 18 + 5/5 de Fase 19 + 5/5 de Fase 19.1 + 7/7 de Fase 19.2 + 21/24 de Fase 20 + 8/8 de Fase 21
+- **Fases completadas**: Fase 1 parcial, Fase 2, Fase 4, Fase 8 parcial, Fase 11, Fase 12, Fase 13, Fase 14, Fase 15, Fase 17, Fase 18, Fase 19, Fase 19.1, Fase 19.2, Fase 20, Fase 21
 
 ---
 
@@ -532,6 +533,22 @@ Documenta el plan aprobado: optimización de rendimiento, galería de presets co
 - [x] **T20.10** UI de gestión de proyectos en el panel DOWNLOAD ("Open folder" / "Save project" + lista con Open/Delete).
 - [x] **T20.11** Test `tests/preset-delta.test.js`: ida y vuelta del delta preservando `false`/`0`/`null`/`""` y podando ramas sin cambios.
 
+**Correcciones de carga de presets (reportadas por el usuario con `npx serve`)**
+- [x] **T20.15** `loadPreset()` escribía en rutas "aplanadas" inexistentes (`s.depth.gradient/texture`, `s.depth2.gradient`, `s.background.image/gradient`, `s.lettering.shadow.color`) → crash `Cannot set properties of undefined (setting 'active')` al cargar cualquier preset. Redirigido al esquema anidado real (`s.depth.fill.*`, `s.background.fill.*`, `s.lettering.shadow.fill.*`), que es lo que leen el renderizador y `updateUIFromSettings()`.
+- [x] **T20.16** `defaultSettings.lettering` no definía `flag` (herencia de la Fase 19.2): la rama legacy `boggle → flag` crasheaba. Añadido `flag: {active:false, angle:12, amplitude:10}` y defaults de `boggle` alineados con el nuevo efecto (40/50).
+- [x] **T20.17** `rgbToHex()` devolvía `'#ffffff'` para strings: cargar un preset guardado (colores ya en hex) reseteaba fill/depth/depth2/background a blanco. Ahora pasa los strings sin tocarlos (misma semántica que `colorToHex`).
+- [x] **T20.18** Restaurados los 9 `presets/*.json` (habían sido eliminados del árbol de trabajo; `git restore -- presets/`).
+- [x] **T20.19** Test `tests/preset-load.test.js`: carga en Node de los 9 presets incluidos + ida y vuelta de un preset guardado (esquema interno) + migración legacy `boggle → flag`.
+
+**Correcciones del editor de estilos de Filling + Gradient picker (reportadas por el usuario)**
+- [x] **T20.20** El picker de gradiente no aparecía al abrir "Edit style" sobre un estilo gradiente: el body del panel flotante se construía **antes** de añadir el panel al documento y `GradientPicker.init()` (que usa `document.querySelectorAll`) no veía pickers desatachados — solo cargaba al pulsar el tab Gradient. Fix: construir el body inicial **después** de `document.body.appendChild(panel)`, e inicializar el picker del panel con el nuevo `GradientPicker.create(container, input)` (targeted) en lugar del `init()` global que reconstruía todos los pickers de la página.
+- [x] **T20.21** Doble click en un gradient-stop cerraba el editor flotante y abría el selector de color "en otro lado": el `input[type=color]` oculto se añadía a `document.body` y su `.click()` programático burbujeaba al documento, donde `fillStyleDocClick` (fase captura) veía el target fuera del panel → lo cerraba. Fix: el input vive ahora dentro del contenedor del picker (dentro del panel) con `stopPropagation`, y se limpia en `change`/reapertura.
+- [x] **T20.22** Los cambios del gradiente (añadir colores, mover stops) no se reflejaban: `updateInputValue()` solo disparaba el evento `input` si el input tenía `data-tt-option`, y el input del panel flotante no lo tiene → nunca notificaba. Fix: disparar siempre el evento (los inputs estáticos tienen su binding y el del panel su listener propio).
+- [x] **T20.23** Pattern fit/stretch ignorados: `migrateLegacyFillLayers()` calculaba las capas legacy on-the-fly **sin guardarlas** en `settings.fill.layers`, así que el panel editaba otra lista y sus cambios (fit/scale/origen) no llegaban al canvas. Fix: expuesto `TextEditor.getFillLayers()` y el panel ahora **siembra** `settings.fill.layers` con la migración cuando falta, para que panel y renderer compartan el mismo array. La migración de textura incluye defaults explícitos (`position/fit/scale`).
+- [x] **T20.24** Los patterns no aparecían sin una interacción extra: las texturas cargan async y el `onload` no repintaba (icons/background sí lo hacían). Fix: `loadTextureImage` dispara `render()` tras cachear la imagen.
+- [x] **T20.25** Pattern fit/stretch con **no repeat** (marco completo de texto) ignoraba el 100% del ancho/alto del contenedor: `getTextBlockBox()` no seteaba la fuente antes de medir y `fill` es el primer pass del pipeline, así que en un canvas fresco (export/thumbnail/preview) media con la fuente por defecto (`10px sans-serif`) → caja microscópica → el pattern se anclaba a ella. Fix: `setTextFont(ctx, s, fontSizePx)` al inicio de `getTextBlockBox()` (afecta también a gradientes en no repeat) y default de `lineHeight` alineado con `getTextBlockMetrics()`/`autoFitText()` (1.0 en vez de 1.2). Test de regresión: `tests/pattern-block-box.test.js`.
+- [x] **T20.26** Test de regresión `pattern-block-box` que verifica las dos invariantes fuente (font set + lineHeight default) del box del marco completo.
+
 **Pendiente / consideraciones**
 - [ ] **T20.12** Persistir el `FileSystemDirectoryHandle` (IndexedDB) para no re-seleccionar la carpeta al recargar.
 - [ ] **T20.13** Pulido de UI restante (agrupación/colapsables y hover states — Fase 16).
@@ -544,30 +561,59 @@ Documenta el plan aprobado: optimización de rendimiento, galería de presets co
 
 ---
 
+### Fase 21: Flag v2 — Tilt / Rise / Wave width / Wave shift / Shape
+
+Rediseño completo del efecto **Flag (bandera)** (especificación aprobada por el usuario). Los nombres anteriores eran jerga matemática sin relación con la acción; además **"frequency" estaba invertido**: su valor mínimo (alternancia letra a letra) es en realidad la frecuencia *más alta* y su máximo (un barrido en todo el texto) la *más baja*. Los nuevos nombres describen la acción que realizan y las claves de settings coinciden con las etiquetas de la UI.
+
+**Modelo de onda** (`flagWaveAt`): cada letra `i` de una línea de `n` caracteres muestrea una onda `w ∈ [-1, 1]`; Tilt (grados) rota la letra y Rise (% del tamaño de fuente) la desplaza verticalmente, ambos escalados por `w` (rotación y altura se mueven juntas, como una bandera real). La onda se resuelve **por línea** (cada línea multilínea ondea según su propio largo).
+
+- `half = max(1, (waveWidth/100) × (n−1))` — caracteres por medio ciclo
+- `x = (i + (waveShift/100) × half) / half`
+- `smooth`: `w = cos(π·x)` · `linear`: `m = x mod 2; w = (m≤1) ? 1−2m : 2m−3` (6 letras al 100% muestrean `+1, .6, .2, −.2, −.6, −1` → 5, 3, 1, −1, −3, −5 con Tilt 5°)
+- `rot = tilt × w` · `offsetY = (rise/100) × fontSizePx × w`
+
+**Tareas**
+
+- [x] **T21.1** Motor: nueva función pura `flagWaveAt(charIndex, lineLength, waveWidth, waveShift, shape)` documentada con el modelo completo; `getFlagTransform(s, charIndex, fontSizePx, lineLength)` aplica Tilt/Rise; `getLetterTransform` propaga `lineLength`. Call-sites actualizados: `drawTextWithSpacing` (pasa `chars.length`) y `drawFillUnits` (pasa `line.length`). `flagWaveAt` expuesta en `window.TextEditor` para tests (patrón `DistortEngine.getArcGeometry`).
+- [x] **T21.2** Renombrado de claves (settings alineados con la UI): `lettering.flag = { active, tilt, rise, waveWidth, waveShift, shape }` (antes `angle`/`amplitude` con semántica de fase interna) y `lettering.boggle = { active, maxRotation, scatterHeight }` (antes `angle`/`amplitude`, que no coincidían con sus labels "Max rotation"/"Scatter height").
+- [x] **T21.3** UI (`index.html`): fieldset Flag con **Tilt** (−360..360°), **Rise** (−100..100%), **Wave width** (1..100%), **Wave shift** (0..100%) — los cuatro con burbuja de valor (`tt-range-bubble`) — y **Shape** (select Smooth/Linear). Tooltips `title` en cada label. Boggle con ids/claves alineados.
+- [x] **T21.4** Bindings y sincronización (`controls.js` + `updateUIFromSettings`): `bindRangeWithRender` (con render de burbuja) para los 4 sliders y `bindSelect` para Shape.
+- [x] **T21.5** Migraciones en `loadPreset`: `flag.angle` → `flag.tilt` y `flag.amplitude` → `flag.rise` (heurística ratio 0-1 → % conservada), `boggle.angle/amplitude` → `boggle.maxRotation/scatterHeight` en ambas ramas; claves nuevas validadas (tilt −360..360 def 10, rise −100..100 def 20, waveWidth 1..100 def 100, waveShift 0..100 def 0, shape ∈ {smooth, linear} def smooth). Defaults nuevos: `tilt 10, rise 20, waveWidth 100, waveShift 0, shape 'smooth'`.
+- [x] **T21.6** Tests: nuevo `tests/flag-wave.test.js` (barrido exacto linear, smooth monótona, alternancia al 1%, valle central con shift 50%, línea de 1 letra, shape inválido → smooth, clamps) y `tests/preset-load.test.js` actualizado (migraciones legacy + round-trip v2 + claves boggle).
+- [x] **T21.7** Tilt "follow wave" + selector **Tilt mode**: la rotación pasaba de seguir el **valor** de la onda (máx inclinación en crestas/valles y rectas a mitad del viaje — antinatural) a seguir su **pendiente** (tangente de bandera real: máx inclinación al subir/bajar, casi verticales en extremos). Nueva función pura `flagWaveSlopes()` (pendiente por letra = diferencia de altura con la siguiente, normalizada por la letra más inclinada → el slider Tilt son siempre los grados reales máximos; la última letra muestrea la onda continuada más allá del texto → par/impar intacto a width 1). Selector **Tilt mode** (Follow wave default / By position = look arco/cascada anterior). Trade-off documentado: quieto **exacto** en extremos ⟷ zigzag par/impar a width 1 son matemáticamente excluyentes; el modelo usa el viaje hacia la siguiente letra (≈31% de inclinación en extremos a width 100 + par/impar perfecto a width 1). Convención de signo: descenso → inclina a la derecha (downhill).
+- [x] **T21.8** Defaults neutros: `tilt: 0, rise: 0` (antes 10/20) — activar Flag sin tocar controles no altera el texto. Nuevo helper `isFlagNeutral()`: con Tilt y Rise a 0 todas las transformadas son identidad → `getFlagTransform` devuelve null (bypass, ni siquiera calcula pendientes) y el anclaje global de gradientes/texturas de `drawFillStyleOnBlock`/`drawFillUnits` no activa su ruta de máscara → resultado píxel-idéntico al efecto apagado. UI: sliders Tilt/Rise arrancan en 0; fallbacks de `loadPreset` alineados a 0.
+
+**Compatibilidad**: solo el preset *looney-tunes* tiene el flag activo (`angle 5, amplitude 0.1` → `tilt 5, rise 10`): pasa del zigzag rígido de fase fija a un barrido suave ±5° de ±10% de altura, más fiel a una bandera. Ningún otro preset se ve afectado (flag inactivo). `js/*.min.js` no se tocan (la página carga las versiones normales; no hay paso de build).
+
+---
+
 ## 6. Referencias rápidas
 
 ### Dónde está cada cosa en el código actual
 
 | Funcionalidad | Archivo | Líneas | Función/Elemento |
 |---|---|---|---|
-| Render principal | `js/editor.js` | 185-302 | `render()` |
-| Default settings | `js/editor.js` | 7-147 | `defaultSettings` |
-| Carga de preset | `js/editor.js` | 844-1122 | `loadPreset()` |
-| Update UI from settings | `js/editor.js` | 1125-1384 | `updateUIFromSettings()` |
-| Bindings de controles | `js/controls.js` | 20-354 | `bindControls()` |
-| Convert settings → preset | `js/controls.js` | 540-809 | `convertSettingsToPreset()` |
-| Gradient pickers | `js/controls.js` | 849-926 | `initGradientPickers()` |
-| Carga de presets locales | `js/controls.js` | 929-955 | `loadPresetFile()` |
-| Importación TextStudio | `js/controls.js` | 958-1213 | `bindImportControls()` |
-| Exportación | `js/export.js` | 13-49 | `download()` |
-| Crear canvas export | `js/export.js` | 62-117 | `createExportCanvas()` |
-| Inputs de tamaño custom | `index.html` | 693-697 | `tt-custom-width/height-input` |
-| Lista de formatos | `index.html` | 715-719 | `tt-download-format-list` |
-| Lista de presets (estática) | `index.html` | 733-737 | `tt-preset-list` |
-| Carga de fuentes | `js/fonts.js` | 15-40 | `loadFont()` |
+| Render principal | `js/editor.js` | 671 | `render()` |
+| Default settings | `js/editor.js` | 8-147 | `defaultSettings` |
+| Flag v2: modelo de onda | `js/editor.js` | 2005-2118 | `flagWaveAt()` / `flagWaveSlopes()` / `isFlagNeutral()` / `getFlagTransform()` / `getBoggleTransform()` / `getLetterTransform()` |
+| Carga de preset (incluye migraciones Flag v2) | `js/editor.js` | 2384 | `loadPreset()` |
+| Update UI from settings | `js/editor.js` | 2867 | `updateUIFromSettings()` |
+| Bindings de controles | `js/controls.js` | 197 | `bindControls()` |
+| Importación TextStudio | `js/controls.js` | 1558 | `bindImportControls()` |
+| Gradient pickers | `js/gradient-picker.js` | 253 | `initGradientPickers()` |
+| PresetManager (CRUD + delta `.txm`) | `js/preset-manager.js` | 251-445 | `loadPresetFromFile()` / `diffSettings()` / `settingsFromDelta()` / `loadPreset()` |
+| Exportación | `js/export.js` | 36 | `download()` |
+| Flag v2 UI (Tilt/Tilt mode/Rise/Wave width/Wave shift/Shape) | `index.html` | 272-317 | `tt-lettering-flag-fieldset` / `tt-lettering-boggle-fieldset` |
+| Lista de formatos | `index.html` | 1444 | `tt-download-format-list` |
+| Lista de presets | `index.html` | 1476 | `tt-preset-list` |
+| Carga de fuentes | `js/fonts.js` | 177 | `loadFont()` |
+| Tests Flag v2 (onda + pendientes) | `tests/flag-wave.test.js` | — | `flagWaveAt()` / `flagWaveSlopes()` / clamps |
+| Tests de carga y migraciones | `tests/preset-load.test.js` | — | presets incluidos + migraciones legacy + neutralidad |
 | Inicialización | `js/main.js` | 6-35 | `DOMContentLoaded` handler |
 
-### Orden de renderizado de efectos (js/editor.js líneas 240-293)
+> Nota: las filas de `convertSettingsToPreset()`, `loadPresetFile()` y `createExportCanvas()` se eliminaron — esas funciones ya no existen tras las refactorizaciones (la conversión de presets vive en `js/preset-manager.js`, y la carga de presets en `PresetManager.loadPreset()`).
+
+### Orden de renderizado de efectos (dentro de `render()`, `js/editor.js` 671+)
 1. Outer shadow 2
 2. Outer shadow
 3. 3D depth 2
