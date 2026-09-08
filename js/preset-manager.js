@@ -446,6 +446,10 @@
     }
 
     // ===== MIGRACION LEGACY (localStorage -> servidor, una unica vez) =====
+    // Claves legacy de versiones anteriores (solo lectura, para migrar una unica vez).
+    const LEGACY_STORAGE_KEY = 'textmuy_presets';
+    const LEGACY_IMPORTED_KEY = 'textstudio_presets';
+
     /** Presets de versiones anteriores guardados en localStorage (solo lectura). */
     function legacyLocalPresets() {
         const out = [];
