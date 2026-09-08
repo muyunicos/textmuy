@@ -73,9 +73,6 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js (+ .min)
 │   └── utils/             <- Vendors minificados (pickr, grapick, potrace, pica, gif-
 │                             encoder, stackblur, sortable, toastify, svgo...). NO editar
-├── fonts/                 <- TTF locales (vacía por defecto: fallback Google Fonts)
-├── presets/               <- 9 presets base .txm (+ .json legacy): SOLO modo standalone
-├── imagenes/              <- Catálogo standalone de imágenes + catalogo.json
 └── tests/                 <- 6 tests Node (preset-cache, preset-delta, preset-load,
                               distort-engine, flag-wave, pattern-block-box)
 ```
@@ -86,9 +83,8 @@ textmuy/
    ICON / BACKGROUND / DOWNLOAD. `settings.canvas.width/height` es la única fuente de
    verdad del tamaño (los inputs de DOWNLOAD están sincronizados; Scale es multiplicador)
    y `autoFitText` ajusta el texto al lienzo. "Save as preset" vive en la galería.
-2. **Galería de presets** (única UI de presets): buscar, guardar como preset, borrar y
-   migrar los legacy de localStorage (una única vez, botón en la galería).
-3. **Galería de imágenes** (`js/galeria.js`): un solo "Select" en los importadores
+2. **Galería de presets** (única UI de presets): buscar, guardar como preset, borrar.
+3. **Galería de imágenes** (`js/galeria.js`): un solo "Galería" en los importadores
    (rellenos, fondos, texturas, iconos), con tabs (fondos/iconos/varios), buscador, subida
    (botón + drag&drop + pegar) y **preview en vivo** que se revierte si se cierra sin
    "Aplicar".
@@ -131,13 +127,11 @@ textmuy/
 - Preset: `{nombre}.txm` (JSON `textmuy-project` v1) + `{nombre}.webp` (miniatura
   200x100, auto-generada al primer uso si falta).
 - Nombres sanitizados: `[a-z0-9_-]` (`sanitizeName`).
-- Imágenes: flat `imagenes/{nombre}.{ext}` + `imagenes/catalogo.json`
-  (`{nombre, categoria, titulo}`; categorías: fondos, iconos, varios).
 - `settings.canvas.width/height`: única fuente de verdad del tamaño de render.
-- **Dentro del plugin**, los datos del administrador viven en
-  `wp-content/uploads/personalizador-pdf/textmuy/{presets,imagenes}` (gestionados por el
-  plugin; ver su AGENTS.md §5). Las carpetas `presets/` e `imagenes/` de ESTE repositorio
-  aportan únicamente los recursos STANDALONE (el plugin no las lee).
+- **Todos los datos de usuario (presets, imágenes, fuentes) viven en
+  `wp-content/uploads/personalizador-pdf/textmuy/`**, gestionados por el plugin (ver su
+  AGENTS.md §5). Este repositorio NO versiona datos: standalone arranca sin presets ni
+  imágenes (lista vacía) y el admin los crea desde cero en uploads.
 
 ## 6. Responsabilidades por archivo JS
 
@@ -166,12 +160,17 @@ textmuy/
 - ❌ Sin sección ANIMATION. ❌ Export distinto de PNG transparente (JPG/PDF).
 - ✅ **Un solo panel de presets**: la galería inferior expandible (no recrear paneles
   viejos: fieldset "Presets" ni "Local projects" eliminados).
-- ✅ **Formato único `.txm`** (+ `.webp`): eliminados los 5 mecanismos viejos (`.json` base
-  embebido, CRUD en `localStorage`, imports en `localStorage`, miniaturas en
-  `localStorage`, proyectos locales vía File System Access).
-- ✅ **Datos del admin en uploads del plugin** (v4.0.0 del plugin): presets e imágenes
-  viven en `uploads/.../textmuy/` vía el puente; `presets/` e `imagenes/` de esta carpeta
-  son SOLO para standalone.
+- ✅ **Formato único `.txm`** (+ `.webp`).
+- ✅ **Datos del admin en uploads del plugin**: presets e imágenes
+  viven en `uploads/.../textmuy/`.
+- ✅ **Sin datos de fábrica en el módulo (v4.1)**: se eliminaron las carpetas `presets/`,
+  `imagenes/` y `fonts/` del repositorio; standalone arranca con listas vacías.
+- 🔜 **FUTURO — Fuentes como datos de usuario** (no implementado): `uploads/.../textmuy/
+  fonts/{nombre}.{ttf,otf,woff,woff2}` + `{nombre}.webp` (preview) + `fonts.json`
+  (`{nombre, titulo, url}`); handlers `textmuy_subir_fuente|borrar_fuente` (firma + límite);
+  `fonts.js` registra las fuentes desde el puente y reemplaza `localStorage`
+  (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
+  webp generada en el navegador al subir.
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ Catálogo de imágenes propio sin CDN (dependencia runtime de textstudio.com eliminada).
 
@@ -193,7 +192,7 @@ textmuy/
 ```bash
 node tests/preset-cache.test.js
 node tests/preset-delta.test.js
-node tests/preset-load.test.js        # los 9 presets base cargan y son válidos
+node tests/preset-load.test.js        # valida los presets de uploads (lee de ../uploads/.../textmuy/presets)
 node tests/distort-engine.test.js
 node tests/flag-wave.test.js
 node tests/pattern-block-box.test.js
@@ -202,7 +201,7 @@ node --check js/api.js
 ```
 
 - **Standalone**: abrir `index.html` (o servirlo por HTTP) y probar editor + galería +
-  export PNG.
+  export PNG (arranca sin presets ni imágenes: el admin los crea desde cero).
 - **Integrado**: pestaña "Estilos de Texto" del plugin (guardar/borrar preset, subir
   imagen) y vista previa / Procesar de un grupo con texto estilizado.
 

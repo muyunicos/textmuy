@@ -44,15 +44,15 @@
         } catch (_) { /* parent cruzado o inaccesible */ }
     }
 
-    // Presets base que trae el modulo (fallback del listado cuando no hay puente).
-    const BASE_PRESETS = [
-        'clean-modern', 'cyberpunk', 'fire-free', 'gold-metallic', 'looney-tunes',
-        'neon-glow', 'nintendo', 'retro-wave', 'simple-gradient'
-    ];
-
-    // Claves legacy de versiones anteriores (solo lectura, para migrar).
-    const LEGACY_STORAGE_KEY = 'textmuy_presets';
-    const LEGACY_IMPORTED_KEY = 'textstudio_presets';
+    // Sin datos de fabrica versionados en el modulo (v4.1): el listado de presets
+    // vive en uploads/.../textmuy/presets/ y llega por el puente. Sin puente
+    // (standalone sin datos) la lista queda vacia: no hay nombres "fantasma".
+    function listPresets() {
+        if (bridge && Array.isArray(bridge.presets) && bridge.presets.length) {
+            return bridge.presets.slice();
+        }
+        return [];
+    }
 
     // ===== FORMATO .txm =====
     const PROJECT_FORMAT = 'textmuy-project';
@@ -360,12 +360,6 @@
         return base.slice(-1) === '/' ? base : base + '/';
     }
 
-    function listPresets() {
-        if (bridge && Array.isArray(bridge.presets) && bridge.presets.length) {
-            return bridge.presets.slice();
-        }
-        return BASE_PRESETS.slice();
-    }
     // ===== CARGA =====
     // Devuelve {kind:'txm'|'raw', data}. 'raw' es el formato TextStudio crudo de
     // los presets .json legacy (compat de carga, ya no se generan).

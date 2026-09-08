@@ -20,11 +20,18 @@ assert.ok(TextEditor, 'TextEditor should be exposed');
 assert.ok(typeof TextEditor.loadPreset === 'function', 'TextEditor.loadPreset should exist');
 assert.ok(PM && PM.settingsFromDelta, 'PresetManager.settingsFromDelta should exist');
 
-// 1. Every bundled preset (.txm delta, the only format since 3.2.0) must load:
-//    delta -> full settings -> loadPreset() without throwing.
-const presetsDir = path.join(__dirname, '..', 'presets');
+// 1. Los presets base (.txm delta, el formato unico desde 3.2.0) deben cargar:
+//    delta -> ajustes completos -> loadPreset() sin lanzar.
+// Los datos de usuario viven en la carpeta de uploads del proyecto (fuera del modulo).
+const presetsDir = path.join(__dirname, '..', '..', 'uploads', 'personalizador-pdf', 'textmuy', 'presets');
+if (!fs.existsSync(presetsDir)) {
+    throw new Error(
+        'No se encontro la carpeta de presets en ' + presetsDir
+        + '. Asegurate de que uploads/personalizador-pdf/textmuy/presets exista (datos de usuario).'
+    );
+}
 const files = fs.readdirSync(presetsDir).filter(f => f.endsWith('.txm')).sort();
-assert.ok(files.length >= 9, 'expected the bundled presets to be present');
+assert.ok(files.length >= 1, 'se esperaba al menos un preset .txm en uploads');
 
 files.forEach(function(file) {
     const payload = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
