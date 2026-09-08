@@ -16,18 +16,72 @@
         return target;
     }
 
-    async function loadPresetByName(name) {
-        try {
-            const saved = JSON.parse(localStorage.getItem('textmuy_presets') || '{}');
-            if (saved[name]) return saved[name];
-            // Imports made by the editor before the API existed use this key
-            // and wrap the actual preset with metadata.
-            const imported = JSON.parse(localStorage.getItem('textstudio_presets') || '{}');
-            if (imported[name]) return imported[name].preset || imported[name];
-        } catch (_) { /* storage is optional */ }
-        const response = await fetch('presets/' + encodeURIComponent(name) + '.json');
-        if (!response.ok) throw new Error('Preset not found: ' + name);
-        return response.json();
+    // Cache de presets (promise-cache): el mismo preset nunca se fetchea dos veces.
+    // El puente con Personalizador PDF renderiza N grupos que suelen compartir preset.
+    var presetCache = {};
+
+    function clearPresetCache() {
+        presetCache = {};
+    }
+
+    // SIN async en la firma: asi las llamadas repetidas devuelven LA MISMA promesa
+    // cacheada (identidad estable, cero wrappers extra).
+    function loadPresetByName(name) {
+        if (presetCache[name]) return presetCache[name];
+        const promise = (async function() {
+            // Base de lectura de presets: con puente es uploads/.../textmuy/presets/
+            // (plugin >= 4.0.0); standalone: presets/ relativo al modulo.
+            // Los .txm son delta textmuy-project (formato unico desde 3.2.0);
+            // fallback al .json legacy (formato TextStudio crudo).
+            const base = (window.PresetManager && window.PresetManager.presetUrlBase)
+                ? window.PresetManager.presetUrlBase()
+                : 'presets/';
+            let response = await fetch(base + encodeURIComponent(name) + '.txm');
+            if (response.ok) {
+                const payload = await response.json();
+                if (!payload || payload.format !== 'textmuy-project'
+                    || typeof payload.settings !== 'object' || payload.settings === null) {
+                    throw new Error('Unsupported preset format: ' + name);
+                }
+                if (window.PresetManager && window.PresetManager.settingsFromDelta) {
+                    return window.PresetManager.settingsFromDelta(payload.settings);
+                }
+                throw new Error('PresetManager is required to load .txm presets');
+            }
+            response = await fetch(base + encodeURIComponent(name) + '.json');
+            if (!response.ok) throw new Error('Preset not found: ' + name);
+            return response.json();
+        })();
+        presetCache[name] = promise;
+        // No cachear fallos: un retry (p. ej. tras guardar el preset en el editor) debe reevaluar.
+        promise.catch(function() { delete presetCache[name]; });
+        return promise;
+    }
+
+    /** Resuelve la clave de fuente del settings via FontLoader (si esta disponible). */
+    function resolveFontKey(font) {
+        if (window.FontLoader && FontLoader.resolveFontFromPreset) {
+            return FontLoader.resolveFontFromPreset(font);
+        }
+        if (font && typeof font === 'object') return font.src || font.name || 'Bangers';
+        return (typeof font === 'string' && font) ? font : 'Bangers';
+    }
+
+    /**
+     * Garantiza que la familia del settings este cargada en document.fonts ANTES de
+     * renderizar (canvas usa ctx.font: sin esto, una familia aun no cargada se
+     * renderiza con la fuente del sistema). Usado por toda la API publica.
+     */
+    async function ensureFontReady(settings) {
+        var key = resolveFontKey(settings.font);
+        if (window.FontLoader && FontLoader.loadFont) {
+            try { await FontLoader.loadFont(key); } catch (_) { /* sigue el fallback */ }
+        }
+        if (document.fonts && document.fonts.load) {
+            var family = (window.FontLoader && FontLoader.getFontName) ? FontLoader.getFontName(key) : key;
+            var weight = (settings.font && settings.font.weight) || 'normal';
+            try { await document.fonts.load(weight + ' 64px "' + family + '"'); } catch (_) {}
+        }
     }
 
     async function renderTextToPNG(params) {
@@ -52,8 +106,34 @@
         if (params.height) settings.canvas.height = Math.max(100, Math.min(8000, Number(params.height) || settings.canvas.height));
         mergeDeep(settings, params.overrides || {});
 
+        await ensureFontReady(settings);
+
         const canvas = ExportManager.canvasFromSettings(settings);
         return ExportManager.toBlob(canvas);
+    }
+
+    /**
+     * Render por lotes para el puente con Personalizador PDF (render-core).
+     * items: [{ id, text, preset|settings, width, height, overrides? }]
+     * options.onProgress(id, index, total) se llama antes de cada item.
+     * Devuelve [{ id, blob }] en el mismo orden; si un item falla, rechaza
+     * (nunca un lote parcial). Los presets se resuelven via cache (1 fetch por preset)
+     * y los recursos (pool de capas, contextos WebGL) se comparten entre items.
+     */
+    async function renderBatch(items, options) {
+        items = items || [];
+        options = options || {};
+        if (!window.TextEditor || !window.ExportManager) throw new Error('TextMuy has not finished loading');
+        const out = [];
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (typeof options.onProgress === 'function') {
+                try { options.onProgress(item.id, i, items.length); } catch (_) { /* progreso best-effort */ }
+            }
+            const blob = await renderTextToPNG(item);
+            out.push({ id: item.id, blob: blob });
+        }
+        return out;
     }
 
     async function downloadPNG(params) {
@@ -81,8 +161,10 @@
 
     window.TextMuyAPI = {
         renderTextToPNG: renderTextToPNG,
+        renderBatch: renderBatch,
         downloadPNG: downloadPNG,
         copyImageToClipboard: copyImageToClipboard,
-        loadPresetByName: loadPresetByName
+        loadPresetByName: loadPresetByName,
+        clearPresetCache: clearPresetCache
     };
 })();

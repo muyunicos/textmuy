@@ -41,6 +41,11 @@
                     <div id="tt-gallery-body" class="tt-gallery-body">
                         <div class="tt-gallery-toolbar">
                             <input type="text" id="tt-gallery-search" placeholder="Filter presets...">
+                            <div class="tt-gallery-actions">
+                                <button type="button" id="tt-gallery-save-btn" class="tt-gallery-btn" title="Guardar el estilo actual como preset (.txm + .webp en el servidor)">Save as preset</button>
+                                <button type="button" id="tt-gallery-migrate-btn" class="tt-gallery-btn tt-gallery-btn-migrate" hidden></button>
+                            </div>
+                            <span id="tt-gallery-status" class="tt-gallery-status" aria-live="polite"></span>
                         </div>
                         <div id="tt-gallery-grid" class="tt-gallery-grid"></div>
                     </div>
@@ -444,7 +449,7 @@
                                             <div class="tt-option">
                                                 <label for="tt-depth-fill-texture-import-input" class="tt-texture-label" >
                                                     <input type="file" accept="image/*" id="tt-depth-fill-texture-import-input" data-tt-option="depth.fill.texture.src">
-                                                    <span>Import image</span>
+                                                    
                                                 </label>
                                                 <div class="tt-texture-preview" style="display: none;">
                                                     <div><img class="tt-texture-preview-image"><span class="tt-texture-delete-icon"></span></div>
@@ -610,7 +615,7 @@
                                             <div class="tt-option">
                                                 <label for="tt-outline-first-fill-texture-import-input" class="tt-texture-label" >
                                                     <input type="file" accept="image/*" id="tt-outline-first-fill-texture-import-input" data-tt-option="outline.first.fill.texture.src">
-                                                    <span>Import image</span>
+                                                    
                                                 </label>
                                                 <div class="tt-texture-preview" style="display: none;">
                                                     <div><img class="tt-texture-preview-image"><span class="tt-texture-delete-icon"></span></div>
@@ -782,7 +787,7 @@
                                             <div class="tt-option">
                                                 <label for="tt-outline-second-fill-texture-import-input" class="tt-texture-label" >
                                                     <input type="file" accept="image/*" id="tt-outline-second-fill-texture-import-input" data-tt-option="outline.second.fill.texture.src">
-                                                    <span>Import image</span>
+                                                    
                                                 </label>
                                             </div>
                                         </fieldset>
@@ -1217,16 +1222,6 @@
                         <div class="tt-columns">
                             <div class="tt-column">
                                 <div class="tt-column-inner">
-                                    <div id="tt-icon-list">
-                                        <input type="search" placeholder="Search an icon..." id="tt-icon-search-input">
-                                        <ul id="tt-icon-gallery"></ul>
-                                        <span id="tt-icon-list-loading" style="display: none;"></span>
-                                        <p id="tt-icon-list-no-result" style="display: none;">No results with this search yet.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="tt-column">
-                                <div class="tt-column-inner">
                                     <fieldset id="tt-icon-fieldset">
                                         <legend>
                                             <label for="tt-icon-active-input">
@@ -1237,7 +1232,7 @@
                                         <div class="tt-option">
                                             <label for="tt-icon-import-input" id="tt-icon-import-label" class="tt-import-button-label" >
                                                 <input type="file" accept="image/*" id="tt-icon-import-input" data-tt-option="icon.src" style="display:none;">
-                                                <span>Import image</span>
+                                                
                                             </label>
                                             <div id="tt-icon-preview-container" style="display: none;">
                                                 <div><img id="tt-icon-preview-img"><span id="tt-icon-preview-delete-icon" title="Delete picture"></span></div>
@@ -1293,16 +1288,6 @@
                         <div class="tt-columns">
                             <div class="tt-column">
                                 <div class="tt-column-inner">
-                                    <div id="tt-background-list">
-                                        <input type="search" placeholder="Find a preset background..." id="tt-background-search-input">
-                                        <ul id="tt-background-gallery"></ul>
-                                        <span id="tt-background-list-loading" style="display: none;"></span>
-                                        <p id="tt-background-list-no-result" style="display: none;">No results with this search yet.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="tt-column">
-                                <div class="tt-column-inner">
                                     <fieldset id="tt-background-fieldset">
                                         <legend>
                                             <label for="tt-background-active-input">
@@ -1350,7 +1335,7 @@
                                             <div class="tt-option">
                                                 <label for="tt-background-fill-image-import-input" id="tt-background-fill-image-import-label" class="tt-import-button-label" >
                                                     <input type="file" accept="image/*" id="tt-background-fill-image-import-input" data-tt-option="background.fill.image.src" style="display:none;">
-                                                    <span>Import image</span>
+                                                    
                                                 </label>
                                                 <div id="tt-background-fill-image-preview-container" style="display: none;">
                                                     <div><img id="tt-background-fill-image-preview-img"><span id="tt-background-fill-image-preview-delete-icon" title="Delete background image"></span></div>
@@ -1448,42 +1433,8 @@
                                             <button id="tt-download-btn" class="tt-download-button">Download</button>
                                         </div>
                                         <div class="tt-option">
-                                            <button id="tt-save-preset-btn" class="tt-download-button" >Save as New Preset</button>
-                                        </div>
-                                        <div class="tt-option">
                                             <button id="tt-copy-image-btn" class="tt-download-button" style="background: var(--tt-success);">Copy Image</button>
                                         </div>
-                                    </fieldset>
-                                    <fieldset class="tt-download-fieldset">
-                                        <legend>Presets</legend>
-                                        <div class="tt-option" style="margin-bottom: 8px;">
-                                            <input type="text" id="tt-preset-search-input" placeholder="Search presets..." >
-                                        </div>
-                                        <div class="tt-option" style="margin-bottom: 8px;">
-                                            <select id="tt-preset-category-filter" >
-                                                <option value="all">All Categories</option>
-                                                <option value="basic">Basic</option>
-                                                <option value="gaming">Gaming</option>
-                                                <option value="brands">Brands</option>
-                                                <option value="artistic">Artistic</option>
-                                                <option value="retro">Retro</option>
-                                                <option value="modern">Modern</option>
-                                                <option value="neon">Neon</option>
-                                                <option value="metallic">Metallic</option>
-                                                <option value="custom">Custom</option>
-                                            </select>
-                                        </div>
-                                        <ul class="tt-preset-list" id="tt-preset-list">
-                                            <li data-preset="fire-free" data-category="gaming" title="Free Fire Logo"><span>Free Fire</span></li>
-                                            <li data-preset="nintendo" data-category="brands" title="Nintendo Logo"><span>Nintendo</span></li>
-                                            <li data-preset="looney-tunes" data-category="brands" title="Looney Tunes Logo"><span>Looney Tunes</span></li>
-                                            <li data-preset="simple-gradient" data-category="basic" title="Simple Gradient"><span>Simple Gradient</span></li>
-                                            <li data-preset="neon-glow" data-category="neon" title="Neon Glow"><span>Neon Glow</span></li>
-                                            <li data-preset="gold-metallic" data-category="metallic" title="Gold Metallic"><span>Gold Metallic</span></li>
-                                            <li data-preset="cyberpunk" data-category="retro" title="Cyberpunk"><span>Cyberpunk</span></li>
-                                            <li data-preset="retro-wave" data-category="retro" title="Retro Wave"><span>Retro Wave</span></li>
-                                            <li data-preset="clean-modern" data-category="modern" title="Clean Modern"><span>Clean Modern</span></li>
-                                        </ul>
                                     </fieldset>
                                     <fieldset class="tt-download-fieldset">
                                         <legend>Import from TextStudio</legend>
@@ -1491,15 +1442,6 @@
                                             <input type="text" id="tt-import-url-input" placeholder="https://www.textstudio.com/logo/..." style="flex: 1;">
                                             <button id="tt-import-btn" class="tt-download-button" style="padding: 8px 16px;">Import</button>
                                         </div>
-                                    </fieldset>
-<fieldset class="tt-download-fieldset">
-                                        <legend>Local projects (.txm)</legend>
-                                        <div class="tt-projects-toolbar">
-                                            <button id="tt-project-pick-btn" class="tt-download-button" type="button">Open folder</button>
-                                            <button id="tt-project-save-btn" class="tt-download-button" type="button">Save project</button>
-                                        </div>
-                                        <div id="tt-project-status" class="tt-project-status"></div>
-                                        <ul id="tt-projects-list" class="tt-preset-list tt-projects-list"></ul>
                                     </fieldset>
                                 </div>
                             </div>
@@ -1510,17 +1452,19 @@
         </div>
     </div>
 
-    <script src="js/fonts.js"></script>
-    <script src="js/effects/bevel-webgl.js"></script>
-    <script src="js/effects/specular-webgl.js"></script>
-    <script src="js/effects/distort-engine.js"></script>
-    <script src="js/preset-manager.js"></script>
-    <script src="js/gradient-picker.js"></script>
-    <script src="js/editor.js"></script>
-    <script src="js/controls.js"></script>
-    <script src="js/export.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/fonts.js?v=RC9"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC9"></script>
+    <script src="js/effects/specular-webgl.js?v=RC9"></script>
+    <script src="js/effects/distort-engine.js?v=RC9"></script>
+    <script src="js/preset-manager.js?v=RC9"></script>
+    <script src="js/gradient-picker.js?v=RC9"></script>
+    <script src="js/editor.js?v=RC9"></script>
+    <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
+    <script src="js/galeria.js?v=RC9"></script>
+    <script src="js/controls.js?v=RC9"></script>
+    <script src="js/export.js?v=RC9"></script>
+    <script src="js/api.js?v=RC9"></script>
+    <script src="js/main.js?v=RC9"></script>
 </body>
 </html>
 

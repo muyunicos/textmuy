@@ -910,6 +910,82 @@ animation{active,id,duration,pause}
   - `lettering.reverseOverlap.letters` - Superposición inversa de letras
   - `lettering.reverseOverlap.lines` - Superposición inversa de líneas
 
+---
+
+### Fase 22: Normalización de presets (.txm en servidor) + imágenes subidas (v3.2.0)
+
+Aprobada con el usuario para "normalizar" el guardado de presets, que había quedado con 5
+mecanismos coexistiendo (`.json` base, CRUD en `localStorage`, imports TextStudio en
+`localStorage`, miniaturas en `localStorage`, proyectos `.txm`/`.webp` en carpeta local del
+PC vía File System Access) y 3 paneles de UI duplicados.
+
+**Un solo panel de presets**
+- [x] **T22.1** La galería inferior expandible es la ÚNICA UI de presets: gana botón "Save as preset", "×" de borrado por tile y estado (`tt-gallery-*`). Se eliminan el fieldset "Presets" y el fieldset "Local projects (.txm)" de la pestaña DOWNLOAD, y su CSS (`.tt-preset-list`, `.tt-projects-*`). El botón "Save as New Preset" de DOWNLOAD se muda a la galería.
+- [x] **T22.2** La galería ya no scrapea `#tt-preset-list` ni lee `localStorage`: su fuente es `PresetManager.listPresets()` (listado del puente; fallback `BASE_PRESETS` standalone) y refresca al abrir, tras guardar/borrar y tras importar (`refrescarGaleriaPresets`).
+
+**Formato único `.txm` en el servidor**
+- [x] **T22.3** Los 9 presets base migraron de `.json` (TextStudio crudo) a `.txm` con `scripts/migrate-presets-to-txm.js` (Node: raw → `loadPreset` → `diffSettings`; round-trip de sanidad por preset; `--delete` borra los `.json`). `presets/` queda solo con pares `{nombre}.txm`.
+- [x] **T22.4** `PresetManager.savePreset(nombre, settings)` reemplaza a `createPreset`/`saveProject`: construye el payload `textmuy-project` v1 + `thumbnailBlob` (ambos ya existían) y lo POSTea al puente; sin puente descarga el `.txm`. `deletePreset` borra el par del servidor.
+- [x] **T22.5** `loadPreset`/`fetchPreset`: `presets/{nombre}.txm` → `settingsFromDelta`; fallback legacy `.json` (crudo) solo para carga. `ensureThumbnail` sirve `presets/{nombre}.webp` si existe (HEAD) y si no renderiza lazy en memoria; se eliminó la caché `textmuy_thumbnails` de localStorage.
+- [x] **T22.6** CRUD por `localStorage` ELIMINADO (`getAllPresets`, `createPreset`, `updatePreset`, etc. y el bloque File System Access completo). Las claves `textmuy_presets`/`textstudio_presets` son solo lectura: `legacyLocalPresets()` + `migrateLegacyPresets()` las suben al servidor una única vez (botón "Subir N presets locales" en la galería) y limpian las claves.
+- [x] **T22.7** `js/api.js` `loadPresetByName`: fetch `.txm` → `settingsFromDelta` (vía `window.PresetManager`; el render-core incorpora `js/preset-manager.js`); fallback `.json`. Sin lookups de localStorage. Tests `preset-load` y `preset-cache` actualizados al formato `.txm`.
+- [x] **T22.8** Generador de miniaturas base: `scripts/gen-base-thumbnails.html` (una sola vez, por HTTP desde la raíz del módulo; descarga los 9 `.webp` 100×200 para commitearlos junto a los `.txm`).
+
+**Puente plugin ↔ módulo + directorio de imágenes**
+- [x] **T22.9** Puente postMessage same-origin: la página del admin envía `{urls, nonces, presets, imagenes}` (al load del iframe, al aviso `textmuy-ready` del módulo, e inmediato). El módulo lo guarda en `bridge` y expone `bridgeAvailable()`. Sin puente (standalone) las funciones de servidor se degradan (descarga `.txm`, data-URLs).
+- [x] **T22.10** `PresetManager.uploadImage(file)` → `modules/textmuy/imagenes/` (handler PHP con nonce, firma y límites). `initTextureUploads`: con puente el settings guarda la **URL** del servidor (fallback data-URL embebido si falla); botón "Mis imágenes" junto a cada "Import image" abre un modal (`.tt-myimages-*`) con grilla, subida y reutilización entre presets.
+- [x] **T22.11** Import de TextStudio (`bindImportControls`): guarda el preset importado como `.txm` en el servidor (`guardarPresetImportado`) y refresca la galería.
+- [x] **T22.12** Cache-busting `?v=RC1`→`?v=RC2` en `index.html` y `render-core.html`.
+
+**Contrato con el plugin (ver AGENTS.md §2.1)**: presets `presets/*.txm`+`*.webp` (base + del admin, mismo directorio), imágenes en `imagenes/`, handlers `admin_post_personalizador_pdf_textmuy_*`. Al actualizar el módulo hay que preservar los `.txm`/`.webp` del admin y `imagenes/`.
+
+---
+
+### Fase 23: Galería de imágenes unificada + catálogo propio sin CDN (v3.3.0)
+
+Aprobada con el usuario para unificar la duplicación de galerías (Icon, Background,
+"Mis imágenes", Presets) en UN componente y quitar la dependencia runtime del CDN de
+TextStudio.
+
+**Componente único de galería**
+- [x] **T23.1** `js/galeria.js` → `window.TextMuyGaleria.{abrirImagenes, abrirGestion, abrirCatalogo}`. Un modal con: buscador, chips de categoría, subir (botón + drag&drop + pegar), tiles con acciones (Usar / Editar / Renombrar / Borrar), badge "en uso" y estado. CSS único `.tt-imggal-*` (sustituye al `.tt-myimages-*` de la 3.2.0).
+- [x] **T23.2** Editor básico client-side (rotar 90, voltear H/V, redimensionar por ancho, recorte por px; save como copia `-edit` o sobrescribir) en `crearEditor()`. Guardado vía puente (`uploadImage` con `nombre`+`sobrescribir`).
+
+**Categorías + puente ampliado**
+- [x] **T23.3** Imágenes por subcarpeta `imagenes/{fondos,iconos,varios}` (raíz 3.2.0 = 'varios'). PHP: `subir_imagen` gana `categoria`/`nombre`/`sobrescribir`; nuevos handlers `borrar_imagen` y `cambiar_imagen` (renombrar/mover). `listImages(categoria)` y `uploadImage(file,{categoria,...})` en preset-manager.
+- [x] **T23.4** `recursos_textmuy()` lista con categoría, `enUso` (escanea los `.txm` por la URL) y cache-bust `?v=mtime`. `admin/estilos-texto.php` pasa urls/nonces ampliados.
+- [x] **T23.5** Los 5 "Import image" → "Seleccionar imagen" con categoría contextual (`categoriaDe(input)`); botón "Catalogo" y gestion de imágenes en las pestañas iconos/fondos.
+
+**Catálogo propio (sin CDN)**
+- [x] **T23.6** `assets/{iconos,fondos}/catalogo.json` + assets versionados. `scripts/migrate-cdn-assets.js` descarga los SVGs (iconos) y previews webp (fondos) — reanudable, reporta fallos. `crearCatalogo(tipo)` los muestra (solo "usar"); el CDN queda SOLO en los listados viejos de controls.js, desactivados por el `return` temprano (referencia).
+- [x] **T23.7** `?v=RC2`→`?v=RC3` en `index.html` y `render-core.html`; `galeria.js` cargada solo en `index.html`.
+- [~] **T23.8** Nota: en entornos sin internet el script de migración no descarga (el catálogo queda vacío hasta correrlo online); las imágenes propias ("Mis imágenes") no dependen de red.
+
+---
+
+### Fase 24: Galería con preview en vivo + controles + imágenes planas con catálogo único (v3.3.0)
+
+Cierre de la galería unificada: se migró de subcarpetas a `imagenes/` plano + `catalogo.json`,
+y se agregó modo preview en vivo con controles replicados.
+
+- [x] **T24.1** Imágenes planas: `imagenes/` sin subcarpetas + `catalogo.json` único
+  (`{nombre, categoria, titulo}`). 128 SVGs base migrados de `assets/{iconos,fondos}`;
+  `assets/` eliminado. CRUD PHP (`subir_imagen`/`borrar_imagen`/`cambiar_imagen`) actualiza
+  el JSON. SVG permitido como formato. `.gitignore` permite SVGs + catalogo.json.
+- [x] **T24.2** Galería con preview en vivo: `abrir(fuente, aplicar, seccion?, opciones?)`.
+  Con `opciones.preview` oculta `tt-main-container`, aplica imagen al instante (click en
+  tile), replica controles (Fit/Scale/Origin/Repeat para Pattern; Opacity/Repeat para
+  Background), "Aplicar" cierra (persistido) y "✕" llama `opciones.onCancel` (restaura backup).
+- [x] **T24.3** Pattern (fill-style-editor) y Background usan preview mode con backup/restore.
+- [~] **T24.4** Miniaturas 50x50 en galería: SVGs se renderizan nativos (sin archivo separado);
+  PNG user-uploads los escala el navegador. Anotado como future work.
+- [x] **T24.5** Nombre editable en catálogo (título) y en server items; Save copia al server
+  con categoría. Delete con aviso "en uso".
+- [x] **T24.6** Cache-busting RC3→RC7 en ambos HTML.
+
+**Contrato**: ver AGENTS.md §2.1 (v3.3.0): `imagenes/catalogo.json`, preview mode API.
+
+
 **SECCIÓN ICON:**
 - `icon.active` - Activar icono
 - `icon.src` - Fuente del icono
@@ -1050,3 +1126,16 @@ Se realizó una refactorización completa de `css/style.css` que incluyó:
 8. **Eliminación de duplicación:** `.tt-texture-preview select` eliminado (ya cubierto por `.tt-blendmode-select` etc.).
 9. **Limpieza de estilos inline:** Se removieron estilos inline redundantes del HTML (inputs, botones, labels).
 10. **`flex-direction: column` en todas las secciones:** No solo en `text`, sino en todas para que el layout funcione correctamente.
+
+---
+
+## 10. Render Core (puente con Personalizador PDF)
+
+Integración como módulo del plugin **Personalizador PDF** (v3.1.0): el plugin renderiza textos estilizados headless, sin cargar la UI del editor.
+
+- [x] **T10.1** `render-core.html`: documento mínimo headless (Google Fonts + `js/fonts.js`, `js/effects/{distort-engine,bevel-webgl,specular-webgl}.js`, `js/editor.js`, `js/export.js`, `js/api.js`; ~220 KB vs ~1.4 MB de la UI completa). Inicializa `ExportManager.init(TextEditor)` (en la UI lo hace `main.js`) y expone `window.RenderCore = {version, ready}` + `postMessage('render-core-ready')` al parent same-origin.
+- [x] **T10.2** `js/api.js`: caché de presets (promise-cache) en `loadPresetByName` — 1 fetch por preset, los fallos no se cachean — + `clearPresetCache()`.
+- [x] **T10.3** `js/api.js`: `ensureFontReady(settings)` garantiza la carga de la familia (`FontLoader.loadFont` + `document.fonts.load`) antes de `renderToCanvas` (evita render con la fuente del sistema).
+- [x] **T10.4** `js/api.js`: `renderBatch(items, {onProgress})` → `[{id, blob}]` con progreso por item; rechaza ante el primer fallo (nunca lote parcial). Retro-compatible: `renderTextToPNG`/`downloadPNG` sin cambios de firma.
+- [x] **T10.5** `tests/preset-cache.test.js`: misma promesa cacheada (1 fetch), `clearPresetCache` refetchea, y un fallo no queda cacheado (retry reevalúa).
+- **Contrato público** (ver AGENTS.md del plugin): el consumidor solo conoce `render-core.html`, `TextMuyAPI.renderBatch()` y `presets/*.json`.
