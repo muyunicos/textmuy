@@ -1,8 +1,11 @@
-/* ===== PRESET MANAGER - presets .txm (+ .webp) =====
+/* ===== PRESET MANAGER - presets .txm (miniaturas por spritesheet global) =====
  *
  * Desde 3.2.0 el almacenamiento unico de presets son ARCHIVOS:
  *   {nombre}.txm  -> delta de settings (formato textmuy-project v1)
- *   {nombre}.webp -> miniatura 100x200 para la galeria
+ *
+ * Las miniaturas viven en el spritesheet global thumbs/presets.webp gestionado
+ * por ThumbEngine.ensureSprite({scope:'presets'}). NO se generan .webp sueltos
+ * junto al .txm (ahorran inodes y se sirven en una sola peticion).
  *
  * Desde 4.0.0 del plugin, dentro de WordPress los archivos viven en
  * uploads/personalizador-pdf/textmuy/presets/ y la base URL de LECTURA
@@ -29,6 +32,26 @@
             if (ev.source !== window.parent && ev.source !== window) return;
             if (ev.data.bridge && typeof ev.data.bridge === 'object') {
                 bridge = ev.data.bridge;
+
+                // Configurar ThumbEngine y cargar su script si no esta cargado
+                function configureThumbEngine() {
+                    if (window.ThumbEngine && bridge.urls && bridge.urls.guardarSprite) {
+                        window.ThumbEngine.configure({
+                            endpoint: bridge.urls.guardarSprite,
+                            nonce: bridge.nonces && bridge.nonces.guardarSprite
+                        });
+                    }
+                }
+
+                if (!window.ThumbEngine && bridge.urls && bridge.urls.miniaturas) {
+                    var s = document.createElement('script');
+                    s.src = bridge.urls.miniaturas;
+                    s.onload = configureThumbEngine;
+                    document.head.appendChild(s);
+                } else {
+                    configureThumbEngine();
+                }
+
                 // Aviso a la UI (los botones "Mis imagenes" se inyectan al llegar
                 // el puente, que puede ser posterior a Controls.init()).
                 if (typeof window.dispatchEvent === 'function' && typeof window.Event === 'function') {
@@ -198,11 +221,9 @@
             descargarTxm(safe, txmBlob);
             return { name: safe, mode: 'download' };
         }
-        const webpBlob = await thumbnailBlob(settings);
         const fd = new FormData();
         fd.append('nombre', safe);
         fd.append('txm', txmBlob, safe + '.txm');
-        fd.append('webp', webpBlob, safe + '.webp');
         fd.append('_wpnonce', bridge.nonces.guardarPreset);
         const resp = await fetch(bridge.urls.guardarPreset, {
             method: 'POST', body: fd, credentials: 'same-origin'
@@ -216,7 +237,10 @@
             bridge.presets.push(safe);
             bridge.presets.sort();
         }
-        thumbnailCache.set(safe, presetUrlBase() + encodeURIComponent(safe) + '.webp');
+        thumbnailCache.delete(safe);
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('presets'); } catch (_) {}
+        }
         return { name: safe, mode: 'server' };
     }
 
@@ -239,6 +263,9 @@
             bridge.presets = bridge.presets.filter(function (n) { return n !== safe; });
         }
         thumbnailCache.delete(safe);
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('presets'); } catch (_) {}
+        }
         return true;
     }
 
@@ -278,6 +305,9 @@
             });
             bridge.imagenes.push(item);
         }
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
+        }
         return item;
     }
 
@@ -301,6 +331,9 @@
             bridge.imagenes = bridge.imagenes.filter(function (im) {
                 return !(im.nombre === item.nombre && (im.categoria || 'varios') === (item.categoria || 'varios'));
             });
+        }
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
         }
         return true;
     }
@@ -329,6 +362,9 @@
                 return !(im.nombre === item.nombre && (im.categoria || 'varios') === (item.categoria || 'varios'));
             });
             bridge.imagenes.push(itemNuevo);
+        }
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
         }
         return itemNuevo;
     }
@@ -414,34 +450,28 @@
      */
     async function ensureThumbnail(name) {
         if (thumbnailCache.has(name)) return thumbnailCache.get(name);
-        if (typeof fetch === 'function' && !isFileProtocol()) {
-            const url = presetUrlBase() + encodeURIComponent(sanitizeName(name)) + '.webp';
-            if (await imagenExiste(url)) {
+        return fallback();
+
+        async function fallback() {
+            try {
+                const entry = await fetchPreset(name);
+                let settings = entry.data;
+                if (entry.kind === 'txm') {
+                    settings = settingsFromDelta(entry.data.settings);
+                } else if (window.TextEditor && window.TextEditor.createDefaultSettings && window.TextEditor.loadPreset) {
+                    const converted = window.TextEditor.createDefaultSettings();
+                    window.TextEditor.loadPreset(entry.data, converted);
+                    settings = converted;
+                }
+                // Miniatura en memoria (data-URL) para poblar el sprite; NO persiste
+                // ningun .webp junto al .txm: el sheet vive en thumbs/presets.webp.
+                const url = await thumbnailDataUrl(settings);
                 thumbnailCache.set(name, url);
                 return url;
+            } catch (e) {
+                console.warn('Could not render thumbnail for', name, e);
+                return null;
             }
-        }
-        try {
-            const entry = await fetchPreset(name);
-            let settings = entry.data;
-            if (entry.kind === 'txm') {
-                settings = settingsFromDelta(entry.data.settings);
-            } else if (window.TextEditor && window.TextEditor.createDefaultSettings && window.TextEditor.loadPreset) {
-                const converted = window.TextEditor.createDefaultSettings();
-                window.TextEditor.loadPreset(entry.data, converted);
-                settings = converted;
-            }
-            const url = await thumbnailDataUrl(settings);
-            thumbnailCache.set(name, url);
-            // Auto-guardar el .webp si falta y hay puente (los 9 base no lo tienen
-            // al inicio; al primer uso se genera y persiste junto al .txm).
-            if (bridgeAvailable() && settings && settings.text !== undefined) {
-                savePreset(name, settings).catch(function () { /* best-effort */ });
-            }
-            return url;
-        } catch (e) {
-            console.warn('Could not render thumbnail for', name, e);
-            return null;
         }
     }
 
@@ -514,12 +544,13 @@
         savePreset,
         deletePreset,
         bridgeAvailable,
+        getBridge: function () { return bridge; },
         // Imagenes subidas (modules/textmuy/imagenes/{fondos,iconos,varios})
         CATEGORIAS_IMAGENES,
         uploadImage,
         deleteImage,
         moverImagen,
-        // Miniaturas de galeria (presets/{name}.webp o render lazy)
+        // Miniaturas de galeria (spritesheet global thumbs/presets.webp o render lazy)
         ensureThumbnail,
         thumbnailDataUrl,
         // Migracion unica de presets legacy (localStorage de versiones previas)

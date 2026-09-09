@@ -1,4 +1,4 @@
-/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
+﻿/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
  * API: window.TextMuyGaleria.abrir(fuente, aplicar)
  *   fuente: 'bgs'|'icons'|'misc' (server) | 'presets' | 'catalogo:iconos'|'catalogo:fondos'
  */
@@ -7,6 +7,34 @@
 const CATS=['fondos','iconos','varios'];
 const ALL_TABS=CATS;
 let panel=null;
+let galeriaSpriteInfo = null; // { spriteImage, manifest, spriteUrl }
+function cargarSpriteGlobal() {
+ if (!window.ThumbEngine || !PM() || !PM().listImages) return Promise.resolve(null);
+ const todas = PM().listImages(); // todas las imagenes de todas las categorias
+ if (!todas || !todas.length) return Promise.resolve(null);
+ const items = todas.map(function(i){ return { nombre: i.nombre, url: i.url }; });
+ var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+ return window.ThumbEngine.ensureSprite({
+  scope: 'imagenes',
+  items: items,
+  ancho: 100,
+  alto: 100,
+  pad: true,
+  baseUrl: (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : ''
+ }).then(function(res) {
+  if (!res) return null;
+  return new Promise(function(resolve) {
+   const img = new Image();
+   img.onload = function() {
+    galeriaSpriteInfo = { spriteImage: img, manifest: res.manifest, spriteUrl: res.spriteUrl };
+    resolve(galeriaSpriteInfo);
+   };
+   img.onerror = function() { resolve(null); };
+   img.src = res.spriteUrl;
+  });
+ }).catch(function() { return null; });
+}
+
 function PM(){return window.PresetManager;}
 function bridgeOK(){return !!(PM()&&PM().bridgeAvailable&&PM().bridgeAvailable());}
 function el(c,t,txt){const n=document.createElement(t||'div');n.className=c;if(txt!==undefined)n.textContent=txt;return n;}
@@ -142,8 +170,13 @@ function crearPanel(){
   if(!bridgeOK()){status.textContent='Requiere el plugin (iframe).';return;}
   let imgs=PM().listImages(fuenteActual);
   if(q)imgs=imgs.filter(function(i){return (i.nombre+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
-  for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,categoria:i.categoria,enUso:i.enUso,tipo:'server'});}
-  montarTabs();ocultarUpload(false);render();
+  for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server'});}
+  montarTabs();ocultarUpload(false);
+  if (!galeriaSpriteInfo) {
+   cargarSpriteGlobal().then(function(){ render(); });
+  } else {
+   render();
+  }
  }
 
  function actImg(it){
@@ -173,8 +206,18 @@ function crearPanel(){
    t.type='button';t.dataset.slug=it.slug;t.title=it.titulo;
    const img=document.createElement('img');
    img.loading='lazy';img.alt=it.titulo;
-   if(it.src)img.src=it.src;
-   t.appendChild(img);
+   // Render con tile del sprite global o fallback
+   if (it.tipo === 'server' && galeriaSpriteInfo && window.ThumbEngine && window.ThumbEngine.tile(galeriaSpriteInfo.manifest, it.slug)) {
+    const cv = document.createElement('canvas');
+    cv.width = 100;
+    cv.height = 100;
+    const ctx = cv.getContext('2d');
+    window.ThumbEngine.drawTile(ctx, galeriaSpriteInfo.spriteImage, galeriaSpriteInfo.manifest, it.slug, 0, 0, 100, 100);
+    t.appendChild(cv);
+   } else {
+    img.src = (it.tipo === 'server' && it.thumb) ? it.thumb : it.src;
+    t.appendChild(img);
+   }
    if(it.enUso)t.appendChild(el('tt-galpanel-enuso','span','\u25cf'));
    t.addEventListener('click',function(){sel(it);});
    list.appendChild(t);

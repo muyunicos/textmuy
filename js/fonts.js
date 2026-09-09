@@ -101,7 +101,33 @@
 
     var loadedFonts = {};
     var loadingPromises = {};
-    var customFonts = {}; // Store user-uploaded fonts
+    var customFonts = {};
+
+    // Soporte para puente de servidor (WordPress Personalizador PDF)
+    var bridgeFontsLoaded = false;
+    function syncServerFonts() {
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        if (!bridge || !Array.isArray(bridge.fuentes)) return;
+        bridge.fuentes.forEach(function (f) {
+            var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+            fontRegistry[key] = {
+                name: f.titulo || f.nombre,
+                path: f.url,
+                isCustom: true,
+                isServer: true,
+                serverFile: f.nombre
+            };
+            nameToKeyMap[f.titulo || f.nombre] = key;
+        });
+        bridgeFontsLoaded = true;
+    }
+
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('textmuy-bridge-ready', syncServerFonts);
+        // Si el puente ya estaba disponible antes de cargar fonts.js
+        setTimeout(syncServerFonts, 50);
+    }
+ // Store user-uploaded fonts
 
     function registerTextStudioFont(src, name) {
         if (!src || !/\.ttf$/i.test(src)) return null;
@@ -115,6 +141,10 @@
         return key;
     }
 
+    /**
+     * Registra una fuente personalizada de forma SINCRONA devolviendo su key.
+     * Mantiene retrocompatibilidad total con callers síncronos (controls.js, etc.).
+     */
     function registerCustomFont(name, dataUrl) {
         var key = 'custom-' + Date.now();
         fontRegistry[key] = {
@@ -125,6 +155,46 @@
         customFonts[key] = { name: name, dataUrl: dataUrl };
         saveCustomFonts();
         return key;
+    }
+
+    /**
+     * Sube un archivo de fuente al servidor (modo plugin) y registra la entrada con URL remota.
+     * Devuelve una Promise<string> con el key final.
+     */
+    function uploadCustomFont(fileBlob, name) {
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        var fontName = name || (fileBlob && fileBlob.name ? fileBlob.name.replace(/\.[^/.]+$/, '') : 'Custom Font');
+
+        if (bridge && bridge.urls && bridge.urls.subirFuente && (fileBlob instanceof Blob || fileBlob instanceof File)) {
+            var fd = new FormData();
+            fd.append('fuente', fileBlob, fileBlob.name || fontName);
+            fd.append('titulo', fontName);
+            if (bridge.nonces && bridge.nonces.subirFuente) {
+                fd.append('_wpnonce', bridge.nonces.subirFuente);
+            }
+            return fetch(bridge.urls.subirFuente, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (res && res.success && res.data) {
+                        var f = res.data;
+                        var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+                        fontRegistry[key] = {
+                            name: f.titulo,
+                            path: f.url,
+                            isCustom: true,
+                            isServer: true,
+                            serverFile: f.nombre
+                        };
+                        nameToKeyMap[f.titulo] = key;
+                        if (Array.isArray(bridge.fuentes)) {
+                            bridge.fuentes.push(f);
+                        }
+                        return key;
+                    }
+                    throw new Error('Fallo la subida al servidor');
+                });
+        }
+        return Promise.reject(new Error('Subida al servidor no disponible'));
     }
 
     function saveCustomFonts() {
@@ -243,6 +313,24 @@
     }
 
     function deleteCustomFont(key) {
+        var font = fontRegistry[key];
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+
+        if (font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.borrarFuente) {
+            var fd = new FormData();
+            fd.append('nombre', font.serverFile);
+            if (bridge.nonces && bridge.nonces.borrarFuente) {
+                fd.append('_wpnonce', bridge.nonces.borrarFuente);
+            }
+            fetch(bridge.urls.borrarFuente, { method: 'POST', body: fd, credentials: 'same-origin' });
+            delete fontRegistry[key];
+            delete loadedFonts[key];
+            if (Array.isArray(bridge.fuentes)) {
+                bridge.fuentes = bridge.fuentes.filter(function (f) { return f.nombre !== font.serverFile; });
+            }
+            return true;
+        }
+
         if (customFonts[key]) {
             delete customFonts[key];
             delete fontRegistry[key];
@@ -256,6 +344,83 @@
     // Load custom fonts from localStorage on initialization
     loadCustomFonts();
 
+
+    /**
+     * Renderiza una miniatura de la fuente mostrando SU PROPIO NOMBRE
+     * Dimensiones estandar: 180x30px, alineado a la izquierda, recortado si no entra.
+     */
+    function renderFontPreview(fontItem, ancho, alto) {
+        ancho = ancho || 180;
+        alto = alto || 30;
+        var fontKey = typeof fontItem === 'string' ? fontItem : (fontItem.key || fontItem.nombre);
+        var fontName = (fontItem && fontItem.name) || (fontRegistry[fontKey] && fontRegistry[fontKey].name) || fontKey;
+
+        return loadFont(fontKey).then(function () {
+            var cv = document.createElement('canvas');
+            cv.width = ancho;
+            cv.height = alto;
+            var ctx = cv.getContext('2d');
+
+            // Fondo blanco limpio
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, ancho, alto);
+
+            // Clip al espacio util
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, ancho, alto);
+            ctx.clip();
+
+            // Texto: nombre de la fuente, alineado a la izquierda, vertical centrado
+            ctx.font = '16px "' + fontName + '", sans-serif';
+            ctx.fillStyle = '#222222';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(fontName, 6, Math.round(alto / 2));
+
+            ctx.restore();
+            return cv;
+        }).catch(function () {
+            // Fallback con fuente de sistema
+            var cv = document.createElement('canvas');
+            cv.width = ancho;
+            cv.height = alto;
+            var ctx = cv.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, ancho, alto);
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#666666';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(fontName, 6, Math.round(alto / 2));
+            return cv;
+        });
+    }
+
+    /**
+     * Asegura el spritesheet global de fuentes (180x30 por tile).
+     */
+    function ensureFontsSprite() {
+        if (!window.ThumbEngine) {
+            return Promise.resolve(null);
+        }
+        var fonts = getAvailableFonts();
+        var items = fonts.map(function (f) {
+            return { nombre: f.key, name: f.name, key: f.key };
+        });
+
+        var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
+        return ThumbEngine.ensureSprite({
+            scope: 'fuentes',
+            items: items,
+            ancho: 180,
+            alto: 30,
+            columnas: 4,
+            render: renderFontPreview,
+            baseUrl: (bF && bF.urls && bF.urls.fuentesBase) ? bF.urls.fuentesBase : ''
+        });
+    }
+
     window.FontLoader = {
         loadFont: loadFont,
         getFontName: getFontName,
@@ -264,7 +429,10 @@
         resolveFontFromPreset: resolveFontFromPreset,
         registerTextStudioFont: registerTextStudioFont,
         registerCustomFont: registerCustomFont,
+        uploadCustomFont: uploadCustomFont,
         deleteCustomFont: deleteCustomFont,
+        renderFontPreview: renderFontPreview,
+        ensureFontsSprite: ensureFontsSprite,
         getAvailableFonts: getAvailableFonts,
         getFontCategories: function() { return fontCategories; },
         registry: fontRegistry,

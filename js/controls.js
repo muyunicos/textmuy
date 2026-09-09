@@ -1890,6 +1890,27 @@
 
         if (!searchInput || !categoryFilter || !fontSelect) return;
 
+        // Sincronizar fuentes del servidor en el optgroup "Custom"
+        function sincronizarFuentesServidor() {
+            var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+            if (!bridge || !Array.isArray(bridge.fuentes)) return;
+            var customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
+            if (!customGroup) return;
+            bridge.fuentes.forEach(function (f) {
+                var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+                var opt = customGroup.querySelector('option[value="' + key + '"]');
+                if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = f.titulo || f.nombre;
+                    customGroup.appendChild(opt);
+                }
+            });
+        }
+
+        window.addEventListener('textmuy-bridge-ready', sincronizarFuentesServidor);
+        setTimeout(sincronizarFuentesServidor, 100);
+
         function filterFonts() {
             const searchTerm = searchInput.value.toLowerCase();
             const selectedCategory = categoryFilter.value;
@@ -1929,24 +1950,48 @@
                 const file = e.target.files[0];
                 if (!file) return;
 
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const dataUrl = event.target.result;
-                    const fontName = file.name.replace(/\.[^/.]+$/, '');
-                    if (window.FontLoader) {
-                        const fontKey = window.FontLoader.registerCustomFont(fontName, dataUrl);
-                        const customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
-                        if (customGroup) {
-                            const option = document.createElement('option');
-                            option.value = fontKey;
-                            option.textContent = fontName;
-                            customGroup.appendChild(option);
-                            fontSelect.value = fontKey;
-                            fontSelect.dispatchEvent(new Event('change'));
+                const fontName = file.name.replace(/\.[^/.]+$/, '');
+
+                function aplicarOpcion(key, name) {
+                    const customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
+                    if (customGroup) {
+                        // Evitar duplicar opcion si ya existe
+                        let opt = customGroup.querySelector('option[value="' + key + '"]');
+                        if (!opt) {
+                            opt = document.createElement('option');
+                            opt.value = key;
+                            opt.textContent = name;
+                            customGroup.appendChild(opt);
                         }
+                        fontSelect.value = key;
+                        fontSelect.dispatchEvent(new Event('change'));
                     }
-                };
-                reader.readAsDataURL(file);
+                }
+
+                // Intentar subida al servidor si hay puente; fallback a local data-URL
+                if (window.FontLoader && window.FontLoader.uploadCustomFont) {
+                    window.FontLoader.uploadCustomFont(file, fontName)
+                        .then(function(serverKey) {
+                            aplicarOpcion(serverKey, fontName);
+                        })
+                        .catch(function() {
+                            fallbackLocal();
+                        });
+                } else {
+                    fallbackLocal();
+                }
+
+                function fallbackLocal() {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const dataUrl = event.target.result;
+                        if (window.FontLoader) {
+                            const localKey = window.FontLoader.registerCustomFont(fontName, dataUrl);
+                            aplicarOpcion(localKey, fontName);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
             });
         }
     }
@@ -1967,6 +2012,51 @@
         const statusEl = document.getElementById('tt-gallery-status');
         if (!gallery || !toggle || !grid) return;
 
+        let presetSpriteInfo = null;
+        function cargarPresetSprite() {
+            if (!window.ThumbEngine || !window.PresetManager || !PresetManager.listPresets) {
+                return Promise.resolve(null);
+            }
+            const nombres = PresetManager.listPresets();
+            if (!nombres || !nombres.length) return Promise.resolve(null);
+            const items = nombres.map(function(n) { return { nombre: n }; });
+            var bP = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
+            return window.ThumbEngine.ensureSprite({
+                scope: 'presets',
+                items: items,
+                ancho: 200,
+                alto: 100,
+                columnas: 4,
+                baseUrl: (bP && bP.urls && bP.urls.presetsBase) ? bP.urls.presetsBase : '',
+                render: function(it) {
+                    if (window.PresetManager && PresetManager.ensureThumbnail) {
+                        return PresetManager.ensureThumbnail(it.nombre).then(function(url) {
+                            if (!url) return null;
+                            return new Promise(function(res) {
+                                const img = new Image();
+                                img.crossOrigin = 'anonymous';
+                                img.onload = function() { res(img); };
+                                img.onerror = function() { res(null); };
+                                img.src = url;
+                            });
+                        });
+                    }
+                    return Promise.resolve(null);
+                }
+            }).then(function(res) {
+                if (!res) return null;
+                return new Promise(function(resolve) {
+                    const img = new Image();
+                    img.onload = function() {
+                        presetSpriteInfo = { spriteImage: img, manifest: res.manifest, spriteUrl: res.spriteUrl };
+                        resolve(presetSpriteInfo);
+                    };
+                    img.onerror = function() { resolve(null); };
+                    img.src = res.spriteUrl;
+                });
+            }).catch(function() { return null; });
+        }
+
         function setStatus(msg, esError) {
             if (!statusEl) return;
             statusEl.textContent = msg || '';
@@ -1985,10 +2075,20 @@
                 tile.dataset.preset = name;
                 tile.setAttribute('aria-label', name);
 
-                const img = document.createElement('img');
-                img.alt = name;
-                img.loading = 'lazy';
-                tile.appendChild(img);
+                let img = null;
+                if (presetSpriteInfo && window.ThumbEngine && window.ThumbEngine.tile(presetSpriteInfo.manifest, name)) {
+                    const cv = document.createElement('canvas');
+                    cv.width = 200;
+                    cv.height = 100;
+                    const ctx = cv.getContext('2d');
+                    window.ThumbEngine.drawTile(ctx, presetSpriteInfo.spriteImage, presetSpriteInfo.manifest, name, 0, 0, 200, 100);
+                    tile.appendChild(cv);
+                } else {
+                    img = document.createElement('img');
+                    img.alt = name;
+                    img.loading = 'lazy';
+                    tile.appendChild(img);
+                }
 
                 const label = document.createElement('span');
                 label.className = 'tt-gallery-tile-label';
@@ -2017,9 +2117,9 @@
 
                 grid.appendChild(tile);
 
-                if (window.PresetManager && PresetManager.ensureThumbnail) {
+                if (img && window.PresetManager && PresetManager.ensureThumbnail) {
                     PresetManager.ensureThumbnail(name).then(function(url) {
-                        if (url) img.src = url;
+                        if (url && img) img.src = url;
                     });
                 }
             });
@@ -2078,7 +2178,13 @@
         toggle.addEventListener('click', function() {
             const open = gallery.classList.toggle('open');
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            if (open) populate(); // Siempre fresco: refleja guardados/borrados.
+            if (open) {
+                if (!presetSpriteInfo) {
+                    cargarPresetSprite().then(function() { populate(); });
+                } else {
+                    populate();
+                }
+            }
         });
 
         if (search) search.addEventListener('input', filterTiles);
