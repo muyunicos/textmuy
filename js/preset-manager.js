@@ -93,9 +93,56 @@
 
     // Recursive diff of `current` against `base`; only differing branches are
     // kept. Explicit false/0/null/"" are preserved when they differ.
+    // Colores tal cual (hex string): sin normalizacion rgb<->hex.
+    // Arrays con id estable (fill.layers/styles): diff/merge por id.
+    function isIdArray(arr) {
+        return Array.isArray(arr) && arr.length
+            && arr.every(function(it) { return it && typeof it === 'object' && typeof it.id === 'string'; });
+    }
+    function diffIdArray(baseArr, curArr) {
+        const baseById = {};
+        (Array.isArray(baseArr) ? baseArr : []).forEach(function(it) {
+            if (it && it.id) baseById[it.id] = it;
+        });
+        const out = [];
+        let changed = false;
+        curArr.forEach(function(it) {
+            const b = (it && it.id && baseById[it.id]) || {};
+            const d = diffSettings(b, it);
+            if (d !== undefined) {
+                const entry = (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+                entry.id = it.id;
+                out.push(entry);
+                changed = true;
+            } else if (it && it.id && !baseById[it.id]) {
+                out.push(it);
+                changed = true;
+            }
+        });
+        const curIds = {};
+        curArr.forEach(function(it) { if (it && it.id) curIds[it.id] = true; });
+        (Array.isArray(baseArr) ? baseArr : []).forEach(function(it) {
+            if (it && it.id && !curIds[it.id]) changed = true;
+        });
+        if (!changed) return undefined;
+        return out;
+    }
+    function applyIdArray(target, key, deltaArr) {
+        const cur = Array.isArray(target[key]) ? target[key] : [];
+        const byId = {};
+        cur.forEach(function(it) { if (it && it.id) byId[it.id] = it; });
+        const next = [];
+        (Array.isArray(deltaArr) ? deltaArr : []).forEach(function(d) {
+            if (!d || typeof d.id !== 'string') return;
+            if (byId[d.id]) { applyDelta(byId[d.id], d); next.push(byId[d.id]); }
+            else next.push(JSON.parse(JSON.stringify(d)));
+        });
+        target[key] = next;
+    }
     function diffSettings(base, current) {
         if (current === base) return undefined;
         if (Array.isArray(current)) {
+            if (isIdArray(current) || isIdArray(base)) return diffIdArray(base, current);
             return JSON.stringify(current) === JSON.stringify(base) ? undefined : current;
         }
         if (current && base && typeof current === 'object' && typeof base === 'object' && !Array.isArray(base)) {
@@ -114,7 +161,9 @@
         if (!delta || typeof delta !== 'object' || Array.isArray(delta)) return;
         Object.keys(delta).forEach(function(k) {
             const v = delta[k];
-            if (v && typeof v === 'object' && !Array.isArray(v)) {
+            if (Array.isArray(v) && (isIdArray(v) || isIdArray(target[k]))) {
+                applyIdArray(target, k, v);
+            } else if (v && typeof v === 'object' && !Array.isArray(v)) {
                 if (!target[k] || typeof target[k] !== 'object' || Array.isArray(target[k])) target[k] = {};
                 applyDelta(target[k], v);
             } else {
@@ -540,6 +589,7 @@
         presetUrlBase,
         settingsFromDelta,
         diffSettings,
+        applyDelta,
         // Puente (guardar/borrar en el servidor, o descargar .txm standalone)
         savePreset,
         deletePreset,

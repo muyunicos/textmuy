@@ -50,9 +50,9 @@
 
         // Width input change - updates ratio and height
         widthInput.addEventListener('input', function() {
-            const width = parseInt(this.value) || 240;
-            const height = parseInt(heightInput.value) || 600;
-            const ratio = parseFloat((height / width).toFixed(2)) || 2.5;
+            const width = parseInt(this.value) || 480;
+            const height = parseInt(heightInput.value) || 320;
+            const ratio = parseFloat((height / width).toFixed(2)) || 0.67;
             ratioInput.value = ratio;
             setNestedSetting('canvas.width', width);
             setNestedSetting('canvas.ratio', ratio);
@@ -60,9 +60,9 @@
 
         // Height input change - updates ratio and width
         heightInput.addEventListener('input', function() {
-            const height = parseInt(this.value) || 600;
-            const width = parseInt(widthInput.value) || 240;
-            const ratio = parseFloat((height / width).toFixed(2)) || 2.5;
+            const height = parseInt(this.value) || 320;
+            const width = parseInt(widthInput.value) || 480;
+            const ratio = parseFloat((height / width).toFixed(2)) || 0.67;
             ratioInput.value = ratio;
             setNestedSetting('canvas.height', height);
             setNestedSetting('canvas.ratio', ratio);
@@ -70,8 +70,8 @@
 
         // Ratio input change - updates height
         ratioInput.addEventListener('input', function() {
-            const ratio = parseFloat(this.value) || 2.5;
-            const width = parseInt(widthInput.value) || 240;
+            const ratio = parseFloat(this.value) || 0.67;
+            const width = parseInt(widthInput.value) || 480;
             const height = Math.round(width * ratio);
             heightInput.value = height;
             setNestedSetting('canvas.ratio', ratio);
@@ -1585,9 +1585,9 @@
                 if (window.TextMuyAPI && editor) {
                     const settings = editor.getSettings();
                     const width = parseInt(document.getElementById('tt-download-width-input')?.value) ||
-                        (settings.canvas && settings.canvas.width) || 240;
+                        (settings.canvas && settings.canvas.width) || 480;
                     const height = parseInt(document.getElementById('tt-download-height-input')?.value) ||
-                        (settings.canvas && settings.canvas.height) || 600;
+                        (settings.canvas && settings.canvas.height) || 320;
                     const scale = parseFloat(document.getElementById('tt-download-scale-input')?.value || 1);
                     // Render from the current editor state (settings) so the
                     // downloaded PNG matches what the user sees.
@@ -1647,7 +1647,7 @@
                         const wInput = document.getElementById('tt-download-width-input');
                         const hInput = document.getElementById('tt-download-height-input');
                         if (wInput && hInput) {
-                            const w = parseInt(wInput.value) || 240;
+                            const w = parseInt(wInput.value) || 480;
                             hInput.value = Math.round(w * parts[1] / parts[0]);
                         }
                     }
@@ -1884,6 +1884,7 @@
     // ===== FONT SEARCH AND FILTER =====
     function initFontFilters() {
         const searchInput = document.getElementById('tt-font-search-input');
+        const clearBtn = document.getElementById('tt-font-search-clear');
         const categoryFilter = document.getElementById('tt-font-category-filter');
         const fontSelect = document.getElementById('tt-font-picker-input');
         const fontUpload = document.getElementById('tt-font-upload-input');
@@ -1942,8 +1943,20 @@
             });
         }
 
-        searchInput.addEventListener('input', filterFonts);
+        searchInput.addEventListener('input', function() {
+            if (clearBtn) clearBtn.hidden = !searchInput.value;
+            filterFonts();
+        });
         categoryFilter.addEventListener('change', filterFonts);
+        if (clearBtn) {
+            clearBtn.hidden = !searchInput.value;
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                clearBtn.hidden = true;
+                filterFonts();
+                searchInput.focus();
+            });
+        }
 
         if (fontUpload) {
             fontUpload.addEventListener('change', function(e) {

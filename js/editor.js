@@ -21,7 +21,10 @@
         letterSpacing: 0,
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
-        // Persistent per-line overrides. The base settings above are All.
+        // Alcance de estilo por linea: All = base; L1..Ln = delta disperso
+        // contra la base (solo lo que cambia). IDs estables en capas/estilos
+        // para que el delta sobreviva a borrar/reordenar.
+        lines: { activeTarget: 'all', overrides: {} },
 
         // ===== 3D & FILLING =====
         // Filling (Relleno principal) - RGB format matching TextStudio
@@ -335,9 +338,9 @@
 
         // ===== CANVAS =====
         canvas: {
-            width: 240,
-            height: 600,
-            ratio: 2.5,
+            width: 480,
+            height: 320,
+            ratio: 0.67,
             autoFit: false,
             zoom: 100,
             maxFontSize: 100,
@@ -476,8 +479,8 @@
     // Canvas pixels always keep their configured size. Zoom affects only the
     // preview CSS size so it cannot alter the output or stretch its aspect ratio.
     function calculateDynamicCanvasSize(ctx, text, s) {
-        const baseCanvasWidth = s.canvas.width || 240;
-        const baseCanvasHeight = s.canvas.height || 600;
+        const baseCanvasWidth = s.canvas.width || 480;
+        const baseCanvasHeight = s.canvas.height || 320;
         return {
             width: Math.max(1, Math.round(baseCanvasWidth)),
             height: Math.max(1, Math.round(baseCanvasHeight))
@@ -1031,28 +1034,141 @@
         img.src = src;
     }
 
-    // Draw outer shadow
-    function drawOuterShadow(ctx, text, lines, fontSizePx, s) {
-        // Support both legacy structure and new TextStudio structure
-        const shadowConfig = s.shadow.outer || s.shadowOuter;
+    // Apply blur to a canvas using StackBlur if available, otherwise ctx.filter
+    function applyBlur(canvas, radius) {
+        if (radius <= 0 || canvas.width === 0 || canvas.height === 0) return;
+        const ctx = canvas.getContext('2d');
+        if (typeof StackBlur !== 'undefined' && StackBlur.canvasRGB) {
+            StackBlur.canvasRGB(canvas, 0, 0, canvas.width, canvas.height, Math.round(radius));
+        } else if (typeof ctx.filter !== 'undefined') {
+            const tmp = document.createElement('canvas');
+            tmp.width = canvas.width;
+            tmp.height = canvas.height;
+            const tmpCtx = tmp.getContext('2d');
+            tmpCtx.filter = `blur(${radius}px)`;
+            tmpCtx.drawImage(canvas, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(tmp, 0, 0);
+        }
+    }
+
+    // Draw outer shadow (unificado: outer + outer2 + gradient support + strength + mask + blendmode)
+    function drawOuterShadowUnificado(ctx, text, lines, fontSizePx, s, configKey) {
+        const shadowConfig = s.shadow[configKey];
+        if (!shadowConfig || !isActive(s, 'shadow.' + configKey)) return;
+
         const distance = (shadowConfig.distance || 0.1) * fontSizePx;
         const angle = (shadowConfig.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
-        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
-        const alpha = safeGet(shadowConfig, 'fill.alpha', 1);
-        const color = shadowConfig.fill?.color || shadowConfig.color || '#000000';
+
+        const baseBlur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const strength = shadowConfig.strength || 0;
+        const blur = Math.max(0, baseBlur * (1 + strength));
+
+        const fillCfg = shadowConfig.fill || {};
+        const fillAlpha = fillCfg.alpha !== undefined ? fillCfg.alpha : 1;
+        const mask = shadowConfig.mask || false;
+        const blendmode = shadowConfig.blendmode || 'normal';
 
         ctx.save();
-        ctx.shadowColor = getColorValue(color, alpha);
-        ctx.shadowOffsetX = offsetX;
-        ctx.shadowOffsetY = offsetY;
-        ctx.shadowBlur = blur;
 
-        ctx.fillStyle = 'transparent';
-        drawTextLines(ctx, text, lines, fontSizePx, s);
+        if (fillCfg.gradient && fillCfg.gradient.active && fillCfg.gradient.colors && fillCfg.gradient.colors.length >= 2) {
+            // Gradient shadow
+            const off = document.createElement('canvas');
+            off.width = ctx.canvas.width;
+            off.height = ctx.canvas.height;
+            const offCtx = off.getContext('2d');
+            offCtx.setTransform(ctx.getTransform());
+
+            const box = getTextBlockBox(ctx, s, lines, fontSizePx);
+            const grad = createGradientInBox(offCtx, fillCfg.gradient, box);
+            offCtx.fillStyle = grad;
+            offCtx.strokeStyle = 'transparent';
+            drawTextLines(offCtx, text, lines, fontSizePx, s, false);
+
+            applyBlur(off, blur);
+
+            ctx.globalCompositeOperation = blendmode;
+            if (offsetX !== 0 || offsetY !== 0) {
+                const offsetCanvas = document.createElement('canvas');
+                offsetCanvas.width = off.width;
+                offsetCanvas.height = off.height;
+                const offsetCtx = offsetCanvas.getContext('2d');
+                offsetCtx.drawImage(off, offsetX, offsetY);
+                ctx.drawImage(offsetCanvas, 0, 0);
+            } else {
+                ctx.drawImage(off, 0, 0);
+            }
+            if (mask) {
+                ctx.globalCompositeOperation = 'destination-out';
+                drawTextLines(ctx, text, lines, fontSizePx, s, false);
+            }
+        } else {
+            // Solid color shadow
+            const color = getColorValue(fillCfg.color || '#000000', fillAlpha);
+
+            if (blur > 0) {
+                // Blur via offscreen for consistency
+                const off = document.createElement('canvas');
+                off.width = ctx.canvas.width;
+                off.height = ctx.canvas.height;
+                const offCtx = off.getContext('2d');
+                offCtx.setTransform(ctx.getTransform());
+                offCtx.fillStyle = color;
+                offCtx.strokeStyle = 'transparent';
+                drawTextLines(offCtx, text, lines, fontSizePx, s, false);
+
+                applyBlur(off, blur);
+
+                ctx.globalCompositeOperation = blendmode;
+                if (offsetX !== 0 || offsetY !== 0) {
+                    const offsetCanvas = document.createElement('canvas');
+                    offsetCanvas.width = off.width;
+                    offsetCanvas.height = off.height;
+                    const offsetCtx = offsetCanvas.getContext('2d');
+                    offsetCtx.drawImage(off, offsetX, offsetY);
+                    ctx.drawImage(offsetCanvas, 0, 0);
+                } else {
+                    ctx.drawImage(off, 0, 0);
+                }
+                if (mask) {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                }
+            } else {
+                // Sin blur - offset simple
+                ctx.globalCompositeOperation = blendmode;
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = 'transparent';
+
+                if (offsetX !== 0 || offsetY !== 0) {
+                    ctx.save();
+                    ctx.translate(offsetX, offsetY);
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                    ctx.restore();
+                } else {
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                }
+                if (mask) {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                }
+            }
+        }
 
         ctx.restore();
+    }
+
+    // Draw outer shadow
+    function drawOuterShadow(ctx, text, lines, fontSizePx, s) {
+        drawOuterShadowUnificado(ctx, text, lines, fontSizePx, s, 'outer');
+    }
+
+    // Draw outer shadow 2
+    function drawOuterShadow2(ctx, text, lines, fontSizePx, s) {
+        drawOuterShadowUnificado(ctx, text, lines, fontSizePx, s, 'outer2');
     }
 
     // Draw 3D depth (extrusion)
@@ -1101,21 +1217,22 @@
     function normalizeFillStyle(style) {
         if (typeof style === 'string') return { type: 'color', color: style };
         if (!style || typeof style !== 'object') return { type: 'color', color: '#ffffff' };
+        const keepId = (typeof style.id === 'string' && style.id) ? { id: style.id } : {};
         if (style.type === 'gradient' || (style.gradient && !style.type)) {
             const g = style.gradient || {};
-            return { type: 'gradient', gradient: { angle: g.angle || 0, colors: Array.isArray(g.colors) ? g.colors : [] } };
+            return Object.assign({ type: 'gradient', gradient: { angle: g.angle || 0, colors: Array.isArray(g.colors) ? g.colors : [] } }, keepId);
         }
         if (style.type === 'texture' || (style.texture && !style.type)) {
             const t = style.texture || {};
-            return { type: 'texture', texture: {
+            return Object.assign({ type: 'texture', texture: {
                 src: t.src || null,
                 repeat: t.repeat || 'repeat',
                 position: t.position || 'center',
                 fit: t.fit || 'fill',
                 scale: t.scale !== undefined ? t.scale : 1
-            } };
+            } }, keepId);
         }
-        return { type: 'color', color: style.color !== undefined ? style.color : '#ffffff' };
+        return Object.assign({ type: 'color', color: style.color !== undefined ? style.color : '#ffffff' }, keepId);
     }
 
     // Build fill layers from the legacy fields (color/gradient/texture/palette)
@@ -1159,18 +1276,35 @@
     }
 
     function getFillLayers(s) {
-        if (Array.isArray(s.fill.layers) && s.fill.layers.length) return s.fill.layers;
+        if (Array.isArray(s.fill.layers) && s.fill.layers.length) {
+            ensureFillIds(s.fill);
+            return s.fill.layers;
+        }
         return migrateLegacyFillLayers(s.fill);
     }
 
     function drawFill(ctx, text, lines, fontSizePx, s) {
-        getFillLayers(s).forEach(function(layer) {
-            if (!layer || layer.active === false) return;
-            drawFillLayer(ctx, text, lines, fontSizePx, s, layer);
-        });
+        // Alcance por linea: si hay overrides, cada linea se pinta con su
+        // config efectiva (base + delta disperso), reutilizando el mismo motor.
+        const lineOverrides = s.lines && s.lines.overrides ? s.lines.overrides : null;
+        const hasLineOverrides = lineOverrides && Object.keys(lineOverrides).length > 0;
+        if (!hasLineOverrides || typeof TextEditor === 'undefined' || !TextEditor.resolveLineSettings) {
+            getFillLayers(s).forEach(function(layer) {
+                if (!layer || layer.active === false) return;
+                drawFillLayer(ctx, text, lines, fontSizePx, s, layer);
+            });
+            return;
+        }
+        for (let li = 0; li < lines.length; li++) {
+            const ls = TextEditor.resolveLineSettings(li);
+            getFillLayers(ls).forEach(function(layer) {
+                if (!layer || layer.active === false) return;
+                drawFillLayer(ctx, lines[li], [lines[li]], fontSizePx, ls, layer, li);
+            });
+        }
     }
 
-    function drawFillLayer(ctx, text, lines, fontSizePx, s, layer) {
+    function drawFillLayer(ctx, text, lines, fontSizePx, s, layer, lineFilter) {
         const styles = (Array.isArray(layer.styles) ? layer.styles : []).filter(Boolean);
         if (!styles.length) return;
         const repeat = layer.repeat || 'none';
@@ -1181,13 +1315,13 @@
         if (repeat === 'none') {
             // Each style paints the whole text block, stacked in order
             styles.forEach(function(style) {
-                drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, normalizeFillStyle(style), alpha, blendmode);
+                drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, normalizeFillStyle(style), alpha, blendmode, lineFilter);
             });
         } else {
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.globalCompositeOperation = blendmode;
-            drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles.map(normalizeFillStyle));
+            drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles.map(normalizeFillStyle), lineFilter);
             ctx.restore();
         }
     }
@@ -1196,7 +1330,7 @@
     // directly; gradients/patterns with the Flag effect active are painted
     // offscreen spanning the block box and clipped to the text silhouette so
     // they are not rotated by the per-letter transforms.
-    function drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, style, alpha, blendmode) {
+    function drawFillStyleOnBlock(ctx, text, lines, fontSizePx, s, style, alpha, blendmode, lineFilter) {
         const flagActive = !isFlagNeutral(s) || isActive(s, 'lettering.boggle');
         const box = getTextBlockBox(ctx, s, lines, fontSizePx);
 
@@ -1219,7 +1353,7 @@
                 ctx.fillStyle = createPatternForBox(ctx, img, style.texture, box);
             }
             ctx.strokeStyle = 'transparent';
-            drawTextLines(ctx, text, lines, fontSizePx, s, false);
+            drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
             ctx.restore();
             return;
         }
@@ -1237,7 +1371,7 @@
         const mctx = mask.getContext('2d');
         mctx.setTransform(ctx.getTransform());
         mctx.fillStyle = '#ffffff';
-        drawTextLines(mctx, text, lines, fontSizePx, s, false);
+        drawTextLines(mctx, text, lines, fontSizePx, s, false, lineFilter);
 
         const styled = document.createElement('canvas');
         styled.width = W; styled.height = H;
@@ -1361,7 +1495,7 @@
 
     // letter/word/line units: each unit cycles through the layer styles and
     // is painted edge to edge of its own box.
-    function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles) {
+    function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles, lineFilter) {
         const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const spacing = s.letterSpacing * fontSizePx * 0.1;
         const flagActive = !isFlagNeutral(s) || isActive(s, 'lettering.boggle');
@@ -1579,54 +1713,145 @@
         ctx.restore();
     }
 
-    // Draw global outline (TextStudio: outline.global)
-    // This renders an outline around the entire text block, not per-character
-    function drawOutlineGlobal(ctx, text, lines, fontSizePx, s) {
-        // Placeholder for global outline implementation
-        // This requires rendering the entire text as a single path
-        // For now, skip to avoid errors
-        console.log('drawOutlineGlobal called - not yet implemented');
-    }
+    // Draw inner shadow (unificado: inner + inner2 — mask + strength + gradient + blendmode)
+    function drawInnerShadow(ctx, text, lines, fontSizePx, s, configKey) {
+        configKey = configKey || 'inner';
+        const shadowConfig = s.shadow[configKey];
+        if (!shadowConfig || !isActive(s, 'shadow.' + configKey)) return;
 
-    // Draw inner shadow
-    function drawInnerShadow(ctx, text, lines, fontSizePx, s) {
-        // Support both legacy structure and new TextStudio structure
-        const shadowConfig = s.shadow.inner || s.shadowInner;
         const distance = (shadowConfig.distance || 0.03) * fontSizePx;
-        const angle = (shadowConfig.angle || -45) * Math.PI / 180;
+        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
         const offsetX = Math.cos(angle) * distance;
         const offsetY = Math.sin(angle) * distance;
         const offset = (shadowConfig.offset || 0) * fontSizePx;
-        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
-        const alpha = shadowConfig.alpha || 1;
-        const color = shadowConfig.color || '#000000';
+        const baseBlur = (shadowConfig.size || 0.2) * fontSizePx * 2;
+        const strength = Math.max(0, shadowConfig.strength || 0);
+        const steps = Math.max(1, Math.round(strength * 4) + 1);
+        const mask = Boolean(shadowConfig.mask);
 
-        const canvas = state.canvas;
-        const offscreen = document.createElement('canvas');
-        offscreen.width = canvas.width;
-        offscreen.height = canvas.height;
-        const offCtx = offscreen.getContext('2d');
+        const lineCanvas = ctx.canvas;
+        const lineW = lineCanvas.width || 1;
+        const lineH = lineCanvas.height || 1;
 
-        offCtx.font = ctx.font;
-        offCtx.translate(offscreen.width / 2, offscreen.height / 2);
-        offCtx.fillStyle = getColorValue(color, alpha);
-        offCtx.shadowColor = getColorValue(color, alpha);
-        offCtx.shadowOffsetX = offsetX + offset;
-        offCtx.shadowOffsetY = offsetY + offset;
-        offCtx.shadowBlur = blur;
+        const layer = document.createElement('canvas');
+        layer.width = lineW;
+        layer.height = lineH;
+        const lctx = layer.getContext('2d');
+        lctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        offCtx.save();
-        drawTextLines(offCtx, text, lines, fontSizePx, s);
-        offCtx.restore();
+        const colorObj = shadowConfig.fill?.color || shadowConfig.color || '#000000';
+        let paintColor;
+        let paintAlpha = 1;
+
+        if (isActive(shadowConfig, 'fill.gradient') && Array.isArray(shadowConfig.fill.gradient.colors) && shadowConfig.fill.gradient.colors.length >= 2) {
+            const gradBox = { x: 0, y: 0, width: lineW, height: lineH };
+            const grad = createGradientInBox(lctx, shadowConfig.fill.gradient, gradBox);
+            paintColor = grad;
+        } else {
+            paintColor = getColorValue(colorObj, 1);
+            paintAlpha = Math.max(0, safeGet(shadowConfig, 'fill.alpha', 1));
+        }
+
+        if (paintAlpha <= 0) return;
+
+        for (let i = 0; i < steps; i++) {
+            const t = i / Math.max(1, steps - 1);
+            const eased = t * t;
+            const offX = offsetX + offset + (offsetX) * eased * (strength > 0 ? 0.4 : 0);
+            const offY = offsetY + offset + (offsetY) * eased * (strength > 0 ? 0.4 : 0);
+            const blur = baseBlur * (0.2 + 0.8 * (1 - t)) + (strength > 0 ? (strength * fontSizePx * 0.6) : 0);
+
+            lctx.save();
+            lctx.globalAlpha = paintAlpha * (1 - t * 0.35);
+            lctx.fillStyle = paintColor;
+            lctx.shadowColor = paintColor;
+            lctx.shadowOffsetX = offX;
+            lctx.shadowOffsetY = offY;
+            lctx.shadowBlur = blur;
+            lctx.font = ctx.font;
+            lctx.translate(lineW / 2 + offX * 0.25, lineH / 2 + offY * 0.25);
+            lctx.save();
+            drawTextLines(lctx, text, lines, fontSizePx, s);
+            lctx.restore();
+            lctx.restore();
+        }
 
         ctx.save();
         const blendmode = shadowConfig.blendmode || 'source-atop';
-        ctx.globalCompositeOperation = blendmode;
-        ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
+        const targetAlpha = paintAlpha;
+        if (mask) {
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.globalAlpha = 1;
+            ctx.drawImage(layer, 0, 0);
+            ctx.globalCompositeOperation = blendmode;
+            ctx.globalAlpha = targetAlpha;
+            ctx.drawImage(layer, 0, 0);
+        } else {
+            ctx.globalCompositeOperation = blendmode;
+            ctx.globalAlpha = targetAlpha;
+            ctx.drawImage(layer, 0, 0);
+        }
         ctx.restore();
     }
 
-    // Draw icon
+    // Draw inner shadow (legacy entry points delegating to the unified function)
+    function drawInnerShadowInner(ctx, text, lines, fontSizePx, s) {
+        drawInnerShadow(ctx, text, lines, fontSizePx, s, 'inner');
+    }
+    function drawInnerShadowInner2(ctx, text, lines, fontSizePx, s) {
+        drawInnerShadow(ctx, text, lines, fontSizePx, s, 'inner2');
+    }
+
+    // Draw global outline (TextStudio: outline.global) — extrusion detras del texto
+    function drawOutlineGlobal(ctx, text, lines, fontSizePx, s) {
+        if (!isActive(s, 'outline.global')) return;
+        const globalCfg = s.outline.global;
+        const width = (globalCfg.width || 0.15) * fontSizePx;
+        const steps = Math.max(1, Math.ceil(width / 2));
+
+        if (width <= 0) return;
+        const join = globalCfg.join || 'round';
+
+        // Componer extrusion en capa separada para no contaminar el pipeline
+        const ext = document.createElement('canvas');
+        ext.width = ctx.canvas.width;
+        ext.height = ctx.canvas.height;
+        const ectx = ext.getContext('2d');
+        ectx.setTransform(1, 0, 0, 1, 0, 0);
+
+        let strokeStyle;
+        if (isActive(globalCfg, 'fill.gradient')) {
+            const gradBox = { x: 0, y: 0, width: ext.width, height: ext.height };
+            strokeStyle = createGradientInBox(ectx, globalCfg.fill.gradient, gradBox);
+        } else {
+            const color = globalCfg.fill?.color || globalCfg.color || '#000000';
+            strokeStyle = getColorValue(color, safeGet(globalCfg, 'fill.alpha', 1));
+        }
+
+        ectx.lineJoin = join;
+        ectx.lineCap = 'round';
+        ectx.strokeStyle = strokeStyle;
+
+        for (let i = steps; i >= 1; i--) {
+            const offX = Math.cos(0) * (i * 1.2);
+            const offY = Math.sin(0) * (i * 1.2);
+            ectx.save();
+            ectx.translate(offX, offY);
+            ectx.lineWidth = width / steps * 1.2;
+            if (globalCfg.dash > 0) {
+                ectx.setLineDash([globalCfg.dash * fontSizePx, globalCfg.dash * fontSizePx * 0.5]);
+            }
+            ectx.fillStyle = 'transparent';
+            drawTextLines(ectx, text, lines, fontSizePx, s, true);
+            ectx.restore();
+        }
+
+        ctx.save();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(ext, 0, 0);
+        ctx.restore();
+    }
     function drawIcon(ctx, text, lines, fontSizePx, s) {
         if (!state.iconImg) return;
 
@@ -2358,6 +2583,117 @@
         current[keys[keys.length - 1]] = value;
     }
 
+    function getNested(obj, path) {
+        if (!obj) return undefined;
+        const keys = path.split('.');
+        let current = obj;
+        for (let i = 0; i < keys.length; i++) {
+            if (current === null || current === undefined) return undefined;
+            current = current[keys[i]];
+        }
+        return current;
+    }
+
+    // ===== IDs ESTABLES + ALCANCE POR LINEA (delta disperso) =====
+    // Colores siempre en hex tal cual (#ff0000): sin normalizar rgb<->hex.
+    let layerSeq = 1;
+    let styleSeq = 1;
+    function nextLayerId() { layerSeq += 1; return 'L' + layerSeq; }
+    function nextStyleId() { styleSeq += 1; return 'S' + styleSeq; }
+    function ensureFillIds(fill) {
+        if (!fill || typeof fill !== 'object') return fill;
+        (Array.isArray(fill.layers) ? fill.layers : []).forEach(function(layer) {
+            if (layer && !layer.id) layer.id = nextLayerId();
+            ((layer && Array.isArray(layer.styles)) ? layer.styles : []).forEach(function(style) {
+                if (style && typeof style === 'object' && !style.id) style.id = nextStyleId();
+            });
+        });
+        return fill;
+    }
+
+    function getLineTarget() {
+        const s = state.settings || {};
+        const t = s.lines && s.lines.activeTarget;
+        return (t === 'all' || /^L\d+$/.test(t || '')) ? (t || 'all') : 'all';
+    }
+
+    function setLineTarget(target) {
+        if (!state.settings.lines || typeof state.settings.lines !== 'object') {
+            state.settings.lines = { activeTarget: 'all', overrides: {} };
+        }
+        state.settings.lines.activeTarget = target;
+        render();
+    }
+
+    function pruneEmpty(obj) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+        Object.keys(obj).forEach(function(k) {
+            const v = obj[k];
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                pruneEmpty(v);
+                if (!Object.keys(v).length) delete obj[k];
+            }
+        });
+        return obj;
+    }
+
+    function setTargetedSetting(path, value) {
+        const target = getLineTarget();
+        if (target === 'all') {
+            setNested(state.settings, path, value);
+            render();
+            return;
+        }
+        const idx = String(parseInt(target.slice(1), 10) - 1);
+        state.settings.lines.overrides = state.settings.lines.overrides || {};
+        const prev = state.settings.lines.overrides[idx];
+        const ov = (prev && typeof prev === 'object') ? prev : {};
+        setNested(ov, path, value);
+        if (JSON.stringify(getNested(ov, path)) === JSON.stringify(getNested(state.settings, path))) {
+            const keys = path.split('.');
+            let node = ov;
+            for (let i = 0; i < keys.length - 1; i++) { node = node && node[keys[i]]; }
+            if (node) delete node[keys[keys.length - 1]];
+        }
+        pruneEmpty(ov);
+        if (Object.keys(ov).length) state.settings.lines.overrides[idx] = ov;
+        else delete state.settings.lines.overrides[idx];
+        render();
+    }
+
+    function getEffectiveSetting(lineIdx, path) {
+        const ov = state.settings.lines && state.settings.lines.overrides
+            ? state.settings.lines.overrides[String(lineIdx)] : null;
+        const v = ov ? getNested(ov, path) : undefined;
+        return v !== undefined ? v : getNested(state.settings, path);
+    }
+
+    function localApplyDelta(target, delta) {
+        if (window.PresetManager && window.PresetManager.applyDelta) {
+            window.PresetManager.applyDelta(target, delta);
+            return target;
+        }
+        if (!delta || typeof delta !== 'object' || Array.isArray(delta)) return target;
+        Object.keys(delta).forEach(function(k) {
+            const v = delta[k];
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                if (!target[k] || typeof target[k] !== 'object') target[k] = {};
+                localApplyDelta(target[k], v);
+            } else { target[k] = v; }
+        });
+        return target;
+    }
+
+    function resolveLineSettings(lineIdx) {
+        const base = JSON.parse(JSON.stringify(state.settings));
+        delete base.lines;
+        const ov = state.settings.lines && state.settings.lines.overrides
+            ? state.settings.lines.overrides[String(lineIdx)] : null;
+        if (ov) localApplyDelta(base, JSON.parse(JSON.stringify(ov)));
+        ensureFillIds(base.fill);
+        return base;
+    }
+
     // Convert a TextStudio color (hex string or {r,g,b[,a]}) to a plain hex string
     function colorToHex(color) {
         if (typeof color === 'string') return color;
@@ -2900,9 +3236,9 @@
         // Canvas controls
         if (s.canvas) {
             setInputValue('tt-canvas-zoom-input', s.canvas.zoom !== undefined ? s.canvas.zoom : 100);
-            setInputValue('tt-canvas-width-input', s.canvas.width || 240);
-            setInputValue('tt-canvas-height-input', s.canvas.height || 600);
-            setInputValue('tt-canvas-ratio-input', s.canvas.ratio || 2.5);
+            setInputValue('tt-canvas-width-input', s.canvas.width || 480);
+            setInputValue('tt-canvas-height-input', s.canvas.height || 320);
+            setInputValue('tt-canvas-ratio-input', s.canvas.ratio || 0.67);
             setInputValue('tt-canvas-max-font-size-input', s.canvas.maxFontSize || 100);
             setInputValue('tt-canvas-margin-input', Math.round((s.canvas.padding !== undefined ? s.canvas.padding : 0) * 100));
         }
@@ -3244,6 +3580,12 @@
         createDefaultSettings: createDefaultSettings,
         renderToCanvas: renderToCanvas,
         getSettings: getSettings,
+        getLineTarget: getLineTarget,
+        setLineTarget: setLineTarget,
+        setTargetedSetting: setTargetedSetting,
+        getEffectiveSetting: getEffectiveSetting,
+        resolveLineSettings: resolveLineSettings,
+        ensureFillIds: ensureFillIds,
         getCanvas: getCanvas,
         getCtx: getCtx,
         getFillLayers: getFillLayers,

@@ -636,6 +636,41 @@ fieldset legend label {
     outline: none;
 }
 
+/* ===== FONT SEARCH (input con boton limpiar) ===== */
+.tt-font-search-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.tt-font-search-wrap #tt-font-search-input {
+    width: 100%;
+    padding-right: 28px;
+}
+
+.tt-font-search-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    line-height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--tt-text-muted);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.tt-font-search-clear:hover {
+    background: var(--tt-bg-hover);
+    color: var(--tt-text-bright);
+}
+
+.tt-font-search-clear[hidden] { display: none; }
+
 /* ===== CUSTOM MENU (STYLES SUB-TABS) ===== */
 #tt-custom-menu {
     display: flex;

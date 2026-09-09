@@ -89,8 +89,8 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 if (window.TextMuyAPI && window.TextEditor) {
-                    var w = parseInt(document.getElementById('tt-download-width-input')?.value || 240);
-                    var h = parseInt(document.getElementById('tt-download-height-input')?.value || 600);
+                    var w = parseInt(document.getElementById('tt-download-width-input')?.value || 480);
+                    var h = parseInt(document.getElementById('tt-download-height-input')?.value || 320);
                     TextMuyAPI.downloadPNG({
                         settings: TextEditor.getSettings(),
                         text: TextEditor.getSettings().text,
