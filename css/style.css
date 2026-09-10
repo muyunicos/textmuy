@@ -460,6 +460,39 @@ strong {
     background: var(--tt-accent);
     border-color: var(--tt-accent);
 }
+/* ===== LINE TARGET BAR (selector unico fijo All/L1/L2/L3) ===== */
+#tt-line-target-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--tt-bg-panel-2);
+    border-top: 1px solid var(--tt-border-input);
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+}
+
+#tt-line-target-bar[hidden] {
+    display: none;
+}
+
+#tt-line-target-bar .tt-line-style-tabs {
+    flex: 1;
+}
+
+.tt-line-target-label {
+    font-size: 12px;
+    color: var(--tt-text-muted);
+    white-space: nowrap;
+}
+
+[data-global-only][hidden],
+[data-line-sizing-ref][hidden],
+[data-line-sizing-label][hidden] {
+    display: none;
+}
+
 
 .tt-option.tt-inline {
     display: flex;

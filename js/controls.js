@@ -9,6 +9,7 @@
     function init(editorInstance) {
         editor = editorInstance;
         bindControls();
+        bindLineSizingUI();
         bindMenuTabs();
         bindCustomMenu();
         bindDownloadControls();
@@ -39,7 +40,10 @@
         'canvas', 'lines', 'download', 'processing',
         'lettering.flag', 'lettering.boggle',
         'lettering.reverseOverlap', 'lettering.blendmode',
-        'font.src'
+        'font.src',
+        // lines.sizing es config del sistema de lineas (como activeTarget):
+        // global-only para que el select de referencia nunca genere overrides.
+        'lines.sizing'
     ];
 
     function isGlobalOnlyPath(path) {
@@ -68,6 +72,24 @@
         }
         editor.render();
     }
+
+        // Gating por target: la barra unica siempre visible en
+        // TEXT/STYLES/ICON (oculta en BACKGROUND/DOWNLOAD); el grupo Canvas
+        // Size (data-global-only) solo visible en All.
+        function applyLineTargetGating() {
+            if (!editor) return;
+            const target = editor.getLineTarget();
+            const isLine = /^L\d+$/.test(target);
+            const bar = document.querySelector('[data-line-target-bar]');
+            const activeLi = document.querySelector('#tt-options-menu li.selected');
+            const activeName = activeLi ? activeLi.dataset.name : 'text';
+            const showBar = activeName === 'text' || activeName === 'custom' || activeName === 'icon';
+            if (bar) bar.hidden = !showBar;
+            document.querySelectorAll('[data-global-only]').forEach(function(el) {
+                el.hidden = isLine;
+            });
+        }
+
 
     // Bind line-style target tabs (All / L1 / L2 / L3)
     function bindLineStyleTabs() {
@@ -101,6 +123,10 @@
         document.addEventListener('textmuy:line-target-updated', function() {
             if (window.GradientPicker && window.GradientPicker.init) {
                 window.GradientPicker.init();
+        // Mostrar/ocultar la barra unica + gating de grupos globales.
+        document.addEventListener('textmuy:line-target-updated', applyLineTargetGating);
+        applyLineTargetGating();
+
             }
         });
     }
@@ -313,6 +339,62 @@
             const marginInput = document.getElementById('tt-canvas-margin-input');
             if (marginInput && settings.canvas.padding !== undefined) {
                 marginInput.value = Math.round(settings.canvas.padding * 100);
+        // ===== LINE SIZING UI (selector de referencia de tamano) =====
+        // Visible solo con target L1/L2/...; escribe a lines.sizing (global).
+        function refreshLineSizingUI() {
+            const refSel = document.getElementById('tt-line-sizing-ref-input');
+            if (!refSel) return;
+            const refLabel = document.querySelector('[data-line-sizing-label]');
+            const target = editor ? editor.getLineTarget() : 'all';
+            const isLine = /^L\d+$/.test(target);
+            const text = editor ? String(editor.getSettings().text || 'TEXT') : 'TEXT';
+            const n = Math.max(1, text.split('\n').length);
+            refSel.innerHTML = '';
+            const optC = document.createElement('option');
+            optC.value = 'canvas';
+            optC.textContent = 'Canvas';
+            refSel.appendChild(optC);
+            const selfIdx = isLine ? parseInt(target.slice(1), 10) - 1 : -1;
+            for (let i = 0; i < Math.max(n, 3); i++) {
+                if (i === selfIdx) continue;
+                const o1 = document.createElement('option');
+                o1.value = 'line:' + i + ':fontsize';
+                o1.textContent = 'L' + (i + 1) + ' · font size';
+                refSel.appendChild(o1);
+                const o2 = document.createElement('option');
+                o2.value = 'line:' + i + ':width';
+                o2.textContent = 'L' + (i + 1) + ' · ancho';
+                refSel.appendChild(o2);
+            }
+            try {
+                const sz = editor.getSettings().lines && editor.getSettings().lines.sizing;
+                if (sz && sz.ref === 'line') refSel.value = 'line:' + (sz.refLine || 0) + ':' + (sz.mode === 'width' ? 'width' : 'fontsize');
+                else refSel.value = 'canvas';
+            } catch (e) { refSel.value = 'canvas'; }
+            refSel.hidden = !isLine;
+            if (refLabel) refLabel.hidden = !isLine;
+        }
+
+        function bindLineSizingUI() {
+            const refSel = document.getElementById('tt-line-sizing-ref-input');
+            if (refSel && !refSel.dataset.bound) {
+                refSel.dataset.bound = '1';
+                refSel.addEventListener('change', function() {
+                    if (!editor) return;
+                    const v = String(this.value || 'canvas');
+                    if (v === 'canvas') editor.setLineSizing({ ref: 'canvas' });
+                    else {
+                        const parts = v.split(':');
+                        editor.setLineSizing({ ref: 'line', refLine: parseInt(parts[1], 10) || 0, mode: parts[2] === 'width' ? 'width' : 'fontsize' });
+                    }
+                    editor.render();
+                });
+            }
+            document.addEventListener('textmuy:line-target-updated', refreshLineSizingUI);
+            document.addEventListener('textmuy:settings-updated', refreshLineSizingUI);
+            refreshLineSizingUI();
+        }
+
             }
         }
 
@@ -1014,6 +1096,13 @@
             searchInput.addEventListener('input', function() {
                 const q = this.value.toLowerCase();
                 const filtered = backgrounds.filter(function(bg) {
+            options.querySelectorAll('section').forEach(function(section) {
+                section.style.display = section.dataset.name === sectionName ? 'flex' : 'none';
+            });
+            if (typeof applyLineTargetGating === 'function') {
+                try { applyLineTargetGating(); } catch (e) {}
+            }
+
                     return bg.title.toLowerCase().includes(q);
                 });
                 renderBackgrounds(filtered);
@@ -1035,6 +1124,7 @@
             menu.querySelectorAll('li').forEach(function(item) { item.classList.remove('selected'); });
             li.classList.add('selected');
             const sectionName = li.dataset.name;
+            if (typeof applyLineTargetGating === 'function') { try { applyLineTargetGating(); } catch (e) {} }
             options.querySelectorAll('section').forEach(function(section) {
                 section.style.display = section.dataset.name === sectionName ? 'flex' : 'none';
             });

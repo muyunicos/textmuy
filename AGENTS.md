@@ -112,7 +112,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC16**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC17**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -187,6 +187,15 @@ textmuy/
   `textmuy:line-target-updated`); los inputs marcan `data-line-override="1/0"`
   (propio vs heredado). Al cargar preset se resetea el target a All y se podan
   overrides huerfanos globales (`pruneGlobalOnlyOverrides`).
+- ✅ **Tamano por linea con referencia (`lines.sizing`)**: config global del
+  sistema de lineas (`{ref:'canvas'|'line', refLine, mode:'fontsize'|'width'}`).
+  `ref:'canvas'` = autoFit historico. `ref:'line'` = la linea objetivo copia el
+  tamano resuelto de otra linea (fontsize) o se ajusta a su ancho con el alto
+  restante del canvas (width). UI: barra unica fija All/L1/L2/L3
+  (`#tt-line-target-bar`, visible solo en TEXT/STYLES/ICON), grupo Canvas Size
+  oculto en L1/L2/... (`data-global-only`), selector Sizing ref en Max Font
+  Size (solo en L1/L2/...). Render: `lineFontSizes()` + `state.lineFontPx` +
+  `drawTextLines` con avances acumulados (sin superposicion).
 
 
 ## 8. Dificultades del entorno (IMPORTANTE AL TRABAJAR AQUÍ)

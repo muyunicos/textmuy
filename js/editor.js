@@ -21,10 +21,13 @@
         letterSpacing: 0,
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
-        // Alcance de estilo por linea: All = base; L1..Ln = delta disperso
-        // contra la base (solo lo que cambia). IDs estables en capas/estilos
-        // para que el delta sobreviva a borrar/reordenar.
-        lines: { activeTarget: 'all', overrides: {} },
+        // ===== LINE SIZING DEFAULTS (referencia de tamano por linea) =====
+        // lines.sizing vive junto a activeTarget: es config del sistema de
+        // lineas, NO un override. ref:'canvas' = comportamiento historico
+        // (autoFit contra el lienzo). ref:'line' = la linea objetivo copia el
+        // tamano resuelto de otra linea (mode fontsize) o se auto-ajusta a su
+        // ancho con el alto restante del canvas (mode width).
+        lines: { activeTarget: 'all', overrides: {}, sizing: { ref: 'canvas', refLine: 0, mode: 'fontsize' } },
 
         // ===== 3D & FILLING =====
         // Filling (Relleno principal) - RGB format matching TextStudio
@@ -746,6 +749,11 @@
         const maxFontSizePx = singleCharacterReference * maxFontPercentage;
         const fittingFontSize = autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s);
         const fontSizePx = Math.max(8, Math.round(Math.min(fittingFontSize, maxFontSizePx)));
+
+        // Tamano por linea: global salvo sizing en modo line u overrides de
+        // font.size. state.lineFontPx[i] es la fuente de verdad del tamano de
+        // cada linea para drawTextLines y los motores por-linea.
+        state.lineFontPx = lineFontSizes(ctx, lines, canvasWidth, canvasHeight, s, fontSizePx);
 
         // Changing canvas dimensions resets every 2D context property.
         setTextFont(ctx, s, fontSizePx);
@@ -2227,12 +2235,20 @@
         }
     }
 
-    function setTextFont(ctx, s, fontSizePx) {
+    function setTextFont(ctx, s, fontSizePx, lineIdx) {
         const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
         const fontWeight = s.font.weight || 'normal';
-        ctx.font = `${fontWeight} ${fontSizePx}px ${fontName}`;
+        let px = fontSizePx;
+        if (lineIdx !== undefined && lineIdx !== null && state.lineFontPx && state.lineFontPx[lineIdx] !== undefined) {
+            px = state.lineFontPx[lineIdx];
+        } else if (s.lines && s.lines.overrides && s.lines.overrides[String(lineIdx)] !== undefined && lineIdx !== undefined && lineIdx !== null) {
+            const ovSize = getNested(s.lines.overrides[String(lineIdx)], 'font.size');
+            if (ovSize !== undefined) px = Number(ovSize) || px;
+        }
+        ctx.font = `${fontWeight} ${px}px ${fontName}`;
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
+        return px;
     }
 
     // Return baseline positions that center the real glyph box at the origin.
@@ -2257,36 +2273,43 @@
     // lineAdvance del bloque completo), asi el lineHeight/base se conserva y
     // las lineas nunca se superponen.
     function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke, lineFilter) {
-        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
-        const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
-
-        // Calculate widths for alignment (TextStudio style: align lines relative to each other)
-        const lineWidths = [];
+        // Tamano por linea: cada linea se mide y pinta con su propio px
+        // (state.lineFontPx); la Y usa avances acumulados para que lineas de
+        // distinto tamano no se superpongan (la altura de cada linea la da SU
+        // propio tamano x lineHeight global).
+        const perLine = [];
         let maxLineWidth = 0;
         for (let i = 0; i < lines.length; i++) {
-            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            lineWidths.push(lineWidth);
+            const px = (state.lineFontPx && state.lineFontPx[i] !== undefined) ? state.lineFontPx[i] : fontSizePx;
+            perLine.push(px);
+            setTextFont(ctx, s, px, i);
+            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, px);
             if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
         }
-
+        const lh = (s.lineHeight !== undefined ? s.lineHeight : 1);
+        let totalH = 0;
+        for (let i = 0; i < lines.length; i++) totalH += perLine[i] * lh;
+        let y = -totalH / 2;
         for (let i = 0; i < lines.length; i++) {
-            if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) continue;
+            if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) { y += perLine[i] * lh; continue; }
             const line = lines[i];
-            // Calcular posición Y para cada línea
-            const y = blockMetrics.firstBaseline + i * blockMetrics.lineAdvance;
-            
-            // Calculate X offset based on alignment (TextStudio style)
+            const px = perLine[i];
+            setTextFont(ctx, s, px, i);
+            const m = ctx.measureText('Ag');
+            const ascent = m.actualBoundingBoxAscent || px * 0.8;
+            const baseline = y + ascent;
+            const letterSpacing = s.letterSpacing * px * 0.1;
             let xOffset = 0;
             if (s.align === 'left') {
-                xOffset = -maxLineWidth / 2; // Left align: borde izquierdo del contenedor más ancho
+                xOffset = -maxLineWidth / 2;
             } else if (s.align === 'right') {
-                xOffset = maxLineWidth / 2; // Right align: borde derecho del contenedor más ancho
+                xOffset = maxLineWidth / 2;
             }
-            // Center is the default: drawTextWithSpacing offsets the line itself.
-            // Curving is a post-composition bitmap operation (see render()).
-            drawTextWithSpacing(ctx, line, xOffset, y, letterSpacing, isStroke, s, fontSizePx);
+            drawTextWithSpacing(ctx, line, xOffset, baseline, letterSpacing, isStroke, s, px);
+            y += px * lh;
         }
     }
+
 
     // ===== Flag (bandera) — wave model =====
     // Every letter i of a line of n characters samples the same wave w in
@@ -2801,6 +2824,33 @@
         return v !== undefined ? v : getNested(state.settings, path);
     }
 
+    // ===== LINE SIZING (tamano por linea con referencia) =====
+    // sizing vive en settings.lines (config global del sistema de lineas).
+    // ref:'canvas' = autoFit historico. ref:'line' = la linea objetivo copia
+    // el tamano de otra linea (mode fontsize) o se ajusta a su ancho con el
+    // alto restante (mode width). Cadenas a 1 nivel (sin ciclos L1->L2->L1).
+    function getLineSizing() {
+        const lz = (state.settings && state.settings.lines && state.settings.lines.sizing) || {};
+        return {
+            ref: lz.ref === 'line' ? 'line' : 'canvas',
+            refLine: Math.max(0, parseInt(lz.refLine, 10) || 0),
+            mode: lz.mode === 'width' ? 'width' : 'fontsize'
+        };
+    }
+
+    function setLineSizing(patch) {
+        if (!state.settings.lines || typeof state.settings.lines !== 'object') {
+            state.settings.lines = { activeTarget: 'all', overrides: {} };
+        }
+        const cur = state.settings.lines.sizing || {};
+        state.settings.lines.sizing = {
+            ref: patch.ref !== undefined ? (patch.ref === 'line' ? 'line' : 'canvas') : (cur.ref === 'line' ? 'line' : 'canvas'),
+            refLine: patch.refLine !== undefined ? Math.max(0, parseInt(patch.refLine, 10) || 0) : (cur.refLine || 0),
+            mode: patch.mode !== undefined ? (patch.mode === 'width' ? 'width' : 'fontsize') : (cur.mode === 'width' ? 'width' : 'fontsize')
+        };
+        render();
+    }
+
     // Sync simple controls from the effective settings of the active line target.
     // Delegates to window.TextEditorControls bindings when available (registrations
     // land there via bindRange/bindCheckbox/etc.). Falls back to a minimal
@@ -2881,6 +2931,72 @@
                 window.TextEditorControls.refreshInputDecorations(el);
             }
         });
+    }
+
+    // Tamano base (canvas) de UNA linea aislada: biseccion como autoFitText
+    // pero con una sola linea y caja disponible explicita. Devuelve px.
+    function fitSingleLine(ctx, lineText, availW, availH, s) {
+        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+        const fontWeight = s.font.weight || 'normal';
+        let lo = 8;
+        let hi = Math.max(8, Math.ceil(Math.max(availW, availH)));
+        let best = 8;
+        while (lo <= hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            ctx.font = `${fontWeight} ${mid}px ${fontName}`;
+            const w = measureTextWidth(ctx, lineText, s.letterSpacing, mid);
+            const m = ctx.measureText('Ag');
+            const h = (m.actualBoundingBoxAscent || mid * 0.8) + (m.actualBoundingBoxDescent || mid * 0.2);
+            if (w + calcExtraWidth(s, mid) <= availW && h + calcExtraHeight(s, mid) <= availH) { best = mid; lo = mid + 1; }
+            else { hi = mid - 1; }
+        }
+        return best;
+    }
+
+    // Resuelve el fontSizePx de cada linea segun lines.sizing. Sin sizing en
+    // modo line ni overrides de font.size devuelve el global repetido (rapido).
+    function lineFontSizes(ctx, lines, canvasWidth, canvasHeight, s, fontSizePx) {
+        const sizing = getLineSizing();
+        const n = lines.length;
+        const out = new Array(n).fill(fontSizePx);
+        const ovs = (s.lines && s.lines.overrides) || {};
+        const hasSizeOv = Object.keys(ovs).some(function(k) {
+            return getNested(ovs[k], 'font.size') !== undefined;
+        });
+        if (sizing.ref !== 'line' && !hasSizeOv) return out;
+        const pad = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
+        const availW = Math.max(1, canvasWidth - pad * 2);
+        const availH = Math.max(1, canvasHeight - pad * 2);
+        const maxPct = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
+        const singleRef = canvasWidth >= canvasHeight ? availH : availW;
+        const target = getLineTarget();
+        const ti = target === 'all' ? -1 : parseInt(target.slice(1), 10) - 1;
+        for (let li = 0; li < n; li++) {
+            if (li === ti && sizing.ref === 'line') continue;
+            const ovSize = ovs[String(li)] ? getNested(ovs[String(li)], 'font.size') : undefined;
+            if (ovSize !== undefined) {
+                out[li] = Math.max(8, Math.round(Math.min(Number(ovSize) || fontSizePx, singleRef * maxPct, fontSizePx)));
+            }
+        }
+        if (sizing.ref === 'line' && ti >= 0 && ti < n) {
+            const ri = Math.min(n - 1, sizing.refLine);
+            if (ri >= 0 && ri < n && ri !== ti) {
+                if (sizing.mode === 'fontsize') {
+                    out[ti] = Math.max(8, Math.round(out[ri] * maxPct));
+                } else {
+                    const rName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
+                    ctx.font = `${s.font.weight || 'normal'} ${out[ri]}px ${rName}`;
+                    const refW = Math.max(1, measureTextWidth(ctx, lines[ri], s.letterSpacing, out[ri]));
+                    let otherH = 0;
+                    for (let li = 0; li < n; li++) {
+                        if (li === ti) continue;
+                        otherH += out[li] * (s.lineHeight !== undefined ? s.lineHeight : 1);
+                    }
+                    out[ti] = Math.max(8, fitSingleLine(ctx, lines[ti], Math.min(refW, availW), Math.max(1, availH - otherH), s));
+                }
+            }
+        }
+        return out;
     }
 
     function localApplyDelta(target, delta) {
@@ -3810,6 +3926,9 @@
         resolveLineSettings: resolveLineSettings,
         OPTION_REGISTRY: OPTION_REGISTRY,
         updateUIFromLineTarget: updateUIFromLineTarget,
+        getLineSizing: getLineSizing,
+        setLineSizing: setLineSizing,
+
         ensureFillIds: ensureFillIds,
         getCanvas: getCanvas,
         getCtx: getCtx,

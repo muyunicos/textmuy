@@ -67,7 +67,7 @@
                         <div class="tt-columns">
                             <div class="tt-column">
                                 <div class="tt-column-inner">
-                                    <div class="tt-option">
+                                    <div class="tt-option" data-global-only>
                                         <label class="tt-label">Canvas Size:</label>
                                         <div style="display: flex; gap: 8px; align-items: center;">
                                             <input type="number" id="tt-canvas-width-input" data-tt-option="canvas.width" value="480" min="100" max="4000" style="width: 80px;">
@@ -82,6 +82,10 @@
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-max-font-size-input"><span>Max Font Size (1 character):</span></label>
                                         <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="V+'%'"><output>100%</output></div>
+                                        <label class="tt-label" for="tt-line-sizing-ref-input" data-line-sizing-label hidden><span>Sizing ref:</span></label>
+                                        <select id="tt-line-sizing-ref-input" data-line-sizing-ref hidden>
+                                            <option value="canvas">Canvas</option>
+                                        </select>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-margin-input"><span>Margin:</span></label>
@@ -225,15 +229,6 @@
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input" ></span></label>
                                         <div class="tt-range-bubble"><input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" data-bubble="V+'°'"><output style="left: calc(27.0833% + 3.9375px); display: none;">-82.5°</output></div>
-                                    </div>
-                                    <div class="tt-option tt-line-style-anchor" data-line-style-anchor>
-                                        <label class="tt-label"><span>Style target:</span></label>
-                                        <div class="tt-line-style-tabs" role="tablist" aria-label="Line style target">
-                                            <button type="button" class="selected" data-line-style="all">All</button>
-                                            <button type="button" data-line-style="1">L1</button>
-                                            <button type="button" data-line-style="2">L2</button>
-                                            <button type="button" data-line-style="3">L3</button>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1214,15 +1209,6 @@
                                             <input type="color" class="tt-color" value="#0000ff" id="tt-shadow-outer2-fill-color-input" data-tt-option="shadow.outer2.fill.color">
                                         </div>
                                     </fieldset>
-                                    <div class="tt-option tt-line-style-anchor" data-line-style-anchor>
-                                        <label class="tt-label"><span>Style target:</span></label>
-                                        <div class="tt-line-style-tabs" role="tablist" aria-label="Line style target">
-                                            <button type="button" class="selected" data-line-style="all">All</button>
-                                            <button type="button" data-line-style="1">L1</button>
-                                            <button type="button" data-line-style="2">L2</button>
-                                            <button type="button" data-line-style="3">L3</button>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
@@ -1288,15 +1274,6 @@
                                                 <option value="soft-light">Soft Light</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option>
                                                 <option value="hue">Hue</option><option value="saturation">Saturation</option><option value="color">Color</option><option value="luminosity">Luminosity</option>
                                             </select>
-                                        </div>
-                                        <div class="tt-option tt-line-style-anchor" data-line-style-anchor>
-                                            <label class="tt-label"><span>Style target:</span></label>
-                                            <div class="tt-line-style-tabs" role="tablist" aria-label="Line style target">
-                                                <button type="button" class="selected" data-line-style="all">All</button>
-                                                <button type="button" data-line-style="1">L1</button>
-                                                <button type="button" data-line-style="2">L2</button>
-                                                <button type="button" data-line-style="3">L3</button>
-                                            </div>
                                         </div>
                                     </fieldset>
                                 </div>
@@ -1469,23 +1446,32 @@
                         </div>
                     </section>
                 </div>
+                <div id="tt-line-target-bar" data-line-target-bar hidden>
+                    <span class="tt-line-target-label"><span>Style target:</span></span>
+                    <div class="tt-line-style-tabs" role="tablist" aria-label="Line style target">
+                        <button type="button" class="selected" data-line-style="all">All</button>
+                        <button type="button" data-line-style="1">L1</button>
+                        <button type="button" data-line-style="2">L2</button>
+                        <button type="button" data-line-style="3">L3</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="js/fonts.js?v=RC16"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC16"></script>
-    <script src="js/effects/specular-webgl.js?v=RC16"></script>
-    <script src="js/effects/distort-engine.js?v=RC16"></script>
-    <script src="js/preset-manager.js?v=RC16"></script>
-    <script src="js/gradient-picker.js?v=RC16"></script>
-    <script src="js/editor.js?v=RC16"></script>
+    <script src="js/fonts.js?v=RC17"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC17"></script>
+    <script src="js/effects/specular-webgl.js?v=RC17"></script>
+    <script src="js/effects/distort-engine.js?v=RC17"></script>
+    <script src="js/preset-manager.js?v=RC17"></script>
+    <script src="js/gradient-picker.js?v=RC17"></script>
+    <script src="js/editor.js?v=RC17"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC16"></script>
-    <script src="js/controls.js?v=RC16"></script>
-    <script src="js/export.js?v=RC16"></script>
-    <script src="js/api.js?v=RC16"></script>
-    <script src="js/main.js?v=RC16"></script>
+    <script src="js/galeria.js?v=RC17"></script>
+    <script src="js/controls.js?v=RC17"></script>
+    <script src="js/export.js?v=RC17"></script>
+    <script src="js/api.js?v=RC17"></script>
+    <script src="js/main.js?v=RC17"></script>
 </body>
 </html>
 
