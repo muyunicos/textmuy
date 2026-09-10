@@ -427,6 +427,48 @@
         return todas;
     }
 
+    // ===== FUENTES FISICAS (uploads/.../textmuy/fonts/) =====
+    // El plugin escanea la carpeta y manda bridge.fuentes [{nombre, titulo,
+    // url, categoria?}]. Renombrar/cambiar categoria = moverFuente (el
+    // servidor renombra el TTF y/o actualiza su categoria). Sin puente no hay
+    // CRUD fisico (standalone = solo lectura del catalogo + uploads locales).
+    /** Renombra y/o mueve de categoria una fuente. Devuelve el item actualizado. */
+    async function moverFuente(item, nombreNuevo, categoriaNueva) {
+        if (!bridgeAvailable()) {
+            throw new Error('El directorio de fuentes solo esta disponible dentro del plugin.');
+        }
+        if (!bridge.urls.cambiarFuente) {
+            throw new Error('El plugin no expone cambiarFuente.');
+        }
+        const fd = new FormData();
+        fd.append('nombre', item.serverFile || item.nombre || item.slug);
+        fd.append('nombreNuevo', nombreNuevo);
+        fd.append('categoriaNueva', categoriaNueva || 'custom');
+        fd.append('_wpnonce', bridge.nonces.cambiarFuente);
+        const resp = await fetch(bridge.urls.cambiarFuente, {
+            method: 'POST', body: fd, credentials: 'same-origin'
+        });
+        const datos = await leerJson(resp);
+        if (!resp.ok || !datos || !datos.success) {
+            throw new Error(mensajePuente(datos, resp, 'No se pudo renombrar la fuente.'));
+        }
+        const itemNuevo = datos.data;
+        if (Array.isArray(bridge.fuentes)) {
+            bridge.fuentes = bridge.fuentes.filter(function (f) {
+                return (f.nombre || f.slug) !== (item.serverFile || item.nombre || item.slug);
+            });
+            bridge.fuentes.push(itemNuevo);
+        }
+        if (window.FontLoader && window.FontLoader.listServerFonts) {
+            // Re-registrar: quitar la vieja y dar de alta la nueva via sync.
+            try { window.FontLoader.deleteCustomFont(item.fontKey || item.slug); } catch (_) {}
+        }
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate('fuentes'); } catch (_) {}
+        }
+        return itemNuevo;
+    }
+
     // ===== LISTADO =====
     function bridgeAvailable() {
         return !!(bridge && bridge.urls && bridge.urls.guardarPreset && bridge.nonces);
@@ -600,6 +642,8 @@
         uploadImage,
         deleteImage,
         moverImagen,
+        // Fuentes fisicas (uploads/.../textmuy/fonts/, escaneo del plugin)
+        moverFuente,
         // Miniaturas de galeria (spritesheet global thumbs/presets.webp o render lazy)
         ensureThumbnail,
         thumbnailDataUrl,

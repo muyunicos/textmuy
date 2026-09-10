@@ -1,0 +1,282 @@
+[
+    {
+        "nombre": "Bangers",
+        "titulo": "Bangers",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Permanent Marker",
+        "titulo": "Permanent Marker",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Rock Salt",
+        "titulo": "Rock Salt",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Anton",
+        "titulo": "Anton",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Oswald",
+        "titulo": "Oswald",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Montserrat",
+        "titulo": "Montserrat",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Pacifico",
+        "titulo": "Pacifico",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Press Start 2P",
+        "titulo": "Press Start 2P",
+        "categoria": "monospace"
+    },
+    {
+        "nombre": "Creepster",
+        "titulo": "Creepster",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Share Tech Mono",
+        "titulo": "Share Tech Mono",
+        "categoria": "monospace"
+    },
+    {
+        "nombre": "Rubik Wet Paint",
+        "titulo": "Rubik Wet Paint",
+        "categoria": "gaming"
+    },
+    {
+        "nombre": "Carter One",
+        "titulo": "Carter One",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Fascinate",
+        "titulo": "Fascinate",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Kanit",
+        "titulo": "Kanit",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Bebas Neue",
+        "titulo": "Bebas Neue",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Freckle Dragon",
+        "titulo": "Freckle Dragon",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Lobster",
+        "titulo": "Lobster",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Raleway",
+        "titulo": "Raleway",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Open Sans",
+        "titulo": "Open Sans",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Lato",
+        "titulo": "Lato",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Playfair Display",
+        "titulo": "Playfair Display",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Merriweather",
+        "titulo": "Merriweather",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Source Sans Pro",
+        "titulo": "Source Sans Pro",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Nunito",
+        "titulo": "Nunito",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Poppins",
+        "titulo": "Poppins",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Ubuntu",
+        "titulo": "Ubuntu",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Righteous",
+        "titulo": "Righteous",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Abril Fatface",
+        "titulo": "Abril Fatface",
+        "categoria": "display"
+    },
+    {
+        "nombre": "Satisfy",
+        "titulo": "Satisfy",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Dancing Script",
+        "titulo": "Dancing Script",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Indie Flower",
+        "titulo": "Indie Flower",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Shadows Into Light",
+        "titulo": "Shadows Into Light",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Architects Daughter",
+        "titulo": "Architects Daughter",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Patrick Hand",
+        "titulo": "Patrick Hand",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Kalam",
+        "titulo": "Kalam",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Amatic SC",
+        "titulo": "Amatic SC",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Caveat",
+        "titulo": "Caveat",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Zeyada",
+        "titulo": "Zeyada",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Great Vibes",
+        "titulo": "Great Vibes",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Alex Brush",
+        "titulo": "Alex Brush",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Allura",
+        "titulo": "Allura",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Sacramento",
+        "titulo": "Sacramento",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Tangerine",
+        "titulo": "Tangerine",
+        "categoria": "handwriting"
+    },
+    {
+        "nombre": "Quicksand",
+        "titulo": "Quicksand",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Work Sans",
+        "titulo": "Work Sans",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Josefin Sans",
+        "titulo": "Josefin Sans",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Quattrocento Sans",
+        "titulo": "Quattrocento Sans",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Crimson Text",
+        "titulo": "Crimson Text",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Libre Baskerville",
+        "titulo": "Libre Baskerville",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "PT Sans",
+        "titulo": "PT Sans",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Source Serif Pro",
+        "titulo": "Source Serif Pro",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Slabo 27px",
+        "titulo": "Slabo 27px",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Arimo",
+        "titulo": "Arimo",
+        "categoria": "sans-serif"
+    },
+    {
+        "nombre": "Arvo",
+        "titulo": "Arvo",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Lora",
+        "titulo": "Lora",
+        "categoria": "serif"
+    },
+    {
+        "nombre": "Vollkorn",
+        "titulo": "Vollkorn",
+        "categoria": "serif"
+    }
+]

@@ -6,7 +6,7 @@
     var fontRegistry = {};
 
     // TextStudio font ID -> clave de catalogo online (se resuelve a Google
-    // Fonts via googleFontFallbacks; ya no hay TTF locales en el modulo).
+    // Fonts via el catalogo fonts.json; ya no hay TTF locales en el modulo).
     var textStudioFontMap = {
         '832.ttf': 'Creepster',
         '4322.ttf': 'Press Start 2P',
@@ -23,82 +23,64 @@
         'LEMON MILK': 'Kanit'
     };
 
-    // Google Fonts de catalogo (llegan por <link> en index.html/render-core.html
-    // y se resuelven via document.fonts, NUNCA por FontFace con path local).
-    // Las fuentes TTF de usuario viven en uploads/.../textmuy/fonts/ y se
-    // declaran en fonts.json ({nombre, titulo, url, categoria?}); fonts.js las
-    // registra contra fontUrlBase() (puente) o fonts/ local (standalone) y
-    // verifica cada una con HEAD antes de usarla (las que fallan caen al
-    // fallback de su categoria sin romper preloadAll).
-    var googleFontFallbacks = {
-        'Bangers': 'Bangers',
-        'Permanent Marker': 'Permanent Marker',
-        'Rock Salt': 'Rock Salt',
-        'Anton': 'Anton',
-        'Oswald': 'Oswald',
-        'Montserrat': 'Montserrat',
-        'Pacifico': 'Pacifico',
-        'Press Start 2P': 'Press Start 2P',
-        'Creepster': 'Creepster',
-        'Share Tech Mono': 'Share Tech Mono',
-        'Rubik Wet Paint': 'Rubik Wet Paint',
-        'Carter One': 'Carter One',
-        'Fascinate': 'Fascinate',
-        'Kanit': 'Kanit',
-        'Bebas Neue': 'Bebas Neue',
-        'Freckle Dragon': 'Freckle Dragon',
-        'Lobster': 'Lobster',
-        'Raleway': 'Raleway',
-        'Open Sans': 'Open Sans',
-        'Lato': 'Lato',
-        'Playfair Display': 'Playfair Display',
-        'Merriweather': 'Merriweather',
-        'Source Sans Pro': 'Source Sans Pro',
-        'Nunito': 'Nunito',
-        'Poppins': 'Poppins',
-        'Ubuntu': 'Ubuntu',
-        'Righteous': 'Righteous',
-        'Abril Fatface': 'Abril Fatface',
-        'Satisfy': 'Satisfy',
-        'Dancing Script': 'Dancing Script',
-        'Indie Flower': 'Indie Flower',
-        'Shadows Into Light': 'Shadows Into Light',
-        'Architects Daughter': 'Architects Daughter',
-        'Patrick Hand': 'Patrick Hand',
-        'Kalam': 'Kalam',
-        'Amatic SC': 'Amatic SC',
-        'Caveat': 'Caveat',
-        'Zeyada': 'Zeyada',
-        'Great Vibes': 'Great Vibes',
-        'Alex Brush': 'Alex Brush',
-        'Allura': 'Allura',
-        'Sacramento': 'Sacramento',
-        'Tangerine': 'Tangerine',
-        'Quicksand': 'Quicksand',
-        'Work Sans': 'Work Sans',
-        'Josefin Sans': 'Josefin Sans',
-        'Quattrocento Sans': 'Quattrocento Sans',
-        'Crimson Text': 'Crimson Text',
-        'Libre Baskerville': 'Libre Baskerville',
-        'PT Sans': 'PT Sans',
-        'Source Serif Pro': 'Source Serif Pro',
-        'Slabo 27px': 'Slabo 27px',
-        'Arimo': 'Arimo',
-        'Arvo': 'Arvo',
-        'Lora': 'Lora',
-        'Vollkorn': 'Vollkorn'
-    };
-
-    // Font categories
-    var fontCategories = {
-        'display': ['Bangers', 'Anton', 'Bebas Neue', 'Righteous', 'Abril Fatface', 'Fascinate', 'Creepster', 'Freckle Dragon'],
-        'handwriting': ['Permanent Marker', 'Rock Salt', 'Pacifico', 'Satisfy', 'Dancing Script', 'Indie Flower', 'Shadows Into Light', 'Architects Daughter', 'Patrick Hand', 'Kalam', 'Amatic SC', 'Caveat', 'Zeyada', 'Great Vibes', 'Alex Brush', 'Allura', 'Sacramento', 'Tangerine'],
-        'sans-serif': ['Oswald', 'Montserrat', 'Open Sans', 'Lato', 'Source Sans Pro', 'Nunito', 'Poppins', 'Ubuntu', 'Quicksand', 'Work Sans', 'Josefin Sans', 'Quattrocento Sans', 'PT Sans', 'Arimo', 'Roboto', 'Kanit'],
-        'serif': ['Playfair Display', 'Merriweather', 'Crimson Text', 'Libre Baskerville', 'Source Serif Pro', 'Slabo 27px', 'Arvo', 'Lora', 'Vollkorn'],
-        'monospace': ['Press Start 2P', 'Share Tech Mono'],
-        'gaming': ['Press Start 2P', 'Creepster', 'Rubik Wet Paint']
-    };
-
+    // ===== CATALOGO GOOGLE VIA fonts.json (cero hardcode) =====
+    // fonts/fonts.json (plantilla) y uploads/.../textmuy/fonts/fonts.json
+    // (copia editable del admin): [{nombre, titulo, categoria}]. Sin campo
+    // url/path = online (se resuelve via document.fonts, nunca FontFace).
+    // Las fisicas (TTF en la carpeta, escaneadas por el plugin via puente)
+    // se registran aparte con path local + HEAD previo. fontCategories se
+    // deriva del catalogo (dinamico: categorias nuevas sin tocar codigo).
+    // Estrategia de carga (cache-bust ?v=RCn NO aplica a datos: el json se
+    // pide con cache:'no-store' para ver altas/bajas sin Ctrl+F5).
+    var catalogPromise = null;
+    var catalogFonts = {};   // nombre -> {titulo, categoria}
+    var fontCategories = {}; // categoria -> [nombres] (derivado del catalogo)
+    function catalogUrl() {
+        return fontUrlBase() + 'fonts.json';
+    }
+    // Fuentes fisicas conocidas por el puente (escaneo del servidor). El
+    // plugin manda bridge.fuentes al hacer syncServerFonts; esto solo expone
+    // la lista ya sincronizada para la galeria de fuentes (sin HEAD extra:
+    // el servidor las escaneo al construir el puente).
+    function listServerFonts() {
+        var out = [];
+        for (var key in fontRegistry) {
+            if (fontRegistry[key] && fontRegistry[key].isServer) {
+                out.push({
+                    key: key,
+                    nombre: fontRegistry[key].serverFile || key,
+                    titulo: fontRegistry[key].name,
+                    categoria: fontRegistry[key].categoria || 'custom',
+                    url: fontRegistry[key].path
+                });
+            }
+        }
+        return out;
+    }
+    function loadCatalog() {
+        if (catalogPromise) return catalogPromise;
+        catalogPromise = fetch(catalogUrl(), { cache: 'no-store' }).then(function (r) {
+            if (!r.ok) throw new Error('sin fonts.json en ' + catalogUrl());
+            return r.json();
+        }).then(function (lista) {
+            if (!Array.isArray(lista)) throw new Error('fonts.json no es array');
+            catalogFonts = {};
+            fontCategories = {};
+            lista.forEach(function (f) {
+                if (!f || !f.nombre) return;
+                var cat = f.categoria || 'custom';
+                catalogFonts[f.nombre] = { titulo: f.titulo || f.nombre, categoria: cat };
+                if (!fontCategories[cat]) fontCategories[cat] = [];
+                if (fontCategories[cat].indexOf(f.nombre) === -1) fontCategories[cat].push(f.nombre);
+            });
+            return catalogFonts;
+        }).catch(function (err) {
+            console.warn('No se pudo cargar el catalogo de fuentes (' + catalogUrl() + '):', err && err.message);
+            catalogPromise = null;
+            return catalogFonts;
+        });
+        return catalogPromise;
+    }
     var loadedFonts = {};
     var loadingPromises = {};
     var customFonts = {};
@@ -128,11 +110,12 @@
         setTimeout(syncServerFonts, 50);
     }
 
-    // ===== FUENTES DE USUARIO VIA fonts.json =====
-    // uploads/.../textmuy/fonts/fonts.json: [{nombre, titulo, url, categoria?}].
-    // Se lee contra fontUrlBase() (puente) o fonts/ local (standalone) y cada
-    // entrada se verifica con HEAD antes de registrarla: las que fallan no
-    // entran al registry (cero 404 de FontFace, cero spam en consola).
+    // ===== FUENTES DE USUARIO: fisicas del puente + url del catalogo =====
+    // Las fisicas viven en uploads/.../textmuy/fonts/ y las escanea el plugin
+    // (bridge.fuentes). Tambien se aceptan entradas con url dentro del
+    // fonts.json del catalogo (fisicas declaradas a mano). En ambos casos se
+    // verifica con HEAD antes de registrar: las que fallan no entran al
+    // registry (cero 404 de FontFace, cero spam en consola).
     var userFontsLoaded = false;
     var userFontsPromise = null;
     function fontUrlBase() {
@@ -151,26 +134,26 @@
     }
     function loadUserFonts() {
         if (userFontsPromise) return userFontsPromise;
-        userFontsPromise = fetch(fontUrlBase() + 'fonts.json').then(function (r) {
-            if (!r.ok) throw new Error('sin fonts.json');
-            return r.json();
-        }).then(function (lista) {
-            if (!Array.isArray(lista)) return [];
-            var jobs = lista.map(function (f) {
-                if (!f || !f.nombre || !f.url) return Promise.resolve(null);
-                var url = (/^(https?:|data:|blob:)/i.test(f.url)) ? f.url : fontUrlBase() + f.url;
-                return fontFileExists(url).then(function (ok) {
+        // El fonts.json del catalogo Google puede traer entradas con url
+        // (fisicas declaradas a mano). Esas se registran aqui mismo con HEAD
+        // previo; las fisicas del puente llegan por syncServerFonts.
+        userFontsPromise = loadCatalog().then(function () {
+            var jobs = Object.keys(catalogFonts).map(function (nombre) {
+                var entry = catalogFonts[nombre];
+                if (!entry || !entry.url) return Promise.resolve(null);
+                var key = sanitizeFontKey(nombre);
+                if (fontRegistry[key]) return Promise.resolve(key);
+                return fontFileExists(entry.url).then(function (ok) {
                     if (!ok) return null;
-                    var key = sanitizeFontKey(f.nombre);
                     fontRegistry[key] = {
-                        name: f.titulo || f.nombre,
-                        path: url,
+                        name: entry.titulo || nombre,
+                        path: entry.url,
                         isCustom: true,
                         isUserFile: true,
-                        categoria: f.categoria || 'custom'
+                        categoria: entry.categoria || 'custom'
                     };
-                    nameToKeyMap[f.titulo || f.nombre] = key;
-                    nameToKeyMap[f.nombre] = key;
+                    nameToKeyMap[entry.titulo || nombre] = key;
+                    nameToKeyMap[nombre] = key;
                     return key;
                 });
             });
@@ -287,6 +270,7 @@
         if (!font) return 'Bangers';
         if (typeof font === 'string') {
             if (fontRegistry[font]) return font;
+            if (catalogFonts[font]) return font;
             if (textStudioFontMap[font]) return textStudioFontMap[font];
             if (/^\d+\.ttf$/i.test(font)) return registerTextStudioFont(font) || font;
             return font;
@@ -314,11 +298,11 @@
 
         var fontInfo = fontRegistry[fontKey];
         if (!fontInfo) {
-            // Clave desconocida: si parece Google Fonts (esta en el catalogo
-            // de fallbacks o en las categorias), resolver via document.fonts
-            // SIN intentar FontFace local (evita 404 + spam en consola).
-            if (googleFontFallbacks[fontKey]) {
-                return ensureGoogleFont(googleFontFallbacks[fontKey]);
+            // Clave desconocida: si esta en el catalogo Google (fonts.json),
+            // resolver via document.fonts SIN intentar FontFace local
+            // (evita 404 + spam en consola).
+            if (catalogFonts[fontKey]) {
+                return ensureGoogleFont(catalogFonts[fontKey].titulo || fontKey);
             }
             console.warn('Font not found in registry, using fallback:', fontKey, '->', 'Bangers');
             return ensureGoogleFont('Bangers');
@@ -338,8 +322,7 @@
             console.warn('Failed to load font ' + fontKey + ':', err);
             delete loadingPromises[fontKey];
             // Fallback a Google Fonts (categoria de la fuente o Bangers).
-            var fallback = googleFontFallbacks[fontKey] || 'Bangers';
-            return ensureGoogleFont(fallback);
+            return ensureGoogleFont('Bangers');
         });
 
         return loadingPromises[fontKey];
@@ -385,16 +368,19 @@
     }
 
     function preloadAll() {
-        // 1. Catalogo online (Google Fonts): resolver via document.fonts, sin
-        //    FontFace local. 2. Fuentes de usuario (fonts.json con HEAD previo).
+        // 1. Catalogo Google (fonts.json) via document.fonts, sin FontFace
+        //    local. 2. Fisicas del puente + fonts.json con url + HEAD previo.
         // Ya no hay TTF locales en el modulo: cero 404 en el arranque.
-        var jobs = Object.keys(googleFontFallbacks).map(function (k) {
-            return ensureGoogleFont(googleFontFallbacks[k]);
+        return loadCatalog().then(function () {
+            var names = Object.keys(catalogFonts);
+            var jobs = names.map(function (k) {
+                return ensureGoogleFont((catalogFonts[k] && catalogFonts[k].titulo) || k);
+            });
+            jobs.push(loadUserFonts().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return loadFont(k); }));
+            }));
+            return Promise.all(jobs);
         });
-        jobs.push(loadUserFonts().then(function (keys) {
-            return Promise.all(keys.map(function (k) { return loadFont(k); }));
-        }));
-        return Promise.all(jobs);
     }
 
     function getAvailableFonts() {
@@ -524,6 +510,8 @@
         loadFont: loadFont,
         ensureGoogleFont: ensureGoogleFont,
         loadUserFonts: loadUserFonts,
+        loadCatalog: loadCatalog,
+        listServerFonts: listServerFonts,
         fontUrlBase: fontUrlBase,
         getFontName: getFontName,
         isCustomFont: isCustomFont,
@@ -537,8 +525,8 @@
         ensureFontsSprite: ensureFontsSprite,
         getAvailableFonts: getAvailableFonts,
         getFontCategories: function() { return fontCategories; },
-        registry: fontRegistry,
-        googleFontFallbacks: googleFontFallbacks
+        getCatalogFonts: function() { return catalogFonts; },
+        registry: fontRegistry
     };
 
 })();

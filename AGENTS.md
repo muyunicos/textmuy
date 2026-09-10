@@ -64,6 +64,7 @@ textmuy/
 │   ├── editor.js          <- Estado + render del canvas (fuente de verdad del settings)
 │   ├── controls.js        <- Binding UI (TEXT/STYLES/ICON/BACKGROUND/DOWNLOAD)
 │   ├── galeria.js         <- Galería unificada de imágenes (preview en vivo)
+│   ├── fuentes-galeria.js <- Galería de fuentes (CRUD físico estilo galería)
 │   ├── preset-manager.js  <- CRUD de presets + puente + formato .txm (settingsFromDelta)
 │   ├── api.js             <- API pública: renderTextToPNG / renderBatch / cache presets
 │   ├── export.js          <- Exportación PNG transparente
@@ -112,7 +113,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC18**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC19**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -140,6 +141,11 @@ textmuy/
   bindCanvasDimension, gradient colors).
 - **`galeria.js`**: componente único de galería de imágenes (tabs, búsqueda, subida,
   preview en vivo con rollback).
+- **`fuentes-galeria.js`**: galería de fuentes (mismo patrón visual `tt-galpanel-*`:
+  buscador, tabs por categoría dinámica, tiles con preview 180x30 o sprite
+  `fuentes`, upload TTF/OTF/WOFF/WOFF2, footer nombre+categoría+Save/Delete/Select,
+  botón "+ Categoria"). CRUD físico solo con puente (`moverFuente` renombra/cambia
+  categoría; Google = solo lectura).
 - **`preset-manager.js`**: CRUD de presets (puente/standalone), formato `.txm`,
   miniaturas, migración legacy, `presetUrlBase()`, listados para el plugin.
 - **`api.js`**: API pública (`renderTextToPNG`, `renderBatch`, `clearPresetCache`) y cache
@@ -172,17 +178,21 @@ textmuy/
   `fonts.js` registra las fuentes desde el puente y reemplaza `localStorage`
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
-- ✅ **Fuentes de usuario via `fonts.json` (v4.2, lado modulo)**: `fonts.js` ya NO
-  hardcodea TTF (`28days-later`/`nintender`/`lemon-milk` eliminados del registry y
-  del `<select>` Custom; TextStudio legacy mapea a Google Fonts equivalentes).
-  `loadUserFonts()` lee `fonts.json` (`[{nombre, titulo, url, categoria?}]`)
-  contra `fontUrlBase()` (puente `urls.fuentesBase` o `fonts/` local), verifica
-  cada entrada con HEAD y solo registra las que existen (cero 404 de FontFace).
-  `preloadAll()` = catalogo Google via `document.fonts` (`ensureGoogleFont`) +
-  fuentes verificadas. El grupo Custom del picker se puebla solo con fuentes
-  reales (puente + `fonts.json`). **Pendiente lado plugin**: servir
-  `uploads/.../textmuy/fonts/fonts.json` + `urls.fuentesBase` en el puente (+
-  handlers de subida si se quieren gestionar desde el admin).
+- ✅ **Fuentes como datos: catalogo Google en `fonts.json` + fisicas auto (v4.2)**:
+  `fonts/fonts.json` (plantilla, 56 familias) y `uploads/.../textmuy/fonts/
+  fonts.json` (copia editable del admin): `[{nombre, titulo, categoria}]` (sin
+  `url` = online via `document.fonts`). `fonts.js` ya NO hardcodea familias ni
+  categorias: `loadCatalog()` las deriva del json (categorias dinamicas, fetch
+  `no-store` para ver altas/bajas sin Ctrl+F5). Las **fisicas** (TTF en la
+  carpeta) las **escanea el plugin y las manda por el puente**
+  (`bridge.fuentes`); aparecen solas al subir (sin editar json). Tambien se
+  aceptan entradas con `url` en el catalogo (HEAD previo, cero 404). Picker y
+  filtro reconstruidos desde datos (`rebuildFontPicker`). Thumbs: sprite global
+  `fuentes` 180x30 (`ensureFontsSprite`, sin `.webp` sueltos). Galeria de
+  fuentes con cambiar categoria / crear categoria / eliminar / subir
+  (`fuentes-galeria.js`). **Contrato lado plugin**: `urls.fuentesBase` +
+  `fuentes:[{nombre,titulo,url,categoria?}]` en el puente; handlers
+  `subirFuente|borrarFuente|cambiarFuente` (+ `guardarSprite scope fuentes`).
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
   = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que

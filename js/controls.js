@@ -2069,6 +2069,68 @@
         });
     }
 
+    // ===== FONT PICKER DESDE CATALOGO (cero hardcode en HTML/JS) =====
+    // El <select> estatico de index.html es solo fallback inicial: al
+    // arrancar se reconstruye desde fonts.json (Google) + fisicas del puente
+    // + uploads locales. Las categorias tambien salen del catalogo.
+    function rebuildFontPicker() {
+        const fontSelect = document.getElementById('tt-font-picker-input');
+        const categoryFilter = document.getElementById('tt-font-category-filter');
+        if (!fontSelect || !window.FontLoader || !window.FontLoader.loadCatalog) return Promise.resolve();
+        const prevValue = fontSelect.value;
+        return window.FontLoader.loadCatalog().then(function () {
+            const cats = window.FontLoader.getFontCategories ? window.FontLoader.getFontCategories() : {};
+            const catNames = Object.keys(cats).sort();
+            // 1. Filtro de categorias dinamico (conserva 'all' + 'custom').
+            if (categoryFilter) {
+                const prevCat = categoryFilter.value || 'all';
+                while (categoryFilter.firstChild) categoryFilter.removeChild(categoryFilter.firstChild);
+                const optAll = document.createElement('option');
+                optAll.value = 'all';
+                optAll.textContent = 'All Categories';
+                categoryFilter.appendChild(optAll);
+                catNames.forEach(function (c) {
+                    const o = document.createElement('option');
+                    o.value = c;
+                    o.textContent = c.charAt(0).toUpperCase() + c.slice(1);
+                    categoryFilter.appendChild(o);
+                });
+                const optCustom = document.createElement('option');
+                optCustom.value = 'custom';
+                optCustom.textContent = 'Custom';
+                categoryFilter.appendChild(optCustom);
+                const stillThere = prevCat === 'all' || prevCat === 'custom' || catNames.indexOf(prevCat) !== -1;
+                categoryFilter.value = stillThere ? prevCat : 'all';
+            }
+            // 2. Optgroups dinamicos (uno por categoria del catalogo).
+            const customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]');
+            while (fontSelect.firstChild) fontSelect.removeChild(fontSelect.firstChild);
+            const labelOf = function (c) { return c.charAt(0).toUpperCase() + c.slice(1); };
+            catNames.forEach(function (c) {
+                const g = document.createElement('optgroup');
+                g.label = labelOf(c);
+                (cats[c] || []).slice().sort().forEach(function (name) {
+                    const o = document.createElement('option');
+                    o.value = name;
+                    o.textContent = (window.FontLoader.getCatalogFonts()[name] || {}).titulo || name;
+                    g.appendChild(o);
+                });
+                fontSelect.appendChild(g);
+            });
+            // 3. Grupo Custom (fisicas): se rellena via sincronizarFuentesServidor.
+            const g2 = customGroup || document.createElement('optgroup');
+            g2.label = 'Custom';
+            g2.setAttribute('data-font-group', 'custom');
+            fontSelect.appendChild(g2);
+            // 4. Restaurar seleccion previa si sigue existiendo.
+            try {
+                if (prevValue && fontSelect.querySelector('option[value="' + prevValue + '"]')) {
+                    fontSelect.value = prevValue;
+                }
+            } catch (e) { /* selector con caracteres raros: ignorar */ }
+        });
+    }
+
     // ===== FONT SEARCH AND FILTER =====
     function initFontFilters() {
         const searchInput = document.getElementById('tt-font-search-input');
@@ -2079,10 +2141,16 @@
 
         if (!searchInput || !categoryFilter || !fontSelect) return;
 
-        // Sincronizar fuentes en el optgroup "Custom": puente (bridge.fuentes)
-        // + fonts.json verificado (FontLoader.loadUserFonts). Las opciones
-        // hardcodeadas se eliminaron: sin fonts.json valido el grupo queda
-        // vacio y NO hay 404 (las entradas se verifican con HEAD al registrar).
+        // Reconstruir picker desde el catalogo y luego sincronizar fisicas.
+        rebuildFontPicker().then(function () {
+            sincronizarFuentesServidor();
+            filterFonts();
+        });
+
+        // Sincronizar fuentes en el optgroup "Custom": puente (bridge.fuentes,
+        // escaneo del servidor: aparecen solas al subir TTF) + entradas con
+        // url dentro de fonts.json (fisicas declaradas a mano, con HEAD).
+        // Sin puente ni url validas el grupo queda vacio y NO hay 404.
         function sincronizarFuentesServidor() {
             var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
             var customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]') || fontSelect.querySelector('optgroup[label="Custom"]');
@@ -2111,6 +2179,22 @@
                     });
                 }).catch(function () { /* sin fonts.json: grupo vacio, sin 404 */ });
             }
+        }
+
+        // Boton Galeria de fuentes (CRUD fisico estilo galeria.js). Aplica la
+        // fuente elegida al picker.
+        const fontGalleryBtn = document.getElementById('tt-font-gallery-btn');
+        if (fontGalleryBtn && !fontGalleryBtn.dataset.bound) {
+            fontGalleryBtn.dataset.bound = '1';
+            fontGalleryBtn.addEventListener('click', function() {
+                if (!window.TextMuyGaleriaFuentes) return;
+                window.TextMuyGaleriaFuentes.abrir(function(key) {
+                    fontSelect.value = key;
+                    fontSelect.dispatchEvent(new Event('change'));
+                    // Refrescar Custom por si hubo altas/bajas en la galeria.
+                    sincronizarFuentesServidor();
+                });
+            });
         }
 
         window.addEventListener('textmuy-bridge-ready', sincronizarFuentesServidor);
