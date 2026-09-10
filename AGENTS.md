@@ -1,6 +1,6 @@
-# AGENTS.md — Contexto obligatorio del módulo TextMuy (LEER ANTES DE CUALQUIER CONSULTA)
+# AGENTS.md — Contexto del módulo TextMuy
 
-> ⚠️ **PARA CUALQUIER IA**: este archivo debe leerse COMPLETO antes de editar, buscar o
+> este archivo debe leerse COMPLETO antes de editar, buscar o
 > responder sobre este repositorio. Contiene el objetivo, la arquitectura, las reglas
 > técnicas críticas, las decisiones de diseño ya tomadas y las dificultades del entorno.
 > Si algo no está aquí, **preguntá al usuario**; no lo inventes.
@@ -20,14 +20,13 @@
 - [8. Dificultades del entorno](#8-dificultades-del-entorno)
 - [9. Cómo probar](#9-como-probar)
 - [10. Reglas para la IA al editar](#10-reglas-para-la-ia-al-editar)
-- [11. Tabla de errores comunes](#11-tabla-de-errores-comunes)
 
 ---
 
 ## 0. Resumen en una frase
 
-TextMuy es un **editor de estilos de texto 100% client-side** al estilo TextStudio
-(Canvas 2D + WebGL), **sin concepto premium**, que funciona **standalone** (abriendo
+TextMuy es un **editor de estilos de texto client-side** al estilo TextStudio
+(Canvas 2D + WebGL), que funciona **standalone** (abriendo
 `index.html` o servido estático) e **integrado** en el plugin WordPress "Personalizador
 PDF" (iframe same-origin + puente postMessage), y expone una **API de render** que convierte
 texto + preset en un **PNG transparente** del tamaño exacto.
@@ -42,10 +41,10 @@ texto + preset en un **PNG transparente** del tamaño exacto.
      especificado. Es una función JS, no un servidor.
 - **Lo que SÍ queremos**: editor con la mayoría de funciones de TextStudio (menos
   ANIMATION), importador de presets desde textstudio.com, CRUD de presets, gestión de
-  fuentes con fallback, canvas definido por el usuario con auto-ajuste del texto,
-  exportación PNG transparente del tamaño exacto.
-- **Lo que NO queremos**: headers/footers/navegación/marketing, sección ANIMATION, export
-  a formatos distintos de PNG (JPG/PDF), tiers de calidad (LITE/PRO/ULTRA),
+  fuentes, canvas definido por el usuario con auto-ajuste del texto,
+  exportación PNG y SVG.
+- **Lo que NO queremos**: en comparación con TextStudio, no usaremos sección ANIMATION, export
+  a formatos distintos de PNG y SVG, tiers de calidad (LITE/PRO/ULTRA),
   restricciones premium. **LA APP ES 100% LIBRE: no existirá concepto premium.**
 - **Integración con Personalizador PDF**: los grupos de un PDF pueden llevar "texto +
   estilo"; el plugin renderiza vía render-core en el navegador del admin. Ver el contrato
@@ -89,9 +88,8 @@ textmuy/
    (botón + drag&drop + pegar) y **preview en vivo** que se revierte si se cierra sin
    "Aplicar".
 4. **Importador TextStudio**: extrae el preset de una URL de textstudio.com
-   (`window.__PRESET__` / JSON-LD) y lo guarda como `.txm` vía puente (o lo aplica local).
-5. **Export** (pestaña DOWNLOAD): PNG transparente al tamaño del canvas (× Scale);
-   Ctrl+Enter como atajo.
+   (`window.__PRESET__` / JSON-LD) y lo guarda como `.txm` vía puente (y lo aplica local).
+5. **Export** (pestaña DOWNLOAD): PNG transparente al tamaño del canvas (× Scale), archivo SVG (efectos básicos compatibles).
 6. **Render headless**: `render-core.html` expone `TextMuyAPI.renderBatch(items)` para el
    plugin (iframe off-screen cargado solo cuando se usa; comparte el código del editor).
 
@@ -161,7 +159,7 @@ textmuy/
 - ✅ **Un solo panel de presets**: la galería inferior expandible (no recrear paneles
   viejos: fieldset "Presets" ni "Local projects" eliminados).
 - ✅ **Formato único `.txm`** (+ `.webp`).
-- ✅ **Datos del admin en uploads del plugin**: presets e imágenes
+- ✅ **Datos del admin en uploads del plugin**: presets, fuentes e imágenes
   viven en `uploads/.../textmuy/`.
 - ✅ **Sin datos de fábrica en el módulo (v4.1)**: se eliminaron las carpetas `presets/`,
   `imagenes/` y `fonts/` del repositorio; standalone arranca con listas vacías.
@@ -170,9 +168,9 @@ textmuy/
   (`{nombre, titulo, url}`); handlers `textmuy_subir_fuente|borrar_fuente` (firma + límite);
   `fonts.js` registra las fuentes desde el puente y reemplaza `localStorage`
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
-  webp generada en el navegador al subir.
+  webp generada en el navegador al subir o auto-generada al primer uso si falta.
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
-- ✅ Catálogo de imágenes propio sin CDN (dependencia runtime de textstudio.com eliminada).
+
 
 ## 8. Dificultades del entorno (IMPORTANTE AL TRABAJAR AQUÍ)
 
@@ -208,29 +206,10 @@ node --check js/api.js
 ## 10. Reglas para la IA al editar
 
 - ✅ OBLIGATORIO: leer este AGENTS.md completo antes de proponer cambios.
-- ✅ OBLIGATORIO: correr los tests Node y `node --check` tras cambiar cualquier JS.
 - ✅ OBLIGATORIO: subir `?v=RCn` en `index.html` y `render-core.html` al cambiar JS.
-- ✅ OBLIGATORIO: mantener la degradación standalone (sin puente TODO funciona local).
 - ✅ Mensajes e interfaz en español (sin tildes en código puro para evitar problemas de
   encoding).
-- ❌ NO DEBES: usar `localStorage` para presets/imágenes (solo la migración legacy de
+- ❌ NO DEBES: usar `localStorage` para presets/imágenes/fuentes (solo la migración legacy de
   lectura).
 - ❌ NO DEBES: escribir en el servidor sin el puente (admin-post + nonce).
-- ❌ NO DEBES: romper el contrato de `renderBatch` / `presetUrlBase` (el plugin lo consume;
-  ver §4).
-- ❌ NO DEBES: editar los vendors de `utils/` ni los `.min`.
-- ✅ Sincronizar los cambios con el proyecto fuente `sistema/textmuy` si sigue existiendo
-  (esta carpeta es la copia viva que se importa al plugin).
-
-## 11. Tabla de errores comunes (resolver antes de preguntar)
-
-| Error | Causa | Solución |
-|---|---|---|
-| "El modulo TextMuy en cache esta desactualizado" | JS viejo en cache del navegador | Ctrl+F5; subir `?v=RCn` en ambos HTML al cambiar JS |
-| "El motor de render TextMuy no termino de cargar" | Iframe render-core no cargó | Verificar `render-core.html` accesible; consola; reintentar |
-| El texto renderizado sale con otra fuente | Google Fonts sin internet / TTF ausente | `ensureFontReady` fuerza la carga; verificar conexión |
-| "Preset not found: X" | El `.txm` no está en la base resuelta | Verificar `urls.presetsBase` del puente (plugin) o `presets/` (standalone) |
-| "Guardar" descarga el `.txm` en vez de subirlo | Sin puente (modo standalone) | Comportamiento esperado fuera del plugin; dentro, verificar el postMessage del puente |
-| Los inputs de DOWNLOAD no cambian el tamaño | Canvas des-sincronizado | `settings.canvas` es la fuente única; sincronizar con el evento `settings-updated` |
-| Bevel/especular no se ve | WebGL no disponible | Fallback Canvas 2D automático; revisar consola |
-| El texto sale deformado al usar arco/onda | Distort engine sin fallback | Usar `applyDistort`/`drawTextCurved` con el fallback matricial incluido |
+- ❌ NO DEBES: editar los vendors de `utils/`.
