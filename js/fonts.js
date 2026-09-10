@@ -3,34 +3,34 @@
 (function() {
     'use strict';
 
-    var fontRegistry = {
-        '28days-later': { name: '28 Days Later Cyr Regular', path: 'fonts/28days-later.ttf' },
-        'nintender': { name: 'Nintender Regular', path: 'fonts/nintender.ttf' },
-        'lemon-milk': { name: 'LEMON MILK Pro UltraBold', path: 'fonts/lemon-milk.ttf' }
-    };
+    var fontRegistry = {};
 
-    // TextStudio font ID → local registry key
+    // TextStudio font ID -> clave de catalogo online (se resuelve a Google
+    // Fonts via googleFontFallbacks; ya no hay TTF locales en el modulo).
     var textStudioFontMap = {
-        '832.ttf': '28days-later',
-        '4322.ttf': 'nintender',
-        '11768.ttf': 'lemon-milk'
+        '832.ttf': 'Creepster',
+        '4322.ttf': 'Press Start 2P',
+        '11768.ttf': 'Kanit'
     };
 
-    // TextStudio font name → local registry key
+    // TextStudio font name -> clave de catalogo online
     var nameToKeyMap = {
-        '28 Days Later Cyr Regular': '28days-later',
-        '28 Days Later': '28days-later',
-        'Nintender Regular': 'nintender',
-        'Nintender': 'nintender',
-        'LEMON MILK Pro UltraBold': 'lemon-milk',
-        'LEMON MILK': 'lemon-milk'
+        '28 Days Later Cyr Regular': 'Creepster',
+        '28 Days Later': 'Creepster',
+        'Nintender Regular': 'Press Start 2P',
+        'Nintender': 'Press Start 2P',
+        'LEMON MILK Pro UltraBold': 'Kanit',
+        'LEMON MILK': 'Kanit'
     };
 
-    // Google Fonts fallback mapping
+    // Google Fonts de catalogo (llegan por <link> en index.html/render-core.html
+    // y se resuelven via document.fonts, NUNCA por FontFace con path local).
+    // Las fuentes TTF de usuario viven en uploads/.../textmuy/fonts/ y se
+    // declaran en fonts.json ({nombre, titulo, url, categoria?}); fonts.js las
+    // registra contra fontUrlBase() (puente) o fonts/ local (standalone) y
+    // verifica cada una con HEAD antes de usarla (las que fallan caen al
+    // fallback de su categoria sin romper preloadAll).
     var googleFontFallbacks = {
-        '28days-later': 'Creepster',
-        'nintender': 'Press Start 2P',
-        'lemon-milk': 'Kanit',
         'Bangers': 'Bangers',
         'Permanent Marker': 'Permanent Marker',
         'Rock Salt': 'Rock Salt',
@@ -126,6 +126,66 @@
         window.addEventListener('textmuy-bridge-ready', syncServerFonts);
         // Si el puente ya estaba disponible antes de cargar fonts.js
         setTimeout(syncServerFonts, 50);
+    }
+
+    // ===== FUENTES DE USUARIO VIA fonts.json =====
+    // uploads/.../textmuy/fonts/fonts.json: [{nombre, titulo, url, categoria?}].
+    // Se lee contra fontUrlBase() (puente) o fonts/ local (standalone) y cada
+    // entrada se verifica con HEAD antes de registrarla: las que fallan no
+    // entran al registry (cero 404 de FontFace, cero spam en consola).
+    var userFontsLoaded = false;
+    var userFontsPromise = null;
+    function fontUrlBase() {
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : 'fonts/';
+        return base.slice(-1) === '/' ? base : base + '/';
+    }
+    function fontFileExists(url) {
+        try {
+            if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve(true);
+        } catch (_) { /* sin location en Node */ }
+        return fetch(url, { method: 'HEAD' }).then(function (r) { return !!r.ok; }).catch(function () { return false; });
+    }
+    function sanitizeFontKey(nombre) {
+        return 'user-' + String(nombre || 'fuente').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+    function loadUserFonts() {
+        if (userFontsPromise) return userFontsPromise;
+        userFontsPromise = fetch(fontUrlBase() + 'fonts.json').then(function (r) {
+            if (!r.ok) throw new Error('sin fonts.json');
+            return r.json();
+        }).then(function (lista) {
+            if (!Array.isArray(lista)) return [];
+            var jobs = lista.map(function (f) {
+                if (!f || !f.nombre || !f.url) return Promise.resolve(null);
+                var url = (/^(https?:|data:|blob:)/i.test(f.url)) ? f.url : fontUrlBase() + f.url;
+                return fontFileExists(url).then(function (ok) {
+                    if (!ok) return null;
+                    var key = sanitizeFontKey(f.nombre);
+                    fontRegistry[key] = {
+                        name: f.titulo || f.nombre,
+                        path: url,
+                        isCustom: true,
+                        isUserFile: true,
+                        categoria: f.categoria || 'custom'
+                    };
+                    nameToKeyMap[f.titulo || f.nombre] = key;
+                    nameToKeyMap[f.nombre] = key;
+                    return key;
+                });
+            });
+            return Promise.all(jobs).then(function (keys) {
+                userFontsLoaded = true;
+                return keys.filter(Boolean);
+            });
+        }).catch(function () {
+            userFontsLoaded = true;
+            return [];
+        });
+        return userFontsPromise;
+    }
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('textmuy-bridge-ready', function () { userFontsPromise = null; loadUserFonts(); });
     }
  // Store user-uploaded fonts
 
@@ -254,10 +314,19 @@
 
         var fontInfo = fontRegistry[fontKey];
         if (!fontInfo) {
-            // Try to use Google Fonts fallback
-            var fallback = googleFontFallbacks[fontKey] || 'Bangers';
-            console.warn('Font not found in registry, using fallback:', fontKey, '->', fallback);
-            return Promise.resolve(fallback);
+            // Clave desconocida: si parece Google Fonts (esta en el catalogo
+            // de fallbacks o en las categorias), resolver via document.fonts
+            // SIN intentar FontFace local (evita 404 + spam en consola).
+            if (googleFontFallbacks[fontKey]) {
+                return ensureGoogleFont(googleFontFallbacks[fontKey]);
+            }
+            console.warn('Font not found in registry, using fallback:', fontKey, '->', 'Bangers');
+            return ensureGoogleFont('Bangers');
+        }
+
+        // Entrada de catalogo online sin path local (solo nombre Google Fonts).
+        if (!fontInfo.path) {
+            return ensureGoogleFont(fontInfo.name || fontKey);
         }
 
         var font = new FontFace(fontInfo.name, 'url(' + fontInfo.path + ')');
@@ -268,13 +337,40 @@
         }).catch(function(err) {
             console.warn('Failed to load font ' + fontKey + ':', err);
             delete loadingPromises[fontKey];
-            // Fallback to Google Fonts
+            // Fallback a Google Fonts (categoria de la fuente o Bangers).
             var fallback = googleFontFallbacks[fontKey] || 'Bangers';
-            console.warn('Using fallback font:', fallback);
-            return fallback;
+            return ensureGoogleFont(fallback);
         });
 
         return loadingPromises[fontKey];
+    }
+
+    // Resuelve una familia Google Fonts via document.fonts (ya llegan por
+    // <link> en index.html/render-core.html). Cachea en loadedFonts para no
+    // repetir document.fonts.load. Nunca hace fetch ni FontFace: cero 404.
+    function ensureGoogleFont(family) {
+        if (loadedFonts[family]) return Promise.resolve(loadedFonts[family]);
+        if (loadingPromises[family]) return loadingPromises[family];
+        var p;
+        try {
+            if (document.fonts && document.fonts.load) {
+                p = document.fonts.load('16px "' + family + '"').then(function () {
+                    loadedFonts[family] = family;
+                    return family;
+                }).catch(function () {
+                    loadedFonts[family] = family;
+                    return family;
+                });
+            } else {
+                loadedFonts[family] = family;
+                p = Promise.resolve(family);
+            }
+        } catch (_) {
+            loadedFonts[family] = family;
+            p = Promise.resolve(family);
+        }
+        loadingPromises[family] = p;
+        return p;
     }
 
     function getFontName(fontKey) {
@@ -289,13 +385,16 @@
     }
 
     function preloadAll() {
-        var promises = [];
-        for (var key in fontRegistry) {
-            if (!key.startsWith('ts-')) {
-                promises.push(loadFont(key));
-            }
-        }
-        return Promise.all(promises);
+        // 1. Catalogo online (Google Fonts): resolver via document.fonts, sin
+        //    FontFace local. 2. Fuentes de usuario (fonts.json con HEAD previo).
+        // Ya no hay TTF locales en el modulo: cero 404 en el arranque.
+        var jobs = Object.keys(googleFontFallbacks).map(function (k) {
+            return ensureGoogleFont(googleFontFallbacks[k]);
+        });
+        jobs.push(loadUserFonts().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return loadFont(k); }));
+        }));
+        return Promise.all(jobs);
     }
 
     function getAvailableFonts() {
@@ -423,6 +522,9 @@
 
     window.FontLoader = {
         loadFont: loadFont,
+        ensureGoogleFont: ensureGoogleFont,
+        loadUserFonts: loadUserFonts,
+        fontUrlBase: fontUrlBase,
         getFontName: getFontName,
         isCustomFont: isCustomFont,
         preloadAll: preloadAll,

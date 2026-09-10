@@ -112,7 +112,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC17**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC18**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -172,6 +172,17 @@ textmuy/
   `fonts.js` registra las fuentes desde el puente y reemplaza `localStorage`
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
+- ✅ **Fuentes de usuario via `fonts.json` (v4.2, lado modulo)**: `fonts.js` ya NO
+  hardcodea TTF (`28days-later`/`nintender`/`lemon-milk` eliminados del registry y
+  del `<select>` Custom; TextStudio legacy mapea a Google Fonts equivalentes).
+  `loadUserFonts()` lee `fonts.json` (`[{nombre, titulo, url, categoria?}]`)
+  contra `fontUrlBase()` (puente `urls.fuentesBase` o `fonts/` local), verifica
+  cada entrada con HEAD y solo registra las que existen (cero 404 de FontFace).
+  `preloadAll()` = catalogo Google via `document.fonts` (`ensureGoogleFont`) +
+  fuentes verificadas. El grupo Custom del picker se puebla solo con fuentes
+  reales (puente + `fonts.json`). **Pendiente lado plugin**: servir
+  `uploads/.../textmuy/fonts/fonts.json` + `urls.fuentesBase` en el puente (+
+  handlers de subida si se quieren gestionar desde el admin).
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
   = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que

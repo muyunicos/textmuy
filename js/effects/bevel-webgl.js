@@ -139,6 +139,9 @@
             if (!this.initialized) {
                 return null;
             }
+            if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) {
+                return null;
+            }
 
             const {
                 bevelSize = 0.1,
@@ -171,11 +174,28 @@
             const framebuffer = gl.createFramebuffer();
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
 
-            // Create renderbuffer for color attachment
+            // Create renderbuffer for color attachment. Guard de tamano: con
+            // canvas 0x0 (primer layout / miniatura aun sin tamano) el
+            // framebuffer queda incompleto y cada drawArrays spamea
+            // INVALID_ENUM + GL_INVALID_FRAMEBUFFER_OPERATION. Devolver null
+            // hace que el llamador use el fallback 2D (mismo look aproximado).
+            if (!width || !height) {
+                gl.deleteFramebuffer(framebuffer);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                return null;
+            }
             const renderbuffer = gl.createRenderbuffer();
             gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
             gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
             gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+
+            // Verificar que el framebuffer quedo completo antes de dibujar.
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                gl.deleteRenderbuffer(renderbuffer);
+                gl.deleteFramebuffer(framebuffer);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                return null;
+            }
 
             // Use program
             gl.useProgram(this.program);

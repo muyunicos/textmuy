@@ -2153,6 +2153,13 @@
                 softness: soften
             });
 
+            if (!bevelCanvas) {
+                // apply() devolvio null (canvas 0x0 o framebuffer incompleto):
+                // invalidar el engine para no spamear WebGL cada frame; el
+                // fallback 2D de abajo pinta el bevel aproximado.
+                state.bevelEngine = null;
+            }
+
             if (bevelCanvas) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'source-over';
@@ -2226,6 +2233,11 @@
                 diffuseIntensity: 0.5
             });
 
+            if (!specularCanvas) {
+                // apply() devolvio null (canvas 0x0 o framebuffer incompleto):
+                // invalidar el engine para no spamear WebGL cada frame.
+                state.specularEngine = null;
+            }
             if (specularCanvas) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';

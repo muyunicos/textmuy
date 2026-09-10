@@ -9,7 +9,6 @@
     function init(editorInstance) {
         editor = editorInstance;
         bindControls();
-        bindLineSizingUI();
         bindMenuTabs();
         bindCustomMenu();
         bindDownloadControls();
@@ -315,6 +314,7 @@
         bindRange('tt-canvas-zoom-input', 'canvas.zoom', parseInt);
         bindRange('tt-canvas-max-font-size-input', 'canvas.maxFontSize', parseInt);
         bindRange('tt-canvas-margin-input', 'canvas.padding', function(v) { return parseFloat(v) / 100; });
+        bindLineSizingUI();
         bindTextarea('tt-text-textarea', 'text');
         bindAlignList('tt-align-input', 'align');
         bindFontWeight('tt-font-weight-input');
@@ -2079,22 +2079,38 @@
 
         if (!searchInput || !categoryFilter || !fontSelect) return;
 
-        // Sincronizar fuentes del servidor en el optgroup "Custom"
+        // Sincronizar fuentes en el optgroup "Custom": puente (bridge.fuentes)
+        // + fonts.json verificado (FontLoader.loadUserFonts). Las opciones
+        // hardcodeadas se eliminaron: sin fonts.json valido el grupo queda
+        // vacio y NO hay 404 (las entradas se verifican con HEAD al registrar).
         function sincronizarFuentesServidor() {
             var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-            if (!bridge || !Array.isArray(bridge.fuentes)) return;
-            var customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
+            var customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]') || fontSelect.querySelector('optgroup[label="Custom"]');
             if (!customGroup) return;
-            bridge.fuentes.forEach(function (f) {
-                var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
-                var opt = customGroup.querySelector('option[value="' + key + '"]');
-                if (!opt) {
-                    opt = document.createElement('option');
-                    opt.value = key;
-                    opt.textContent = f.titulo || f.nombre;
-                    customGroup.appendChild(opt);
-                }
-            });
+            if (bridge && Array.isArray(bridge.fuentes)) {
+                bridge.fuentes.forEach(function (f) {
+                    var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    var opt = customGroup.querySelector('option[value="' + key + '"]');
+                    if (!opt) {
+                        opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = f.titulo || f.nombre;
+                        customGroup.appendChild(opt);
+                    }
+                });
+            }
+            if (window.FontLoader && window.FontLoader.loadUserFonts) {
+                window.FontLoader.loadUserFonts().then(function (keys) {
+                    (keys || []).forEach(function (key) {
+                        if (customGroup.querySelector('option[value="' + key + '"]')) return;
+                        var name = (window.FontLoader.getFontName && window.FontLoader.getFontName(key)) || key;
+                        var opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = name;
+                        customGroup.appendChild(opt);
+                    });
+                }).catch(function () { /* sin fonts.json: grupo vacio, sin 404 */ });
+            }
         }
 
         window.addEventListener('textmuy-bridge-ready', sincronizarFuentesServidor);

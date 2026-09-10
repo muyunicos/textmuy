@@ -156,6 +156,9 @@
             if (!this.initialized) {
                 return null;
             }
+            if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) {
+                return null;
+            }
 
             const {
                 surfaceScale = 1.0,
@@ -189,11 +192,25 @@
             const framebuffer = gl.createFramebuffer();
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
 
+            // Guard de tamano + framebuffer completo (ver bevel-webgl.js:
+            // evita el spam INVALID_ENUM / GL_INVALID_FRAMEBUFFER_OPERATION).
+            if (!width || !height) {
+                gl.deleteFramebuffer(framebuffer);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                return null;
+            }
             // Create renderbuffer for color attachment
             const renderbuffer = gl.createRenderbuffer();
             gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
             gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
             gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                gl.deleteRenderbuffer(renderbuffer);
+                gl.deleteFramebuffer(framebuffer);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                return null;
+            }
 
             // Use program
             gl.useProgram(this.program);
