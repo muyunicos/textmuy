@@ -44,10 +44,14 @@
             blendmode: 'over',
             // Flag v2: wave model shared by Tilt/Rise (per-letter actions) and
             // Wave width/Wave shift/Shape (wave geometry). See flagWaveAt().
+            // GLOBAL (bloque completo): ver GLOBAL_ONLY_PATHS/isGlobalOnlyPath.
             flag: { active: false, tilt: 0, rise: 0, waveWidth: 100, waveShift: 0, shape: 'smooth', tiltMode: 'wave' },
             // Keys match the UI labels ("Max rotation", "Scatter height").
+            // GLOBAL (bloque completo): ver GLOBAL_ONLY_PATHS/isGlobalOnlyPath.
             boggle: { active: false, maxRotation: 40, scatterHeight: 50 },
             reverseOverlap: { letters: 1, lines: 0 },
+            // ESTILO por linea: lettering.shadow SI entra a lines.overrides
+            // (es una sombra proyectada mas, resuelta por forEachLineSetting).
             shadow: { active: false, size: 0.04, distance: 0.02, angle: 180, fill: { alpha: 1, color: { r: 0, g: 0, b: 0 } } }
         },
 
@@ -1081,8 +1085,46 @@
         }
     }
 
+    // Helper por-linea: itera las lineas con su config efectiva (base + delta
+    // disperso) manteniendo la geometria del bloque completo (baselines
+    // globales via drawTextLines lineFilter). paint(lineText, lineSettings, li)
+    // pinta SOLO la linea li en su posicion real. Si no hay overrides, llama
+    // una vez con el bloque entero (via rapida, sin clonar settings).
+    function forEachLineSetting(ctx, text, lines, fontSizePx, s, paint) {
+        const lineOverrides = s.lines && s.lines.overrides ? s.lines.overrides : null;
+        const hasLineOverrides = lineOverrides && Object.keys(lineOverrides).length > 0;
+        const canResolve = typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings;
+        if (!hasLineOverrides || !canResolve) {
+            paint(text, lines, s, null);
+            return;
+        }
+        for (let li = 0; li < lines.length; li++) {
+            const ls = TextEditor.resolveLineSettings(li);
+            paint(lines[li], [lines[li]], ls, li);
+        }
+    }
+
     // Draw outer shadow (unificado: outer + outer2 + gradient support + strength + mask + blendmode)
     function drawOuterShadowUnificado(ctx, text, lines, fontSizePx, s, configKey) {
+        const shadowConfig = s.shadow[configKey];
+        if (!shadowConfig || !isActive(s, 'shadow.' + configKey)) return;
+
+        // Alcance por linea: delegar en el helper (misma geometria de bloque,
+        // lineFilter pinta solo la linea en su baseline global).
+        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
+            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+            forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
+                drawOuterShadowUnificadoLine(ctx, lineText, lines, fontSizePx, ls, configKey, li);
+            });
+            return;
+        }
+        drawOuterShadowUnificadoLine(ctx, text, lines, fontSizePx, s, configKey, null);
+    }
+
+    // Cuerpo real de la sombra exterior (una llamada = un estilo, N lineas o
+    // una sola via lineFilter). Nunca recursa: el dispatch por-linea vive
+    // solo en drawOuterShadowUnificado.
+    function drawOuterShadowUnificadoLine(ctx, text, lines, fontSizePx, s, configKey, lineFilter) {
         const shadowConfig = s.shadow[configKey];
         if (!shadowConfig || !isActive(s, 'shadow.' + configKey)) return;
 
@@ -1114,7 +1156,7 @@
             const grad = createGradientInBox(offCtx, fillCfg.gradient, box);
             offCtx.fillStyle = grad;
             offCtx.strokeStyle = 'transparent';
-            drawTextLines(offCtx, text, lines, fontSizePx, s, false);
+            drawTextLines(offCtx, text, lines, fontSizePx, s, false, lineFilter);
 
             applyBlur(off, blur);
 
@@ -1131,7 +1173,7 @@
             }
             if (mask) {
                 ctx.globalCompositeOperation = 'destination-out';
-                drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
             }
         } else {
             // Solid color shadow
@@ -1146,7 +1188,7 @@
                 offCtx.setTransform(ctx.getTransform());
                 offCtx.fillStyle = color;
                 offCtx.strokeStyle = 'transparent';
-                drawTextLines(offCtx, text, lines, fontSizePx, s, false);
+                drawTextLines(offCtx, text, lines, fontSizePx, s, false, lineFilter);
 
                 applyBlur(off, blur);
 
@@ -1163,7 +1205,7 @@
                 }
                 if (mask) {
                     ctx.globalCompositeOperation = 'destination-out';
-                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
                 }
             } else {
                 // Sin blur - offset simple
@@ -1175,14 +1217,14 @@
                 if (offsetX !== 0 || offsetY !== 0) {
                     ctx.save();
                     ctx.translate(offsetX, offsetY);
-                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
                     ctx.restore();
                 } else {
-                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
                 }
                 if (mask) {
                     ctx.globalCompositeOperation = 'destination-out';
-                    drawTextLines(ctx, text, lines, fontSizePx, s, false);
+                    drawTextLines(ctx, text, lines, fontSizePx, s, false, lineFilter);
                 }
             }
         }
@@ -1227,7 +1269,7 @@
             }
             
             ctx.strokeStyle = 'transparent';
-            drawTextLines(ctx, text, lines, fontSizePx, s);
+            drawTextLines(ctx, text, lines, fontSizePx, s, false, null);
             
             ctx.translate(-layerOffsetX, -layerOffsetY);
         }
@@ -1313,24 +1355,13 @@
     }
 
     function drawFill(ctx, text, lines, fontSizePx, s) {
-        // Alcance por linea: si hay overrides, cada linea se pinta con su
-        // config efectiva (base + delta disperso), reutilizando el mismo motor.
-        const lineOverrides = s.lines && s.lines.overrides ? s.lines.overrides : null;
-        const hasLineOverrides = lineOverrides && Object.keys(lineOverrides).length > 0;
-        if (!hasLineOverrides || typeof TextEditor === 'undefined' || !TextEditor.resolveLineSettings) {
-            getFillLayers(s).forEach(function(layer) {
-                if (!layer || layer.active === false) return;
-                drawFillLayer(ctx, text, lines, fontSizePx, s, layer);
-            });
-            return;
-        }
-        for (let li = 0; li < lines.length; li++) {
-            const ls = TextEditor.resolveLineSettings(li);
+        // Alcance por linea: helper central (misma geometria de bloque).
+        forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
             getFillLayers(ls).forEach(function(layer) {
                 if (!layer || layer.active === false) return;
-                drawFillLayer(ctx, lines[li], [lines[li]], fontSizePx, ls, layer, li);
+                drawFillLayer(ctx, lineText, lineArr, fontSizePx, ls, layer, li);
             });
-        }
+        });
     }
 
     function drawFillLayer(ctx, text, lines, fontSizePx, s, layer, lineFilter) {
@@ -1644,6 +1675,21 @@
 
         // Draw text outline
     function drawOutline(ctx, text, lines, fontSizePx, s) {
+        // Alcance por linea: cada linea con su config efectiva (misma
+        // geometria de bloque via forEachLineSetting + lineFilter interno).
+        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
+            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+            forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
+                drawOutlineLine(ctx, lineText, lines, fontSizePx, ls, li);
+            });
+            return;
+        }
+        drawOutlineLine(ctx, text, lines, fontSizePx, s, null);
+    }
+
+    // Cuerpo real del outline first (una llamada = un estilo, N lineas o una
+    // sola via lineFilter). Nunca recursa: el dispatch vive en drawOutline.
+    function drawOutlineLine(ctx, text, lines, fontSizePx, s, lineFilter) {
         // Support both legacy structure and new TextStudio structure
         const outlineConfig = s.outline.first || s.outline;
         const width = (outlineConfig.width || 0.1) * fontSizePx;
@@ -1665,7 +1711,7 @@
                 ctx.lineJoin = join;
                 ctx.lineCap = 'round';
                 ctx.fillStyle = 'transparent';
-                drawTextLines(ctx, text, lines, fontSizePx, s, true);
+                drawTextLines(ctx, text, lines, fontSizePx, s, true, lineFilter);
                 ctx.restore();
                 return;
             }
@@ -1686,7 +1732,7 @@
         ctx.fillStyle = 'transparent';
 
         const alignment = outlineConfig.position || 'outside';
-        drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment);
+        drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment, lineFilter);
         ctx.restore();
     }
 
@@ -1694,11 +1740,11 @@
     // Canvas strokeText always draws a centered stroke, so 'inside' and
     // 'outside' are achieved with an offscreen stroke masked by the glyph
     // shape (destination-in / destination-out).
-    function drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment) {
+    function drawTextStrokeAligned(ctx, text, lines, fontSizePx, s, width, alignment, lineFilter) {
         if (alignment !== 'inside' && alignment !== 'outside') {
             // 'center' (legacy behavior): plain centered stroke
             ctx.lineWidth = width;
-            drawTextLines(ctx, text, lines, fontSizePx, s, true);
+            drawTextLines(ctx, text, lines, fontSizePx, s, true, lineFilter);
             return;
         }
 
@@ -1714,7 +1760,7 @@
         offCtx.lineCap = 'round';
         offCtx.strokeStyle = ctx.strokeStyle;
         offCtx.lineWidth = alignment === 'outside' ? width * 2 : width;
-        drawTextLines(offCtx, text, lines, fontSizePx, s, true);
+        drawTextLines(offCtx, text, lines, fontSizePx, s, true, lineFilter);
 
         // 2. Build a glyph mask (solid filled text) with the same transform.
         const mask = document.createElement('canvas');
@@ -1723,7 +1769,7 @@
         const maskCtx = mask.getContext('2d');
         maskCtx.setTransform(ctx.getTransform());
         maskCtx.fillStyle = '#ffffff';
-        drawTextLines(maskCtx, text, lines, fontSizePx, s, false);
+        drawTextLines(maskCtx, text, lines, fontSizePx, s, false, lineFilter);
 
         // 3. Mask the stroke: keep only pixels inside or outside the glyphs.
         //    The transform must be reset first, otherwise the mask is drawn
@@ -1745,6 +1791,20 @@
     // Draw inner shadow (unificado: inner + inner2 — mask + strength + gradient + blendmode)
     function drawInnerShadow(ctx, text, lines, fontSizePx, s, configKey) {
         configKey = configKey || 'inner';
+        if (!s.shadow[configKey] || !isActive(s, 'shadow.' + configKey)) return;
+        // Alcance por linea: mismo patron que outer (helper + lineFilter).
+        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
+            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+            forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
+                drawInnerShadowLine(ctx, lineText, lines, fontSizePx, ls, configKey, li);
+            });
+            return;
+        }
+        drawInnerShadowLine(ctx, text, lines, fontSizePx, s, configKey, null);
+    }
+
+    // Cuerpo real de la sombra interior. Nunca recursa.
+    function drawInnerShadowLine(ctx, text, lines, fontSizePx, s, configKey, lineFilter) {
         const shadowConfig = s.shadow[configKey];
         if (!shadowConfig || !isActive(s, 'shadow.' + configKey)) return;
 
@@ -1800,7 +1860,7 @@
             lctx.font = ctx.font;
             lctx.translate(lineW / 2 + offX * 0.25, lineH / 2 + offY * 0.25);
             lctx.save();
-            drawTextLines(lctx, text, lines, fontSizePx, s);
+            drawTextLines(lctx, text, lines, fontSizePx, s, false, lineFilter);
             lctx.restore();
             lctx.restore();
         }
@@ -1833,6 +1893,20 @@
 
     // Draw global outline (TextStudio: outline.global) — extrusion detras del texto
     function drawOutlineGlobal(ctx, text, lines, fontSizePx, s) {
+        if (!isActive(s, 'outline.global')) return;
+        // Alcance por linea: mismo patron (helper + lineFilter).
+        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
+            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+            forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
+                drawOutlineGlobalLine(ctx, lineText, lines, fontSizePx, ls, li);
+            });
+            return;
+        }
+        drawOutlineGlobalLine(ctx, text, lines, fontSizePx, s, null);
+    }
+
+    // Cuerpo real de la extrusion global. Nunca recursa.
+    function drawOutlineGlobalLine(ctx, text, lines, fontSizePx, s, lineFilter) {
         if (!isActive(s, 'outline.global')) return;
         const globalCfg = s.outline.global;
         const width = (globalCfg.width || 0.15) * fontSizePx;
@@ -1871,7 +1945,7 @@
                 ectx.setLineDash([globalCfg.dash * fontSizePx, globalCfg.dash * fontSizePx * 0.5]);
             }
             ectx.fillStyle = 'transparent';
-            drawTextLines(ectx, text, lines, fontSizePx, s, true);
+            drawTextLines(ectx, text, lines, fontSizePx, s, true, lineFilter);
             ectx.restore();
         }
 
@@ -1884,14 +1958,36 @@
     function drawIcon(ctx, text, lines, fontSizePx, s) {
         if (!state.iconImg) return;
 
+        // Alcance por linea: el icono se pinta una vez por linea con su config
+        // efectiva (tamano/posicion/rotacion/opacidad propios de cada linea).
+        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
+            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+            forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
+                if (!isActive(ls, 'icon')) return;
+                drawIconLine(ctx, lineText, lines, fontSizePx, ls, li);
+            });
+            return;
+        }
+        drawIconLine(ctx, text, lines, fontSizePx, s, null);
+    }
+
+    // Cuerpo real del icono (una linea via lineFilter o el bloque). Nunca recursa.
+    function drawIconLine(ctx, text, lines, fontSizePx, s, lineFilter) {
+        if (!state.iconImg) return;
+
         const icon = state.iconImg;
         const iconSize = fontSizePx * 0.5 * s.icon.size;
         const offsetX = s.icon.offset.x * fontSizePx;
         const offsetY = s.icon.offset.y * fontSizePx;
 
-        const metrics = ctx.measureText(text.replace(/\n/g, ' '));
+        // En modo por-linea el icono se ancla a SU linea (ancho y baseline
+        // propios); en modo bloque conserva el comportamiento historico.
+        const refText = (lineFilter !== undefined && lineFilter !== null && lines[lineFilter] !== undefined)
+            ? lines[lineFilter] : text.replace(/\n/g, ' ');
+        const metrics = ctx.measureText(refText);
         const textWidth = metrics.width;
-        const textHeight = fontSizePx * 1.3 * lines.length;
+        const refCount = (lineFilter !== undefined && lineFilter !== null) ? 1 : lines.length;
+        const textHeight = fontSizePx * 1.3 * refCount;
 
         let x, y;
         if (s.icon.position === 'right') {
@@ -1901,7 +1997,13 @@
         } else {
             x = -textWidth / 2 - iconSize / 2 - fontSizePx * 0.15 + offsetX;
         }
+        // En modo por-linea el icono acompana la baseline de SU linea (no el
+        // centro del bloque): lineAdvance global * indice, igual que drawTextLines.
         y = -iconSize * 0.2 + offsetY;
+        if (lineFilter !== undefined && lineFilter !== null && lines.length > 1) {
+            const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
+            y += (lineFilter - (lines.length - 1) / 2) * lineAdvance;
+        }
 
         ctx.save();
         ctx.globalAlpha = s.icon.alpha;
@@ -1943,7 +2045,7 @@
         for (let i = steps; i >= 0; i--) {
             ctx.save();
             ctx.translate(stepX * i, stepY * i);
-            drawTextLines(ctx, text, lines, fontSizePx, s);
+            drawTextLines(ctx, text, lines, fontSizePx, s, false, null);
             ctx.restore();
         }
 
@@ -2148,8 +2250,13 @@
         };
     }
 
-    // Draw text lines helper
-    function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke) {
+    // Draw text lines helper.
+    // lineFilter: indice de linea (0-based) o null para pintar todas. Los
+    // motores por-linea (drawFill, drawOutline, ...) pintan cada linea con su
+    // config efectiva manteniendo SU baseline global (firstBaseline + i *
+    // lineAdvance del bloque completo), asi el lineHeight/base se conserva y
+    // las lineas nunca se superponen.
+    function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke, lineFilter) {
         const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
         const letterSpacing = s.letterSpacing * fontSizePx * 0.1;
 
@@ -2163,6 +2270,7 @@
         }
 
         for (let i = 0; i < lines.length; i++) {
+            if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) continue;
             const line = lines[i];
             // Calcular posición Y para cada línea
             const y = blockMetrics.firstBaseline + i * blockMetrics.lineAdvance;
@@ -2608,9 +2716,63 @@
         return obj;
     }
 
+    // Rutas siempre globales (contenido/layout/lienzo/lettering de bloque):
+    // ver GLOBAL_ONLY_PATHS en controls.js. setTargetedSetting las escribe en
+    // base aunque el target sea L1/L2, para no crear overrides huerfanos.
+    function isGlobalOnlyPath(path) {
+        const GLOBAL = ['text', 'align', 'lineHeight', 'letterSpacing', 'rotate',
+            'distort', 'canvas', 'lines', 'download', 'processing',
+            'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap',
+            'lettering.blendmode', 'font.src'];
+        return GLOBAL.some(function(g) {
+            return path === g || path.indexOf(g + '.') === 0;
+        });
+    }
+
+    // Podar overrides huerfanos de rutas globales (creados por versiones
+    // anteriores que permitian text/layout en lines.overrides). Se aplica al
+    // cargar preset en el editor visible; la API/export no la toca.
+    function pruneGlobalOnlyOverrides(s) {
+        const ovs = s.lines && s.lines.overrides;
+        if (!ovs || typeof ovs !== 'object') return;
+        Object.keys(ovs).forEach(function(idx) {
+            const ov = ovs[idx];
+            if (!ov || typeof ov !== 'object') { delete ovs[idx]; return; }
+            (function pruneNode(node) {
+                if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+                Object.keys(node).forEach(function(k) {
+                    const child = node[k];
+                    if (child && typeof child === 'object' && !Array.isArray(child)) {
+                        pruneNode(child);
+                        if (!Object.keys(child).length) delete node[k];
+                    }
+                });
+            })(ov);
+            // Eliminar hojas globales en cualquier profundidad: comparar cada
+            // hoja del override contra su ruta completa. Nota: font.size,
+            // font.weight y lettering.shadow son ESTILO por-linea (no estan en
+            // isGlobalOnlyPath) y se conservan; solo font.src es global.
+            (function pruneGlobals(node, prefix) {
+                if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+                Object.keys(node).forEach(function(k) {
+                    const full = prefix ? prefix + '.' + k : k;
+                    const child = node[k];
+                    if (child && typeof child === 'object' && !Array.isArray(child)) {
+                        pruneGlobals(child, full);
+                        if (!Object.keys(child).length) delete node[k];
+                    } else if (isGlobalOnlyPath(full)) {
+                        delete node[k];
+                    }
+                });
+            })(ov, '');
+            pruneEmpty(ov);
+            if (!Object.keys(ov).length) delete ovs[idx];
+        });
+    }
+
     function setTargetedSetting(path, value) {
         const target = getLineTarget();
-        if (target === 'all') {
+        if (target === 'all' || isGlobalOnlyPath(path)) {
             setNested(state.settings, path, value);
             render();
             return;
@@ -2646,9 +2808,6 @@
     var FALLBACK_LINE_SYNC_TABLE = [
         ['tt-font-size-input', 'font.size'],
         ['tt-font-weight-input', 'font.weight'],
-        ['tt-rotate-input', 'rotate'],
-        ['tt-letter-spacing-input', 'letterSpacing'],
-        ['tt-line-height-input', 'lineHeight'],
         ['tt-fill-active-input', 'fill.active'],
         ['tt-depth-length-input', 'depth.length'],
         ['tt-depth-angle-input', 'depth.angle'],
@@ -2657,6 +2816,31 @@
         ['tt-shadow-outer-distance-input', 'shadow.outer.distance'],
         ['tt-shadow-inner-size-input', 'shadow.inner.size']
     ];
+
+    // Rutas estilizables por linea: las que drawFill/drawOutline/... resuelven
+    // con forEachLineSetting. El resto (contenido, layout, lienzo, lettering
+    // de bloque) es global. Mantener en sync con GLOBAL_ONLY_PATHS de
+    // controls.js: misma lista, negada. Si una ruta no esta aqui, el sync por
+    // target la salta (los inputs muestran la base) y no marca override.
+    var LINE_STYLE_PATHS = [
+        'font.size', 'font.weight',
+        'fill',
+        'outline',
+        'depth', 'depth2',
+        'bevel',
+        'shadow',
+        'specular',
+        'lettering.shadow',
+        'lettering.active',
+        'icon'
+    ];
+
+    function isLineStylePath(path) {
+        if (!path) return false;
+        return LINE_STYLE_PATHS.some(function(g) {
+            return path === g || path.indexOf(g + '.') === 0;
+        });
+    }
 
     function updateUIFromLineTarget() {
         const target = getLineTarget();
@@ -2667,11 +2851,7 @@
         const table = (bindings && bindings.length ? bindings : FALLBACK_LINE_SYNC_TABLE)
             .filter(function(entry) {
                 const p = String(entry && (entry.settingPath || entry[1]) || '');
-                return p && p !== 'text' &&
-                    p.indexOf('canvas.') !== 0 &&
-                    p.indexOf('lines.') !== 0 &&
-                    p.indexOf('download.') !== 0 &&
-                    p.indexOf('processing.') !== 0;
+                return isLineStylePath(p);
             });
         table.forEach(function(entry) {
             const id = entry.id || entry[0];
@@ -2681,11 +2861,22 @@
             if (!el) return;
             const value = lineIdx === null ? getNested(state.settings, path)
                 : getEffectiveSetting(lineIdx, path);
-            if (el.type === 'checkbox') {
+            var isCheckbox = el.type === 'checkbox' ||
+                el.getAttribute('type') === 'checkbox';
+            if (isCheckbox) {
                 el.checked = Boolean(value);
-            } else if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+            } else if ((el.value !== undefined) &&
+                (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
                 el.value = (value !== undefined && value !== null) ? value : '';
             }
+            // Marcar override propio vs heredado (syncControlsFromTarget, paso 4):
+            // data-line-override="1" si la linea define el path, "0" si hereda.
+            try {
+                const ov = state.settings.lines && state.settings.lines.overrides
+                    ? state.settings.lines.overrides[String(lineIdx)] : null;
+                const own = lineIdx !== null && ov && getNested(ov, path) !== undefined;
+                el.setAttribute('data-line-override', own ? '1' : '0');
+            } catch (e) { /* decoracion best-effort, nunca rompe el sync */ }
             if (bindings && window.TextEditorControls && typeof window.TextEditorControls.refreshInputDecorations === 'function') {
                 window.TextEditorControls.refreshInputDecorations(el);
             }
@@ -3220,6 +3411,14 @@
         }
 
         if (!targetSettings) {
+            // Al cargar preset en el editor visible: resetear el style target a
+            // All y podar overrides huerfanos de rutas globales (text, canvas,
+            // layout, lettering de bloque) creados por versiones anteriores.
+            if (state.settings.lines && typeof state.settings.lines === 'object') {
+                state.settings.lines.activeTarget = 'all';
+                pruneGlobalOnlyOverrides(s);
+            }
+
             // Update UI elements
             updateUIFromSettings();
 

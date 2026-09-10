@@ -111,9 +111,9 @@ textmuy/
 4. **Formato `.txm`**: payload `{format:'textmuy-project', version:1, name, settings}`
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
-5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC9**). El plugin detecta
-   módulos viejos por el contrato y avisa con Ctrl+F5.
+5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC16**). El plugin detecta
+   modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
    `migrateLegacyPresets` desde la galería).
@@ -151,6 +151,9 @@ textmuy/
 - **`effects/`**: bevel (WebGL con normal maps + fallback 2D), specular (Blinn-Phong),
   distort engine (arcos, ondas, bulge per-character con fallback matricial).
 - **`utils/`**: vendors minificados. **No editar los `.min`.**
+- **Sin `.min` propios**: los minificados de este repo (`editor.min.js`,
+  `controls.min.js`, `effects/*.min.js`, etc.) se eliminaron — eran restos
+  huerfanos sin consumidor (ningun HTML los cargaba). Fuente unica: los `.js`.
 
 ## 7. Decisiones de diseño ya tomadas
 
@@ -170,6 +173,20 @@ textmuy/
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
+- ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
+  = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que
+  cambia). Rutas **globales** (contenido/layout: `text`, `align`, `lineHeight`,
+  `letterSpacing`, `rotate`, `distort`, `canvas`, `lettering.flag/boggle/...`,
+  `font.src`) nunca entran a overrides — van siempre a base (`isGlobalOnlyPath`
+  en `editor.js`/`controls.js`). Rutas de **estilo** (`font.size/weight`, `fill`,
+  `outline.*`, `depth/depth2`, `bevel`, `shadow.*`, `specular`, `lettering.shadow`,
+  `icon`) se pintan por linea con su config efectiva (`forEachLineSetting` +
+  `drawTextLines(..., lineFilter)`, misma geometria de bloque: cada linea
+  conserva su baseline, nunca se superponen). El selector vive anclado abajo de
+  TEXT, STYLES e ICON (`data-line-style-anchor`, mismo estado via evento
+  `textmuy:line-target-updated`); los inputs marcan `data-line-override="1/0"`
+  (propio vs heredado). Al cargar preset se resetea el target a All y se podan
+  overrides huerfanos globales (`pruneGlobalOnlyOverrides`).
 
 
 ## 8. Dificultades del entorno (IMPORTANTE AL TRABAJAR AQUÍ)
@@ -213,3 +230,4 @@ node --check js/api.js
   lectura).
 - ❌ NO DEBES: escribir en el servidor sin el puente (admin-post + nonce).
 - ❌ NO DEBES: editar los vendors de `utils/`.
+- ❌ NO DEBES: regenerar `.min` propios (eliminados a proposito; fuente unica los `.js`).

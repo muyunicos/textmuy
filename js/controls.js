@@ -26,12 +26,35 @@
         initPresetGallery();
     }
 
+    // Paths que son siempre globales: nunca entran a lines.overrides aunque el
+    // style target sea L1/L2/... El contenido (text), el layout del bloque
+    // (align, lineHeight, letterSpacing global, rotate, distort), el lienzo y
+    // los letterings de bloque (flag/boggle actuan sobre todo el bloque)
+    // pertenecen al proyecto, no a una linea. Sin esto, editar el textarea con
+    // L1 activo creaba overrides.text huerfanos que el render ignoraba y el
+    // texto se superponia en vez de mantener su linea.
+    var GLOBAL_ONLY_PATHS = [
+        'text', 'align', 'lineHeight',
+        'letterSpacing', 'rotate', 'distort',
+        'canvas', 'lines', 'download', 'processing',
+        'lettering.flag', 'lettering.boggle',
+        'lettering.reverseOverlap', 'lettering.blendmode',
+        'font.src'
+    ];
+
+    function isGlobalOnlyPath(path) {
+        return GLOBAL_ONLY_PATHS.some(function(g) {
+            return path === g || path.indexOf(g + '.') === 0;
+        });
+    }
+
     // Helper: set nested setting and trigger render
     // When a line target (L1, L2...) is active, delegate to editor.setTargetedSetting
-    // so overrides are properly scoped to that line number instead of overwriting base settings.
+    // so style overrides are properly scoped to that line number. Global-only
+    // paths (text, canvas, layout...) always write to the base settings.
     function setNestedSetting(path, value) {
         if (!editor) return;
-        if (/^L\d+$/.test(editor.getLineTarget())) {
+        if (!isGlobalOnlyPath(path) && /^L\d+$/.test(editor.getLineTarget())) {
             editor.setTargetedSetting(path, value);
         } else {
             const settings = editor.getSettings();
