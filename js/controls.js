@@ -27,17 +27,59 @@
     }
 
     // Helper: set nested setting and trigger render
+    // When a line target (L1, L2...) is active, delegate to editor.setTargetedSetting
+    // so overrides are properly scoped to that line number instead of overwriting base settings.
     function setNestedSetting(path, value) {
         if (!editor) return;
-        const settings = editor.getSettings();
-        const keys = path.split('.');
-        let obj = settings;
-        for (let i = 0; i < keys.length - 1; i++) {
-            if (!obj[keys[i]]) obj[keys[i]] = {};
-            obj = obj[keys[i]];
+        if (/^L\d+$/.test(editor.getLineTarget())) {
+            editor.setTargetedSetting(path, value);
+        } else {
+            const settings = editor.getSettings();
+            const keys = path.split('.');
+            let obj = settings;
+            for (let i = 0; i < keys.length - 1; i++) {
+                if (!obj[keys[i]]) obj[keys[i]] = {};
+                obj = obj[keys[i]];
+            }
+            obj[keys[keys.length - 1]] = value;
         }
-        obj[keys[keys.length - 1]] = value;
         editor.render();
+    }
+
+    // Bind line-style target tabs (All / L1 / L2 / L3)
+    function bindLineStyleTabs() {
+        const tabs = document.querySelectorAll('[data-line-style]');
+        if (!tabs.length) return;
+
+        function updateSelection() {
+            const target = editor.getLineTarget();
+            tabs.forEach(function(tab) {
+                const value = String(tab.dataset.lineStyle || '');
+                const normalized = value === 'all' ? 'all' : ('L' + value);
+                tab.classList.toggle('selected', normalized === target);
+            });
+        }
+
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                const value = String(tab.dataset.lineStyle || '');
+                const target = value === 'all' ? 'all' : ('L' + value);
+                editor.setLineTarget(target);
+                updateSelection();
+            });
+        });
+
+        updateSelection();
+
+        // Re-sync tabs when the target changes from anywhere (loadPreset, API, editor).
+        document.addEventListener('textmuy:line-target-updated', updateSelection);
+
+        // Re-sync gradient pickers from the effective settings of the new target.
+        document.addEventListener('textmuy:line-target-updated', function() {
+            if (window.GradientPicker && window.GradientPicker.init) {
+                window.GradientPicker.init();
+            }
+        });
     }
 
     // Bind canvas size inputs with bidirectional logic
@@ -101,7 +143,31 @@
     }
 
     // Bind a range input
+    function registerBinding(id, settingPath) {
+        window.TextEditorControls = window.TextEditorControls || { bindings: [] };
+        if (!Array.isArray(window.TextEditorControls.bindings)) window.TextEditorControls.bindings = [];
+        const exists = window.TextEditorControls.bindings.some(function(b) { return b.id === id; });
+        if (!exists) window.TextEditorControls.bindings.push({ id: id, settingPath: settingPath });
+    }
+
+    function refreshInputDecorations(el) {
+        if (!el) return;
+        if (typeof updateRangeFill === 'function') updateRangeFill(el);
+        if (el.type === 'checkbox' && typeof updateVisibility === 'function') {
+            try { updateVisibility(); } catch (e) { /* fieldset sync best-effort */ }
+        }
+        var grad = el && el.id ? document.getElementById(el.id) : null;
+        if (grad && grad.tagName === 'INPUT' && /gradient-colors/.test(grad.id) &&
+            window.GradientPicker && typeof window.GradientPicker.init === 'function') {
+            window.GradientPicker.init();
+        }
+    }
+    window.TextEditorControls = window.TextEditorControls || {};
+    window.TextEditorControls.bindings = window.TextEditorControls.bindings || [];
+    window.TextEditorControls.refreshInputDecorations = refreshInputDecorations;
+
     function bindRange(id, settingPath, transformFn) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('input', function() {
@@ -112,6 +178,7 @@
 
     // Bind a checkbox
     function bindCheckbox(id, settingPath) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', function() {
@@ -121,6 +188,7 @@
 
     // Bind a color input
     function bindColor(id, settingPath) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('input', function() {
@@ -130,6 +198,7 @@
 
     // Bind a select
     function bindSelect(id, settingPath) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', function() {
@@ -207,6 +276,9 @@
         bindRange('tt-line-height-input', 'lineHeight', parseFloat);
         bindRange('tt-rotate-input', 'rotate', parseFloat);
         bindRange('tt-distort-arc-angle-input', 'distort.arc.angle', parseFloat);
+
+        // Bind line-style target tabs (All / L1 / L2 / L3)
+        bindLineStyleTabs();
 
         // Initialize canvas controls from settings
         const settings = editor.getSettings();
@@ -437,6 +509,7 @@
 
     // Helper: bind textarea
     function bindTextarea(id, settingPath) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('input', function() {
@@ -446,6 +519,7 @@
 
     // Helper: bind align list (icon-based selection)
     function bindAlignList(inputId, settingPath) {
+        registerBinding(inputId, settingPath);
         const input = document.getElementById(inputId);
         const list = input?.parentElement?.querySelector('.tt-align-list');
         if (!list || !input) return;
@@ -477,6 +551,7 @@
 
     // Helper: bind range input with render trigger
     function bindRangeWithRender(id, settingPath, transformFn) {
+        registerBinding(id, settingPath);
         const el = document.getElementById(id);
         if (!el) return;
         updateRangeFill(el);

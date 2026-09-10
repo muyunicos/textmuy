@@ -353,6 +353,35 @@
             code: null
         }
     };
+    // OPTION_REGISTRY: genera el mapa de todas las opciones configurables
+    // Recorre defaultSettings y devuelve path -> {id, type, default}
+    function OPTION_REGISTRY() {
+        const registry = {};
+
+        function walk(obj, prefix) {
+            if (obj === null || obj === undefined) return;
+
+            const isArray = Array.isArray(obj);
+            const isPlainObject = typeof obj === 'object' && !isArray;
+
+            if (isPlainObject || isArray) {
+                const keys = isArray ? [...obj.keys()] : Object.keys(obj);
+                for (const key of keys) {
+                    const newPrefix = prefix ? `${prefix}.${key}` : key;
+                    walk(obj[key], newPrefix);
+                }
+            } else {
+                const path = prefix || 'root';
+                const id = path.replace(/[^a-z0-9_-]/gi, '_').toLowerCase().replace(/_+/g, '_');
+                registry[path] = { id: id, type: typeof obj, default: obj };
+            }
+        }
+
+        walk(defaultSettings, '');
+        return registry;
+    }
+
+
 
     // Helper function for safe property access
     function safeGet(obj, path, defaultValue) {
@@ -1948,68 +1977,6 @@
         ctx.restore();
     }
 
-    // Draw outer shadow 2
-    function drawOuterShadow2(ctx, text, lines, fontSizePx, s) {
-        // Support both legacy structure and new TextStudio structure
-        const shadowConfig = s.shadow.outer2 || s.shadowOuter2;
-        const distance = (shadowConfig.distance || 0.1) * fontSizePx;
-        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
-        const offsetX = Math.cos(angle) * distance;
-        const offsetY = Math.sin(angle) * distance;
-        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
-        const alpha = safeGet(shadowConfig, 'fill.alpha', 1);
-        const color = shadowConfig.fill?.color || shadowConfig.color || '#000000';
-
-        ctx.save();
-        ctx.shadowColor = getColorValue(color, alpha);
-        ctx.shadowOffsetX = offsetX;
-        ctx.shadowOffsetY = offsetY;
-        ctx.shadowBlur = blur;
-
-        ctx.fillStyle = 'transparent';
-        drawTextLines(ctx, text, lines, fontSizePx, s);
-
-        ctx.restore();
-    }
-
-    // Draw inner shadow 2
-    function drawInnerShadow2(ctx, text, lines, fontSizePx, s) {
-        // Support both legacy structure and new TextStudio structure
-        const shadowConfig = s.shadow.inner2 || s.shadowInner2;
-        const distance = (shadowConfig.distance || 0.03) * fontSizePx;
-        const angle = (shadowConfig.angle || 135) * Math.PI / 180;
-        const offsetX = Math.cos(angle) * distance;
-        const offsetY = Math.sin(angle) * distance;
-        const offset = (shadowConfig.offset || 0) * fontSizePx;
-        const blur = (shadowConfig.size || 0.2) * fontSizePx * 2;
-        const alpha = shadowConfig.alpha || 1;
-        const color = shadowConfig.color || '#000000';
-
-        const canvas = state.canvas;
-        const offscreen = document.createElement('canvas');
-        offscreen.width = canvas.width;
-        offscreen.height = canvas.height;
-        const offCtx = offscreen.getContext('2d');
-
-        offCtx.font = ctx.font;
-        offCtx.translate(offscreen.width / 2, offscreen.height / 2);
-        offCtx.fillStyle = getColorValue(color, alpha);
-        offCtx.shadowColor = getColorValue(color, alpha);
-        offCtx.shadowOffsetX = offsetX + offset;
-        offCtx.shadowOffsetY = offsetY + offset;
-        offCtx.shadowBlur = blur;
-
-        offCtx.save();
-        drawTextLines(offCtx, text, lines, fontSizePx, s);
-        offCtx.restore();
-
-        ctx.save();
-        const blendmode = shadowConfig.blendmode || 'source-atop';
-        ctx.globalCompositeOperation = blendmode;
-        ctx.drawImage(offscreen, -canvas.width / 2, -canvas.height / 2);
-        ctx.restore();
-    }
-
     // Draw bevel effect (modern TextStudio structure: bevel.inner)
     function drawBevel(ctx, text, lines, fontSizePx, s, config) {
         // Use explicit config (for bevel.inner2) or default to bevel.inner / legacy bevel
@@ -2623,6 +2590,10 @@
         }
         state.settings.lines.activeTarget = target;
         render();
+        updateUIFromLineTarget();
+        if (typeof document !== 'undefined' && document.dispatchEvent) {
+            document.dispatchEvent(new CustomEvent('textmuy:line-target-updated'));
+        }
     }
 
     function pruneEmpty(obj) {
@@ -2666,6 +2637,59 @@
             ? state.settings.lines.overrides[String(lineIdx)] : null;
         const v = ov ? getNested(ov, path) : undefined;
         return v !== undefined ? v : getNested(state.settings, path);
+    }
+
+    // Sync simple controls from the effective settings of the active line target.
+    // Delegates to window.TextEditorControls bindings when available (registrations
+    // land there via bindRange/bindCheckbox/etc.). Falls back to a minimal
+    // id<-settingPath mapping so headless renders keep working without controls.js.
+    var FALLBACK_LINE_SYNC_TABLE = [
+        ['tt-font-size-input', 'font.size'],
+        ['tt-font-weight-input', 'font.weight'],
+        ['tt-rotate-input', 'rotate'],
+        ['tt-letter-spacing-input', 'letterSpacing'],
+        ['tt-line-height-input', 'lineHeight'],
+        ['tt-fill-active-input', 'fill.active'],
+        ['tt-depth-length-input', 'depth.length'],
+        ['tt-depth-angle-input', 'depth.angle'],
+        ['tt-outline-first-width-input', 'outline.first.width'],
+        ['tt-outline-second-width-input', 'outline.second.width'],
+        ['tt-shadow-outer-distance-input', 'shadow.outer.distance'],
+        ['tt-shadow-inner-size-input', 'shadow.inner.size']
+    ];
+
+    function updateUIFromLineTarget() {
+        const target = getLineTarget();
+        const lineIdx = target === 'all' ? null : (parseInt(target.slice(1), 10) - 1);
+        const bindings = (typeof window !== 'undefined' && window.TextEditorControls &&
+            Array.isArray(window.TextEditorControls.bindings))
+            ? window.TextEditorControls.bindings : null;
+        const table = (bindings && bindings.length ? bindings : FALLBACK_LINE_SYNC_TABLE)
+            .filter(function(entry) {
+                const p = String(entry && (entry.settingPath || entry[1]) || '');
+                return p && p !== 'text' &&
+                    p.indexOf('canvas.') !== 0 &&
+                    p.indexOf('lines.') !== 0 &&
+                    p.indexOf('download.') !== 0 &&
+                    p.indexOf('processing.') !== 0;
+            });
+        table.forEach(function(entry) {
+            const id = entry.id || entry[0];
+            const path = entry.settingPath || entry[1];
+            if (typeof document === 'undefined' || !document.getElementById) return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            const value = lineIdx === null ? getNested(state.settings, path)
+                : getEffectiveSetting(lineIdx, path);
+            if (el.type === 'checkbox') {
+                el.checked = Boolean(value);
+            } else if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                el.value = (value !== undefined && value !== null) ? value : '';
+            }
+            if (bindings && window.TextEditorControls && typeof window.TextEditorControls.refreshInputDecorations === 'function') {
+                window.TextEditorControls.refreshInputDecorations(el);
+            }
+        });
     }
 
     function localApplyDelta(target, delta) {
@@ -3585,6 +3609,8 @@
         setTargetedSetting: setTargetedSetting,
         getEffectiveSetting: getEffectiveSetting,
         resolveLineSettings: resolveLineSettings,
+        OPTION_REGISTRY: OPTION_REGISTRY,
+        updateUIFromLineTarget: updateUIFromLineTarget,
         ensureFillIds: ensureFillIds,
         getCanvas: getCanvas,
         getCtx: getCtx,
