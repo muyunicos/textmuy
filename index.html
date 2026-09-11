@@ -108,35 +108,18 @@
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-font-picker-input">Font:</label>
-                                        <div class="tt-option" style="margin-bottom: 8px;">
-                                            <div class="tt-font-search-wrap">
-                                                <input type="text" id="tt-font-search-input" placeholder="Search fonts..." >
-                                                <button type="button" id="tt-font-search-clear" class="tt-font-search-clear" aria-label="Limpiar busqueda" title="Limpiar busqueda" hidden>&times;</button>
-                                            </div>
-                                        </div>
-                                        <div class="tt-option" style="margin-bottom: 8px;">
-                                            <select id="tt-font-category-filter" >
-                                                <option value="all">All Categories</option>
-                                                <option value="custom">Custom</option>
+                                        <div class="tt-font-picker-actions">
+                                            <select id="tt-font-picker-input" data-tt-option="font.src" class="tt-font-select">
+                                                <!-- Picker desde datos: rebuildFontPicker() lo
+                                                  reconstruye desde fonts.json (Google) + fisicas
+                                                  del puente. Esqueleto vacio = fallback si el
+                                                  catalogo no esta disponible. -->
+                                                <optgroup label="Custom" data-font-group="custom"></optgroup>
                                             </select>
-                                        </div>
-                                        <div class="tt-option" style="margin-bottom: 8px;">
-                                            <label for="tt-font-upload-input" class="tt-texture-label" >
-                                                <input type="file" accept=".ttf,.otf,.woff,.woff2" id="tt-font-upload-input" style="display: none;">
-                                                <span>Upload Custom Font</span>
-                                            </label>
-                                            <button type="button" id="tt-font-gallery-btn" class="tt-texture-label" style="margin-top: 6px; width: 100%; text-align: center; cursor: pointer;">
-                                                <span>Galeria de fuentes</span>
+                                            <button type="button" id="tt-font-gallery-btn" class="tt-texture-label tt-font-gallery-btn">
+                                                <span>Galeria de Fuentes</span>
                                             </button>
                                         </div>
-                                        <select id="tt-font-picker-input" data-tt-option="font.src" class="tt-font-select">
-                                            <!-- Picker desde datos: rebuildFontPicker() lo
-                                              reconstruye desde fonts.json (Google) + fisicas
-                                              del puente + uploads locales. Esqueleto vacio =
-                                              fallback si el json falla. -->
-                                            <optgroup label="Custom" data-font-group="custom">
-                                            </optgroup>
-                                        </select>
                                     </div>
                                 </div>
                                 <div class="tt-column-inner" id="tt-column-text-settings">
@@ -1389,21 +1372,21 @@
         </div>
     </div>
 
-    <script src="js/fonts.js?v=RC22"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC22"></script>
-    <script src="js/effects/specular-webgl.js?v=RC22"></script>
-    <script src="js/effects/distort-engine.js?v=RC22"></script>
-    <script src="js/preset-manager.js?v=RC22"></script>
-    <script src="js/gradient-picker.js?v=RC22"></script>
-    <script src="js/editor.js?v=RC22"></script>
+    <script src="js/fonts.js?v=RC23"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC23"></script>
+    <script src="js/effects/specular-webgl.js?v=RC23"></script>
+    <script src="js/effects/distort-engine.js?v=RC23"></script>
+    <script src="js/preset-manager.js?v=RC23"></script>
+    <script src="js/gradient-picker.js?v=RC23"></script>
+    <script src="js/editor.js?v=RC23"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC22"></script>
+    <script src="js/galeria.js?v=RC23"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC22"></script>
-    <script src="js/controls.js?v=RC22"></script>
-    <script src="js/export.js?v=RC22"></script>
-    <script src="js/api.js?v=RC22"></script>
-    <script src="js/main.js?v=RC22"></script>
+    <script src="js/fuentes-galeria.js?v=RC23"></script>
+    <script src="js/controls.js?v=RC23"></script>
+    <script src="js/export.js?v=RC23"></script>
+    <script src="js/api.js?v=RC23"></script>
+    <script src="js/main.js?v=RC23"></script>
 </body>
 </html>
 

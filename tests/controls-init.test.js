@@ -40,11 +40,10 @@ function makeEl(tag) {
 const byId = {};
 [
     'tt-options-menu', 'tt-options', 'tt-line-sizing-ref-input',
-    'tt-font-gallery-btn', 'tt-font-picker-input', 'tt-font-category-filter',
-    'tt-font-search-input', 'tt-font-search-clear', 'tt-font-upload-input',
+    'tt-font-gallery-btn', 'tt-font-picker-input',
     'tt-text-textarea',
 ].forEach(function (id) {
-    const tag = id.indexOf('tt-font-picker') === 0 || id.indexOf('tt-font-category') === 0 || id.indexOf('tt-line-sizing') === 0 ? 'select' : 'input';
+    const tag = id.indexOf('tt-font-picker') === 0 || id.indexOf('tt-line-sizing') === 0 ? 'select' : 'input';
     byId[id] = makeEl(tag);
     byId[id].id = id;
 });
@@ -100,7 +99,7 @@ assert.doesNotThrow(function () {
 const refSel = byId['tt-line-sizing-ref-input'];
 assert.equal(refSel.dataset.bound, '1', 'tt-line-sizing-ref-input should be bound once');
 
-// Galeria de fuentes expuesta (boton junto a Upload Custom Font).
+// Galeria de fuentes expuesta (boton junto al selector de fuente).
 assert.ok(global.window.TextMuyGaleriaFuentes, 'TextMuyGaleriaFuentes should be exposed');
 assert.equal(typeof global.window.TextMuyGaleriaFuentes.abrir, 'function', 'GaleriaFuentes.abrir should exist');
 

@@ -2080,37 +2080,16 @@
     // ===== FONT PICKER DESDE CATALOGO (cero hardcode en HTML/JS) =====
     // El <select> estatico de index.html es solo fallback inicial: al
     // arrancar se reconstruye desde fonts.json (Google) + fisicas del puente
-    // + uploads locales. Las categorias tambien salen del catalogo.
+    // + fuentes fisicas del puente. La busqueda y las categorias viven solo
+    // en la galeria de fuentes.
     function rebuildFontPicker() {
         const fontSelect = document.getElementById('tt-font-picker-input');
-        const categoryFilter = document.getElementById('tt-font-category-filter');
         if (!fontSelect || !window.FontLoader || !window.FontLoader.loadCatalog) return Promise.resolve();
         const prevValue = fontSelect.value;
         return window.FontLoader.loadCatalog().then(function () {
             const cats = window.FontLoader.getFontCategories ? window.FontLoader.getFontCategories() : {};
             const catNames = Object.keys(cats).sort();
-            // 1. Filtro de categorias dinamico (conserva 'all' + 'custom').
-            if (categoryFilter) {
-                const prevCat = categoryFilter.value || 'all';
-                while (categoryFilter.firstChild) categoryFilter.removeChild(categoryFilter.firstChild);
-                const optAll = document.createElement('option');
-                optAll.value = 'all';
-                optAll.textContent = 'All Categories';
-                categoryFilter.appendChild(optAll);
-                catNames.forEach(function (c) {
-                    const o = document.createElement('option');
-                    o.value = c;
-                    o.textContent = c.charAt(0).toUpperCase() + c.slice(1);
-                    categoryFilter.appendChild(o);
-                });
-                const optCustom = document.createElement('option');
-                optCustom.value = 'custom';
-                optCustom.textContent = 'Custom';
-                categoryFilter.appendChild(optCustom);
-                const stillThere = prevCat === 'all' || prevCat === 'custom' || catNames.indexOf(prevCat) !== -1;
-                categoryFilter.value = stillThere ? prevCat : 'all';
-            }
-            // 2. Optgroups dinamicos (uno por categoria del catalogo).
+            // Optgroups dinamicos (uno por categoria del catalogo).
             const customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]');
             while (fontSelect.firstChild) fontSelect.removeChild(fontSelect.firstChild);
             const labelOf = function (c) { return c.charAt(0).toUpperCase() + c.slice(1); };
@@ -2125,12 +2104,12 @@
                 });
                 fontSelect.appendChild(g);
             });
-            // 3. Grupo Custom (fisicas): se rellena via sincronizarFuentesServidor.
+            // Grupo Custom (fisicas): se rellena via sincronizarFuentesServidor.
             const g2 = customGroup || document.createElement('optgroup');
             g2.label = 'Custom';
             g2.setAttribute('data-font-group', 'custom');
             fontSelect.appendChild(g2);
-            // 4. Restaurar seleccion previa si sigue existiendo.
+            // Restaurar seleccion previa si sigue existiendo.
             try {
                 if (prevValue && fontSelect.querySelector('option[value="' + prevValue + '"]')) {
                     fontSelect.value = prevValue;
@@ -2139,20 +2118,14 @@
         });
     }
 
-    // ===== FONT SEARCH AND FILTER =====
+    // ===== FONT PICKER + GALERIA =====
     function initFontFilters() {
-        const searchInput = document.getElementById('tt-font-search-input');
-        const clearBtn = document.getElementById('tt-font-search-clear');
-        const categoryFilter = document.getElementById('tt-font-category-filter');
         const fontSelect = document.getElementById('tt-font-picker-input');
-        const fontUpload = document.getElementById('tt-font-upload-input');
-
-        if (!searchInput || !categoryFilter || !fontSelect) return;
+        if (!fontSelect) return;
 
         // Reconstruir picker desde el catalogo y luego sincronizar fisicas.
         rebuildFontPicker().then(function () {
             sincronizarFuentesServidor();
-            filterFonts();
         });
 
         // Sincronizar fuentes en el optgroup "Custom": puente (bridge.fuentes,
@@ -2193,16 +2166,34 @@
             }
         }
 
-        // Boton Galeria de fuentes (CRUD fisico estilo galeria.js). Aplica la
-        // fuente elegida al picker.
+        function seleccionarFuente(key, item) {
+            if (!key) return;
+            let option = null;
+            Array.prototype.some.call(fontSelect.querySelectorAll('option'), function(o) {
+                if (o.value === key) { option = o; return true; }
+                return false;
+            });
+            if (!option) {
+                const customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]');
+                if (customGroup) {
+                    option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = (item && item.titulo) || key;
+                    customGroup.appendChild(option);
+                }
+            }
+            fontSelect.value = key;
+            fontSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Boton Galeria de fuentes (busqueda, categorias, preview y CRUD).
         const fontGalleryBtn = document.getElementById('tt-font-gallery-btn');
         if (fontGalleryBtn && !fontGalleryBtn.dataset.bound) {
             fontGalleryBtn.dataset.bound = '1';
             fontGalleryBtn.addEventListener('click', function() {
                 if (!window.TextMuyGaleriaFuentes) return;
-                window.TextMuyGaleriaFuentes.abrir(function(key) {
-                    fontSelect.value = key;
-                    fontSelect.dispatchEvent(new Event('change'));
+                window.TextMuyGaleriaFuentes.abrir(function(key, item) {
+                    seleccionarFuente(key, item);
                     // Refrescar Custom por si hubo altas/bajas en la galeria.
                     sincronizarFuentesServidor();
                 });
@@ -2211,102 +2202,6 @@
 
         window.addEventListener('textmuy-bridge-ready', sincronizarFuentesServidor);
         setTimeout(sincronizarFuentesServidor, 100);
-
-        function filterFonts() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const selectedCategory = categoryFilter.value;
-            const options = fontSelect.querySelectorAll('option, optgroup');
-
-            options.forEach(function(option) {
-                if (option.tagName === 'OPTGROUP') {
-                    const hasMatchingChild = Array.from(option.querySelectorAll('option')).some(function(child) {
-                        const fontName = child.textContent.toLowerCase();
-                        const matchesSearch = fontName.includes(searchTerm);
-                        const matchesCategory = selectedCategory === 'all' ||
-                                                   option.label.toLowerCase() === selectedCategory ||
-                                                   (selectedCategory === 'custom' && option.label === 'Custom');
-                        return matchesSearch && matchesCategory;
-                    });
-                    option.style.display = hasMatchingChild ? '' : 'none';
-                } else {
-                    const fontName = option.textContent.toLowerCase();
-                    const parentGroup = option.parentElement;
-                    const categoryLabel = parentGroup.tagName === 'OPTGROUP' ? parentGroup.label.toLowerCase() : '';
-
-                    const matchesSearch = fontName.includes(searchTerm);
-                    const matchesCategory = selectedCategory === 'all' ||
-                                               categoryLabel === selectedCategory ||
-                                               (selectedCategory === 'custom' && categoryLabel === 'custom');
-
-                    option.style.display = (matchesSearch && matchesCategory) ? '' : 'none';
-                }
-            });
-        }
-
-        searchInput.addEventListener('input', function() {
-            if (clearBtn) clearBtn.hidden = !searchInput.value;
-            filterFonts();
-        });
-        categoryFilter.addEventListener('change', filterFonts);
-        if (clearBtn) {
-            clearBtn.hidden = !searchInput.value;
-            clearBtn.addEventListener('click', function() {
-                searchInput.value = '';
-                clearBtn.hidden = true;
-                filterFonts();
-                searchInput.focus();
-            });
-        }
-
-        if (fontUpload) {
-            fontUpload.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const fontName = file.name.replace(/\.[^/.]+$/, '');
-
-                function aplicarOpcion(key, name) {
-                    const customGroup = fontSelect.querySelector('optgroup[label="Custom"]');
-                    if (customGroup) {
-                        // Evitar duplicar opcion si ya existe
-                        let opt = customGroup.querySelector('option[value="' + key + '"]');
-                        if (!opt) {
-                            opt = document.createElement('option');
-                            opt.value = key;
-                            opt.textContent = name;
-                            customGroup.appendChild(opt);
-                        }
-                        fontSelect.value = key;
-                        fontSelect.dispatchEvent(new Event('change'));
-                    }
-                }
-
-                // Intentar subida al servidor si hay puente; fallback a local data-URL
-                if (window.FontLoader && window.FontLoader.uploadCustomFont) {
-                    window.FontLoader.uploadCustomFont(file, fontName)
-                        .then(function(serverKey) {
-                            aplicarOpcion(serverKey, fontName);
-                        })
-                        .catch(function() {
-                            fallbackLocal();
-                        });
-                } else {
-                    fallbackLocal();
-                }
-
-                function fallbackLocal() {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const dataUrl = event.target.result;
-                        if (window.FontLoader) {
-                            const localKey = window.FontLoader.registerCustomFont(fontName, dataUrl);
-                            aplicarOpcion(localKey, fontName);
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-        }
     }
 
     // ===== PRESET GALLERY (unico panel de presets: grilla inferior con miniaturas) =====

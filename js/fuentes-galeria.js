@@ -89,7 +89,7 @@ function crearPanel(){
    (cats[c]||[]).forEach(function(id){
     let ent=null;
     try{ent=(FL().getCatalogFonts()||{})[id];}catch(_){}
-    const tit=ent&&ent.titulo?id:(id||'');
+    const tit=ent&&ent.titulo?ent.titulo:(id||'');
     const online=ent?!!ent.online:(id.indexOf('.')<0);
     items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online});
    });
