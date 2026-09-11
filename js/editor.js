@@ -763,16 +763,17 @@
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
 
-        // Load icon image if needed
-        if (isActive(s, 'icon') && safeGet(s, 'icon.src')) {
+        // Load icon image if needed (refs numericas se resuelven via
+        // prepareImgRefs; hasta entonces se omiten, cero 404 de ruido)
+        if (isActive(s, 'icon') && safeGet(s, 'icon.src') && typeof safeGet(s, 'icon.src') !== 'number') {
             loadIconImage(s.icon.src);
         }
 
         // Load texture images if needed
-        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src')) {
+        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src') && typeof safeGet(s, 'fill.texture.src') !== 'number') {
             loadTextureImage(s.fill.texture.src);
         }
-        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src')) {
+        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src') && typeof safeGet(s, 'outline.texture.src') !== 'number') {
             loadTextureImage(s.outline.texture.src);
         }
 
@@ -988,7 +989,7 @@
         const bgImage = bgFill.image || bgConfig.image;
         const bgGradient = bgFill.gradient || bgConfig.gradient;
 
-        if (bgImage && bgImage.active && bgImage.src) {
+        if (bgImage && bgImage.active && bgImage.src && typeof bgImage.src !== 'number') {
             loadBackgroundImage(bgImage.src);
             if (state.bgImg) {
                 const img = state.bgImg;
@@ -1416,7 +1417,7 @@
             } else {
                 const img = state.textureImages[style.texture.src];
                 if (!img) {
-                    if (style.texture.src) loadTextureImage(style.texture.src);
+                    if (style.texture.src && typeof style.texture.src !== 'number') loadTextureImage(style.texture.src);
                     ctx.restore();
                     return;
                 }
@@ -3560,6 +3561,18 @@
             } else {
                 render();
             }
+        }
+
+        // Formato unico (T015): resolver refs de imagen por id numerico
+        // (img.json) in-place. En la ruta API renderTextToPNG lo hace de
+        // forma autoritativa (await + fail-fast); aqui es best-effort para
+        // la UI: al llegar el catalogo, muta los src y re-renderiza.
+        if (window.TextMuyAPI && window.TextMuyAPI.prepareImgRefs) {
+            window.TextMuyAPI.prepareImgRefs(s).then(function () {
+                if (!targetSettings && typeof render === 'function') render();
+            }).catch(function (e) {
+                console.warn(e && e.message || e);
+            });
         }
         return s;
     }

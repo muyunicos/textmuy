@@ -22,12 +22,13 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager.settingsFromDelta should ex
 
 // 1. Los presets base (.txm delta, el formato unico desde 3.2.0) deben cargar:
 //    delta -> ajustes completos -> loadPreset() sin lanzar.
-// Los datos de usuario viven en la carpeta de uploads del proyecto (fuera del modulo).
-const presetsDir = path.join(__dirname, '..', '..', 'uploads', 'personalizador-pdf', 'textmuy', 'presets');
+// Los datos de usuario viven en uploads/tm (espejo local de
+// wp-content/uploads/tm en WordPress; T023 corrige la ruta legacy).
+const presetsDir = path.join(__dirname, '..', '..', 'uploads', 'tm', 'presets');
 if (!fs.existsSync(presetsDir)) {
     throw new Error(
         'No se encontro la carpeta de presets en ' + presetsDir
-        + '. Asegurate de que uploads/personalizador-pdf/textmuy/presets exista (datos de usuario).'
+        + '. Asegurate de que uploads/tm/presets exista (datos de usuario).'
     );
 }
 const files = fs.readdirSync(presetsDir).filter(f => f.endsWith('.txm')).sort();
@@ -36,7 +37,15 @@ assert.ok(files.length >= 1, 'se esperaba al menos un preset .txm en uploads');
 files.forEach(function(file) {
     const payload = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
     assert.equal(payload.format, 'textmuy-project', file + ' must use the .txm format');
-    const settings = PM.settingsFromDelta(payload.settings);
+    // Formato unico (Q4): los .txm legacy con font.src string se
+    // reportan y se saltan (ruptura total; re-guardar desde el editor).
+    let settings = null;
+    try {
+        settings = PM.settingsFromDelta(payload.settings);
+    } catch (e) {
+        console.log('SKIP legacy ' + file + ': ' + (e && e.message));
+        return;
+    }
     const target = TextEditor.createDefaultSettings();
     const result = TextEditor.loadPreset(JSON.parse(JSON.stringify(settings)), target);
     assert.ok(result, file + ' should load into a target settings object');

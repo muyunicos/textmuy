@@ -70,6 +70,59 @@
         return (typeof font === 'string' && font) ? font : defaultFamily();
     }
 
+    // Cache de catalogos por ambito para resolucion por id (formato unico).
+    var catalogCache = {};
+    function loadCatalogo(ambito) {
+        var base = (window.PresetManager && window.PresetManager.presetUrlBase)
+            ? window.PresetManager.presetUrlBase()
+            : 'presets/';
+        var url = base + '../' + ambito + '/' + (ambito === 'fonts' ? 'fonts' : ambito === 'img' ? 'img' : 'presets') + '.json';
+        if (catalogCache[url]) return catalogCache[url];
+        var p = fetch(url, { cache: 'no-store' }).then(function (r) {
+            if (!r.ok) throw new Error(ambito + ':catalogo:ausente (' + url + ')');
+            return r.json();
+        }).then(function (data) {
+            if (window.TextMuyCatalog) return window.TextMuyCatalog.parseCatalog(data, ambito);
+            return { items: {}, libres: [], invalidas: [], categorias: {}, maxId: 0, thumbs: { w: 0, h: 0, c: 1 } };
+        });
+        catalogCache[url] = p;
+        p.catch(function () { delete catalogCache[url]; });
+        return p;
+    }
+
+    /** Resuelve un preset por id numerico del catalogo presets.json. */
+    function loadPresetById(id) {
+        return loadCatalogo('presets').then(function (parsed) {
+            var entry;
+            try {
+                entry = window.TextMuyCatalog
+                    ? window.TextMuyCatalog.requireId(parsed, 'presets', id)
+                    : null;
+            } catch (e) { throw e; }
+            if (!entry) throw new Error('presets:' + id + ':ausente o invalido');
+            return loadPresetByName(entry.file.replace(/\.txm$/i, ''));
+        });
+    }
+
+    // Resolucion autoritativa de refs de imagen por id numerico (formato
+    // unico, T015). Sin refs numericas NO hay fetch (carga modular). Con
+    // refs: img.json una vez (cache) y muta settings in-place; id ausente
+    // o invalido -> rechazo con causa (Const. II: fail-fast en render).
+    async function prepareImgRefs(settings) {
+        if (!settings || typeof settings !== 'object' || !window.TextMuyCatalog) return settings;
+        if (!window.TextMuyCatalog.hasNumericImgRefs(settings)) return settings;
+        var parsed = await loadCatalogo('img');
+        var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        var base = (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : 'img/';
+        window.TextMuyCatalog.mapImgRefs(settings, function (v) {
+            if (typeof v !== 'number' || !isFinite(v) || Math.floor(v) !== v || v < 1) return v;
+            var e = parsed.items[v];
+            if (!e || !e.file) throw new Error('img:' + v + ':ausente o invalido');
+            return /^(https?:)?\/\//i.test(e.file) ? e.file : base + e.file;
+        });
+        return settings;
+    }
+
     /**
      * Garantiza que la familia del settings este cargada en document.fonts ANTES de
      * renderizar (canvas usa ctx.font: sin esto, una familia aun no cargada se
@@ -108,6 +161,9 @@
         if (params.width) settings.canvas.width = Math.max(100, Math.min(8000, Number(params.width) || settings.canvas.width));
         if (params.height) settings.canvas.height = Math.max(100, Math.min(8000, Number(params.height) || settings.canvas.height));
         mergeDeep(settings, params.overrides || {});
+
+        // Formato unico: refs de imagen por id numerico -> URLs (fail-fast).
+        await prepareImgRefs(settings);
 
         await ensureFontReady(settings);
 
@@ -168,6 +224,9 @@
         downloadPNG: downloadPNG,
         copyImageToClipboard: copyImageToClipboard,
         loadPresetByName: loadPresetByName,
+        loadPresetById: loadPresetById,
+        loadCatalogo: loadCatalogo,
+        prepareImgRefs: prepareImgRefs,
         clearPresetCache: clearPresetCache
     };
 })();

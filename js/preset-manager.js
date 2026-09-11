@@ -175,6 +175,14 @@
     function settingsFromDelta(delta) {
         const settings = JSON.parse(JSON.stringify(getDefaults()));
         applyDelta(settings, delta);
+        // Formato unico (Q4, ruptura total): font.src MUST ser id
+        // numerico. String legacy -> rechazo con causa y accion.
+        var src = settings && settings.font && settings.font.src;
+        if (src !== undefined && src !== null && src !== '') {
+            if (typeof src !== 'number' || Math.floor(src) !== src || src < 1) {
+                throw new Error('presets:' + ((delta && delta.name) || '?') + ':font.src string (legacy "' + src + '"): re-guardar el preset desde el editor');
+            }
+        }
         return settings;
     }
 

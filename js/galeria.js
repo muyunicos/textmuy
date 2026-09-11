@@ -147,10 +147,40 @@ function crearPanel(){
   }
  }
 
- async function cargar(){
+ // Resuelve la URL de un archivo del catalogo img.json frente a la base
+  // del puente (imagenesBase) o relativa standalone.
+  function imgUrl(file){
+   if(!file)return '';
+   var b=window.PresetManager&&window.PresetManager.getBridge?window.PresetManager.getBridge():null;
+   var base=(b&&b.urls&&b.urls.imagenesBase)?b.urls.imagenesBase:'img/';
+   if(/^(https?:)?\/\//i.test(file))return file;
+   return base+file;
+  }
+  async function cargar(){
   list.innerHTML='';status.textContent='';items=[];
   const q=(search.value||'').toLowerCase();
   if(fuenteActual==='presets'){
+   // Formato unico (US3): presets.json numerico + sprite 200x100; si el
+   // catalogo no existe (mirror sin migrar) cae al listado por nombre.
+   let catPresets=null;
+   try{
+    if(window.TextMuyAPI&&window.TextMuyAPI.loadCatalogo){
+     catPresets=await window.TextMuyAPI.loadCatalogo('presets').catch(function(){return null;});
+    }
+   }catch(_){catPresets=null;}
+   if(catPresets&&catPresets.items){
+    const ids=Object.keys(catPresets.items).map(Number).sort(function(a,b){return a-b;});
+    let nInv=(catPresets.invalidas||[]).length,nLib=(catPresets.libres||[]).length;
+    (catPresets.invalidas||[]).forEach(function(iv){try{console.warn('presets:'+iv.reason+' (entrada saltada)');}catch(_){}});
+    ids.forEach(function(id){
+     const e=catPresets.items[id];
+     if(q&&(('#'+id+' '+(e.titulo||'')+' '+(e.file||'')).toLowerCase().indexOf(q)<0))return;
+     items.push({slug:e.file?e.file.replace(/\.txm$/i,''):('#'+id),titulo:e.titulo||('#'+id),src:e.file||'',tipo:'preset',presetId:id});
+    });
+    if(nInv||nLib)status.textContent=status.textContent||((nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':''));
+    montarTabs();ocultarUpload(true);render();
+    return;
+   }
    const nombres=PM()?PM().listPresets():[];
    for(const n of nombres){
     if(q&&n.toLowerCase().indexOf(q)<0)continue;
@@ -165,9 +195,32 @@ function crearPanel(){
    }
    return;
   }
-  // Fondos e iconos fusionan server + catalogo. Varios es solo server.
-  if(!PM()||!PM().listImages){status.textContent='Galeria no disponible.';return;}
-  if(!bridgeOK()){status.textContent='Requiere el plugin (iframe).';return;}
+  // Formato unico (img/img.json numerico + sprite derivado 100x100).
+  // Si el modulo img del catalogo esta disponible se usa como fuente
+  // primaria; el listado legacy del puente se fusiona como fallback.
+  // Invalid -> salto + warn + contador (Const. VI).
+  let catImg=null;
+  try{
+   if(window.TextMuyAPI&&window.TextMuyAPI.loadCatalogo){
+    catImg=await window.TextMuyAPI.loadCatalogo('img').catch(function(){return null;});
+   }
+  }catch(_){catImg=null;}
+  if(catImg&&catImg.items){
+   const ids=Object.keys(catImg.items).map(Number).sort(function(a,b){return a-b;});
+   let nInv=(catImg.invalidas||[]).length, nLib=(catImg.libres||[]).length;
+   (catImg.invalidas||[]).forEach(function(iv){try{console.warn('img:'+iv.reason+' (entrada saltada)');}catch(_){}});
+   ids.forEach(function(id){
+    const e=catImg.items[id];
+    const cat=(e.categorias&&e.categorias[0])||'varios';
+    if(fuenteActual!=='misc'&&CATS.indexOf(fuenteActual)===-1){/* tab custom: no filtra */}
+    if(CATS.indexOf(fuenteActual)!==-1&&cat!==fuenteActual&&fuenteActual!=='misc')return;
+    if(q&&(('#'+id+' '+e.titulo+' '+e.file).toLowerCase().indexOf(q)<0))return;
+    items.push({slug:id,titulo:e.titulo||('#'+id),src:imgUrl(e.file),thumb:imgUrl(e.file),categoria:cat,enUso:false,tipo:'catalogo',imgId:id,imgFile:e.file});
+   });
+   if(nInv||nLib)status.textContent=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
+  }
+  if(!PM()||!PM().listImages){if(!items.length)status.textContent=status.textContent||'Galeria no disponible.';montarTabs();ocultarUpload(false);render();return;}
+  if(!bridgeOK()){if(!items.length)status.textContent=status.textContent||'Requiere el plugin (iframe).';montarTabs();ocultarUpload(false);render();return;}
   let imgs=PM().listImages(fuenteActual);
   if(q)imgs=imgs.filter(function(i){return (i.nombre+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
   for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server'});}

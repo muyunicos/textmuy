@@ -15,6 +15,7 @@ function bridgeOK(){return !!(PM()&&PM().bridgeAvailable&&PM().bridgeAvailable()
 function el(c,t,txt){const n=document.createElement(t||'div');n.className=c;if(txt!==undefined)n.textContent=txt;return n;}
 let panel=null;
 let fuentesSpriteInfo=null;
+let avisoCatalogo='';
 function cargarSpriteFuentes(){
  if(!window.ThumbEngine||!FL()||!FL().ensureFontsSprite)return Promise.resolve(null);
  return FL().ensureFontsSprite().then(function(res){
@@ -83,15 +84,28 @@ function crearPanel(){
   });
  }
  function cargar(){
-  items=[];seleccionado=null;
+  items=[];seleccionado=null;avisoCatalogo='';
+  // Catalogo unico numerico (fonts.json): ids ok con titulo/cats.
+  // Invalid -> salto + warn + contador (higiene de listado, Const VI).
+  // Free (tombstone) -> ocultas.
   const cats=(FL()&&FL().getFontCategories)?FL().getFontCategories():{};
+  try{
+   const inv=(FL()&&FL().getCatalogInvalidas)?FL().getCatalogInvalidas():[];
+   const libres=(FL()&&FL().getCatalogLibres)?FL().getCatalogLibres():[];
+   if((inv&&inv.length)||(libres&&libres.length)){
+    (inv||[]).forEach(function(iv){try{console.warn('fonts:'+iv.reason+' (entrada saltada)');}catch(_){}});
+    const idsInv=(inv||[]).map(function(iv){var m=/^fonts:(\d+):/.exec(iv.reason||'');return m?m[1]:null;}).filter(Boolean);
+    avisoCatalogo=(libres&&libres.length?libres.length+' libres':'')+((libres&&libres.length&&(idsInv.length))?', ':'')+(idsInv.length?idsInv.length+' invalidas: ids '+idsInv.join(', '):'');
+   }
+  }catch(_){}
   Object.keys(cats).forEach(function(c){
    (cats[c]||[]).forEach(function(id){
     let ent=null;
     try{ent=(FL().getCatalogFonts()||{})[id];}catch(_){}
-    const tit=ent&&ent.titulo?ent.titulo:(id||'');
-    const online=ent?!!ent.online:(id.indexOf('.')<0);
-    items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online});
+    if(!ent||!ent.file)return; // tombstone/invalid nunca llegan aqui
+    const tit=ent&&ent.titulo?ent.titulo:('#'+id);
+    const online=!!ent.online;
+    items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online,fontId:id});
    });
   });
   if(FL()&&FL().listServerFonts){
@@ -104,6 +118,7 @@ function crearPanel(){
   if(fuenteActual!=='todas')items=items.filter(function(i){return (i.categoria||'custom')===fuenteActual;});
   montarTabs();
   ocultarUpload(!bridgeOK());
+  status.textContent=avisoCatalogo||'';
   render();
   cargarSpriteFuentes().then(function(){render();});
  }
@@ -202,7 +217,7 @@ function crearPanel(){
   if(!confirm('Borrar "'+it.titulo+'"?'))return;
   if(FL()&&FL().deleteCustomFont){
    const ok=FL().deleteCustomFont(it.fontKey);
-   if(ok){status.textContent='Borrado.';seleccionado=null;cargar();}
+   if(ok){status.textContent='Borrado.';seleccionado=null;if(FL().invalidateCatalog){try{FL().invalidateCatalog();}catch(_){}}cargar();}
    else status.textContent='No se pudo borrar.';
   }
  });
@@ -218,6 +233,7 @@ function crearPanel(){
   const base=(f.name||'fuente').replace(/\.[^/.]+$/,'');
   FL().uploadCustomFont(f,base).then(function(){
    status.textContent='Subida.';
+   if(FL().invalidateCatalog){try{FL().invalidateCatalog().catch(function(){});}catch(_){}}
    cargar();
    if(window.ThumbEngine&&window.ThumbEngine.invalidate){try{window.ThumbEngine.invalidate('fuentes');}catch(_){}}
   }).catch(function(e){status.textContent=e.message;});

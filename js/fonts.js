@@ -24,48 +24,35 @@
     };
 
     // ===== CATALOGO UNICO DE FUENTES VIA fonts.json (cero hardcode) =====
-    // uploads/.../textmuy/fonts/fonts.json es la UNICA fuente de verdad. El
-    // catalogo lo tiene TODO (Google online + fisicas + categorias + titulos):
-    //   [["Montserrat", "Montserrat", "sans-serif", "Montserrat:wght@400"], ...]
-    //   [0]=id unico, [1]=titulo legible, [2]=categorias (1+ separadas por
-    //   coma/espacio), [3]=referencia. Sin extension en [3] = Google online
-    //   (spec "Familia:wght@..." via link inyectado). Con .ttf/.otf/.woff/.woff2
-    //   = archivo fisico en uploads/.../textmuy/fonts/ (se valida con HEAD).
-    // ⚠️ UNICO formato: la tupla de 4. SIN compat legacy ni objetos (ver
-    // AGENTS.md v4.3): entradas que no sean tupla se ignoran en silencio.
-    // Nombre generico inicial del canvas (NO es una fuente cargada: es la
-    // etiqueta que muestra el picker vacio y la que resuelven los presets sin
-    // fuente declarada hasta que el usuario elige una real).
-    // Se reemplaza en cuanto el usuario elige/carga una fuente (ver setDefaultFont).
+    // uploads/tm/fonts/fonts.json (= wp-content/uploads/tm en WP) es la
+    // UNICA fuente de verdad. Formato canonico (constitucion IV):
+    //   {"thumbs":{"w":180,"h":30,"c":4},"items":[[id,title,cats,file],...]}
+    //   id numerico entero >= 1 (= tile: tile = id-1). cats string
+    //   "cat1, cat2" (default custom). file con extension = fisico
+    //   (.ttf/.otf/.woff/.woff2, se valida con HEAD); sin extension =
+    //   Google online (spec "Familia:wght@..." via link inyectado);
+    //   [id,"","",""] = tombstone libre (no se muestra).
+    // Parser compartido: window.TextMuyCatalog (js/catalog.js), clases
+    // ok/free/invalid. Invalid en galeria: salto + console.warn +
+    // contador visible (Const. VI higiene de listado); en render:
+    // rechazo con causa ambito:id:motivo.
     var DEFAULT_FONT_FAMILY = 'Bangers';
     var catalogPromise = null;
-    var catalogFonts = {};   // id -> {titulo, categorias:[], file, online}
+    var catalogParsed = null; // resultado de TextMuyCatalog.parseCatalog
+    var catalogFonts = {};   // id numerico -> {titulo, categorias:[], file, online}
     var fontCategories = {}; // categoria -> [ids] (derivado del catalogo)
+    var catalogLibres = [];  // ids tombstone (no se muestran)
+    var catalogInvalidas = []; // [{pos, reason}] para warn + contador
     var FONT_EXT_RE = /\.(ttf|otf|woff|woff2)$/i;
     function catalogUrl() {
         return fontUrlBase() + 'fonts.json';
     }
-    // Normaliza UNA entrada del catalogo. UNICO formato soportado: tupla
-    // posicional de 4 [id, titulo, categorias, referencia] (ver AGENTS.md).
-    // NO hay compat legacy ni objetos cortos: el sistema esta en construccion
-    // y mantener formatos viejos en el parser lo vuelve mas grande y complejo
-    // sin beneficio. Entradas que no sean tupla -> null (se ignoran).
+    // Compat: delega al parser unico (js/catalog.js). Retorna la entry
+    // ok o null (free/invalid -> null, como antes).
     function parseCatalogEntry(f) {
-        if (!Array.isArray(f) || f.length < 4) return null;
-        var id = f[0], titulo = f[1];
-        var rawCats = f[2], file = f[3];
-        if (!id || typeof id !== 'string') return null;
-        // Categorias: array, o string con separadores coma/barra/espacio.
-        var catArr = Array.isArray(rawCats)
-            ? rawCats.map(function (s) { return String(s).trim(); }).filter(Boolean)
-            : String(rawCats || 'custom').split(/[,/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-        if (!catArr.length) catArr = ['custom'];
-        if (typeof file === 'string' && FONT_EXT_RE.test(file)) {
-            // FISICA: archivo real (se valida con HEAD en loadUserFonts).
-            return { id: id, titulo: titulo || id, categorias: catArr, file: file, online: false };
-        }
-        // GOOGLE online (spec "Familia:wght@..." o familia a secas).
-        return { id: id, titulo: titulo || id, categorias: catArr, file: String(file || ''), online: true };
+        if (!window.TextMuyCatalog) return null;
+        var r = window.TextMuyCatalog.classifyEntry(f, { ambito: 'fonts', pos: -1 });
+        return (r.status === 'ok') ? r.entry : null;
     }
     // Fuentes fisicas conocidas por el puente (escaneo del servidor). El
     // plugin manda bridge.fuentes al hacer syncServerFonts; esto solo expone
@@ -113,22 +100,51 @@
         }
         return fetchCatalog();
     }
+    // Fuerza recarga del catalogo tras altas/bajas via puente (el plugin
+    // escribe la tupla y el proximo render/lista debe verla).
+    function invalidateCatalog() {
+        catalogPromise = null;
+        catalogFonts = {};
+        fontCategories = {};
+        catalogLibres = [];
+        catalogInvalidas = [];
+        catalogParsed = null;
+        return loadCatalog();
+    }
     function fetchCatalog() {
         catalogPromise = fetch(catalogUrl(), { cache: 'no-store' }).then(function (r) {
             if (!r.ok) throw new Error('sin fonts.json en ' + catalogUrl());
             return r.json();
-        }).then(function (lista) {
-            if (!Array.isArray(lista)) throw new Error('fonts.json no es array');
+        }).then(function (data) {
             catalogFonts = {};
             fontCategories = {};
-            lista.forEach(function (f) {
-                var e = parseCatalogEntry(f);
-                if (!e) return;
-                catalogFonts[e.id] = e;
-                (e.categorias || ['custom']).forEach(function (c) {
-                    if (!fontCategories[c]) fontCategories[c] = [];
-                    if (fontCategories[c].indexOf(e.id) === -1) fontCategories[c].push(e.id);
+            catalogLibres = [];
+            catalogInvalidas = [];
+            var lista = Array.isArray(data) ? data : (data && data.items);
+            if (!Array.isArray(lista)) throw new Error('fonts.json no es array/items');
+            if (window.TextMuyCatalog) {
+                catalogParsed = window.TextMuyCatalog.parseCatalog(data, 'fonts');
+                catalogFonts = catalogParsed.items;
+                fontCategories = catalogParsed.categorias;
+                catalogLibres = catalogParsed.libres;
+                catalogInvalidas = catalogParsed.invalidas;
+            } else {
+                // Sin catalog.js (no deberia pasar: index lo carga antes):
+                // fallback minimo con el parser local.
+                lista.forEach(function (f) {
+                    var e = parseCatalogEntry(f);
+                    if (!e) return;
+                    catalogFonts[e.id] = e;
                 });
+                Object.keys(catalogFonts).forEach(function (id) {
+                    (catalogFonts[id].categorias || ['custom']).forEach(function (c) {
+                        if (!fontCategories[c]) fontCategories[c] = [];
+                        if (fontCategories[c].indexOf(+id) === -1) fontCategories[c].push(+id);
+                    });
+                });
+            }
+            catalogInvalidas.forEach(function (iv) {
+                console.warn('fonts:' + iv.reason + ' (entrada saltada)');
             });
             return catalogFonts;
         }).catch(function (err) {
@@ -340,18 +356,31 @@
 
     function resolveFontFromPreset(font) {
         if (!font) return DEFAULT_FONT_FAMILY;
+        // ID numerico (formato unico): exige entrada ok en el catalogo.
+        // String legacy (slug "Bangers", "Nintender Regular", spec Google)
+        // -> se rechaza con causa para re-guardar el preset (ruptura
+        // total Q4; sin fallback silencioso). Solo el flujo interno
+        // (registry/puente) puede resolver claves no numericas.
+        if (typeof font === 'number' && Math.floor(font) === font && font >= 1) {
+            if (catalogFonts[font]) return font;
+            throw new Error('fonts:' + font + ':ausente o invalido (re-guardar el preset desde el editor)');
+        }
         if (typeof font === 'string') {
             if (fontRegistry[font]) return font;
-            if (catalogFonts[font]) return font;
             if (textStudioFontMap[font]) return textStudioFontMap[font];
             if (/^\d+\.ttf$/i.test(font)) return registerTextStudioFont(font) || font;
-            return font;
+            throw new Error('presets:?:font.src string (legacy "' + font + '"): re-guardar el preset desde el editor');
+        }
+        if (typeof font.src === 'number' && Math.floor(font.src) === font.src && font.src >= 1) {
+            if (catalogFonts[font.src]) return font.src;
+            if (textStudioFontMap[font.src]) return textStudioFontMap[font.src];
+            throw new Error('fonts:' + font.src + ':ausente o invalido (re-guardar el preset desde el editor)');
         }
         if (font.src) {
-            if (textStudioFontMap[font.src]) return textStudioFontMap[font.src];
             if (fontRegistry[font.src]) return font.src;
             var tsKey = registerTextStudioFont(font.src, font.name);
             if (tsKey) return tsKey;
+            throw new Error('presets:?:font.src string (legacy "' + font.src + '"): re-guardar el preset desde el editor');
         }
         if (font.name) {
             if (nameToKeyMap[font.name]) return nameToKeyMap[font.name];
@@ -361,6 +390,15 @@
     }
 
     function loadFont(fontKey) {
+        // Clave numerica (id de catalogo): se resuelve a su spec/file
+        // antes de cargar. El resto del flujo no cambia.
+        if (typeof fontKey === 'number' && Math.floor(fontKey) === fontKey && fontKey >= 1) {
+            var cent = catalogFonts[fontKey];
+            if (!cent) {
+                return Promise.reject(new Error('fonts:' + fontKey + ':ausente o invalido (re-guardar el preset desde el editor)'));
+            }
+            fontKey = cent.online ? cent.file : cent.titulo;
+        }
         if (loadedFonts[fontKey]) {
             return Promise.resolve(loadedFonts[fontKey]);
         }
@@ -487,7 +525,10 @@
         if (catalogFonts[fontKey]) {
             return catalogFonts[fontKey].titulo || fontKey;
         }
-        return fontKey;
+        // Spec de Google Fonts sin entrada en el catálogo (p.ej. "Oswald:wght@400;700")
+        // → extraer el nombre de familia con googleFamilyOf().
+        const family = googleFamilyOf(fontKey);
+        return family || fontKey;
     }
 
     function isCustomFont(fontKey) {
@@ -671,6 +712,7 @@
         ensureGoogleFontBySpec: ensureGoogleFontBySpec,
         loadUserFonts: loadUserFonts,
         loadCatalog: loadCatalog,
+        invalidateCatalog: invalidateCatalog,
         listServerFonts: listServerFonts,
         fontUrlBase: fontUrlBase,
         getFontName: getFontName,
@@ -686,6 +728,9 @@
         getAvailableFonts: getAvailableFonts,
         getFontCategories: function() { return fontCategories; },
         getCatalogFonts: function() { return catalogFonts; },
+        getCatalogLibres: function() { return catalogLibres.slice(); },
+        getCatalogInvalidas: function() { return catalogInvalidas.slice(); },
+        getCatalogParsed: function() { return catalogParsed; },
         registry: fontRegistry
     };
 

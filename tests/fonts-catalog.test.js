@@ -1,79 +1,62 @@
-/* Test del parser del catalogo de fuentes (fonts.js).
- * Valida el formato UNICO de uploads/personalizador-pdf/textmuy/fonts/fonts.json:
- * tuplas posicionales de 4 [id, titulo, categorias, referencia].
- * SIN compat legacy ni objetos cortos (el sistema esta en construccion: el
- * parser no debe crecer para sostener formatos viejos). Lo que no sea tupla
- * de 4 -> null (se ignora).
+/* Fonts-catalog: wiring de fonts.js hacia el parser unico (js/catalog.js).
+ * Formato canonico (constitucion IV v2.1): {thumbs:{w,h,c},
+ * items:[[id,title,cats,file],...]} con id numerico >= 1; libre =
+ * tombstone [id,"","",""]; clases ok/free/invalid con causa.
+ * Legacy (tuplas string, objetos, font.src string) -> rechazo con
+ * causa y accion "re-guardar el preset" (ruptura total Q4).
  */
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 
-// ==== Logica pura copiada de js/fonts.js (parseCatalogEntry) ====
-const FONT_EXT_RE = /\.(ttf|otf|woff|woff2)$/i;
-function parseCatalogEntry(f) {
-    if (!Array.isArray(f) || f.length < 4) return null;
-    var id = f[0], titulo = f[1];
-    var rawCats = f[2], file = f[3];
-    if (!id || typeof id !== 'string') return null;
-    var catArr = Array.isArray(rawCats)
-        ? rawCats.map(function (s) { return String(s).trim(); }).filter(Boolean)
-        : String(rawCats || 'custom').split(/[,/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (!catArr.length) catArr = ['custom'];
-    if (typeof file === 'string' && FONT_EXT_RE.test(file)) {
-        return { id: id, titulo: titulo || id, categorias: catArr, file: file, online: false };
+// Stubs minimos para cargar fonts.js (IIFE de navegador) en Node.
+global.window = {};
+global.localStorage = { getItem: function() { return null; }, setItem: function() {} };
+global.document = { fonts: null, createElement: function() { return {}; } };
+global.fetch = function() { return Promise.reject(new Error('no net')); };
+
+require('../js/catalog.js');
+require('../js/fonts.js');
+const CAT = global.window.TextMuyCatalog;
+const FL = global.window.FontLoader;
+assert.ok(CAT && FL, 'TextMuyCatalog y FontLoader registrados');
+
+// 1. Parser unico: tupla numerica ok (Google y fisica) + tombstone libre.
+const p = CAT.parseCatalog({ thumbs: { w: 180, h: 30, c: 4 }, items: [
+    [1, 'Bangers', 'display', 'Bangers'],
+    [2, 'Mi Fisica', 'display', 'MiFisica.woff2'],
+    [3, '', '', '']
+] }, 'fonts');
+assert.equal(p.items[1].titulo, 'Bangers');
+assert.equal(p.items[1].online, true);
+assert.equal(p.items[2].online, false);
+assert.deepEqual(p.libres, [3]);
+
+// 2. Tuplas legacy -> invalid con causa id no numerico (ruptura Q4).
+const rLegacy = CAT.classifyEntry(['Montserrat', 'M', 'sans-serif', 'Montserrat:wght@400'], { ambito: 'fonts', pos: 0 });
+assert.equal(rLegacy.status, 'invalid');
+assert.match(rLegacy.reason, /id no numerico/);
+assert.equal(CAT.classifyEntry({ nombre: 'O', titulo: 'O', categoria: 'c', google: 'O' }, { ambito: 'fonts', pos: 0 }).status, 'invalid');
+assert.equal(CAT.classifyEntry([1, 'A', 'c', 'a.webp'], { ambito: 'img', pos: 0 }).status, 'ok');
+assert.match(CAT.classifyEntry([1, 'A', 'c', 'AlgoSinExt'], { ambito: 'img', pos: 0 }).reason, /google solo valido en fonts/);
+
+// 3. resolveFontFromPreset: id sin catalogo cargado -> lanza fonts:<id>.
+assert.throws(() => FL.resolveFontFromPreset({ src: 99 }), /fonts:99:/);
+// 4. resolveFontFromPreset: string legacy -> lanza pidiendo re-guardar.
+assert.throws(() => FL.resolveFontFromPreset({ src: 'Nintender Regular' }), /legacy/);
+assert.throws(() => FL.resolveFontFromPreset('Bangers'), /legacy/);
+
+// 5. loadFont con id inexistente -> Promise rechazada con causa.
+(async function() {
+    try {
+        await FL.loadFont(424242);
+        throw new Error('loadFont debio rechazar');
+    } catch (e) {
+        assert.match(String(e && e.message || e), /fonts:424242:/);
     }
-    return { id: id, titulo: titulo || id, categorias: catArr, file: String(file || ''), online: true };
-}
 
-// 1. Tupla online con pesos.
-const t1 = parseCatalogEntry(['Montserrat', 'Montserrat', 'sans-serif', 'Montserrat:wght@400;700']);
-assert.equal(t1.id, 'Montserrat');
-assert.equal(t1.online, true);
-assert.equal(t1.file, 'Montserrat:wght@400;700');
-assert.deepEqual(t1.categorias, ['sans-serif']);
+    // 6. requireId: libre / inexistente lanzan; ok devuelve entry.
+    assert.throws(() => CAT.requireId(p, 'fonts', 3), /fonts:3:libre/);
+    assert.throws(() => CAT.requireId(p, 'fonts', 40), /fonts:40:/);
+    assert.equal(CAT.requireId(p, 'fonts', 1).file, 'Bangers');
 
-// 2. Tupla fisica (extension) -> online=false.
-const t2 = parseCatalogEntry(['Belmonte', 'Bebés Llorones', 'handwriting', 'Belmonte.otf']);
-assert.equal(t2.online, false);
-assert.equal(t2.file, 'Belmonte.otf');
-assert.deepEqual(t2.categorias, ['handwriting']);
-
-// 3. Multi-categoria separada por coma.
-const t3 = parseCatalogEntry(['Lato', 'Lato', 'sans-serif, favs', 'Lato:wght@400']);
-assert.deepEqual(t3.categorias, ['sans-serif', 'favs']); // trim por cat
-
-// 4. Objeto legacy {nombre,titulo,categoria,google} SE RECHAZA (null).
-assert.equal(parseCatalogEntry({ nombre: 'Oswald', titulo: 'Oswald', categoria: 'sans-serif', google: 'Oswald:wght@400;700' }), null);
-// 5. Objeto corto {n,t,c,f} SE RECHAZA (null).
-assert.equal(parseCatalogEntry({ n: 'Lora', t: 'Lora', c: 'serif', f: 'Lora' }), null);
-
-// 6. Invalidos: null, array vacio, array de 3, id no string.
-assert.equal(parseCatalogEntry(null), null);
-assert.equal(parseCatalogEntry([]), null);
-assert.equal(parseCatalogEntry(['Sola', 'Sola', 'custom']), null);            // falta referencia
-assert.equal(parseCatalogEntry([42, 'Sola', 'custom', 'Sola']), null);        // id no string
-assert.equal(parseCatalogEntry({ titulo: 'x' }), null);
-
-// 7. Categoria por defecto si [2] vacio.
-const t4 = parseCatalogEntry(['Sola', 'Sola', '', 'Sola']);
-assert.deepEqual(t4.categorias, ['custom']);
-
-// 8. Validar el fonts.json real de uploads (si existe): debe ser array de tuplas.
-const uploadsJson = path.join(__dirname, '..', '..', 'uploads', 'personalizador-pdf', 'textmuy', 'fonts', 'fonts.json');
-if (fs.existsSync(uploadsJson)) {
-    const lista = JSON.parse(fs.readFileSync(uploadsJson, 'utf8'));
-    assert.ok(Array.isArray(lista), 'fonts.json de uploads debe ser array');
-    assert.ok(lista.every(function (it) { return Array.isArray(it) && it.length === 4; }), 'TODAS las entradas deben ser tuplas de 4');
-    let ok = 0;
-    lista.forEach(function (it) {
-        const e = parseCatalogEntry(it);
-        assert.ok(e && e.id, 'Entrada sin id: ' + JSON.stringify(it));
-        ok++;
-    });
-    console.log('fonts.json real: ' + ok + ' entradas (todas tuplas)');
-} else {
-    console.log('(no hay fonts.json de uploads; se omitio la validacion real)');
-}
-
-console.log('OK: fonts-catalog.test.js');
+    console.log('OK: fonts-catalog.test.js');
+})().catch(function(e) { console.error(e.message); process.exit(1); });

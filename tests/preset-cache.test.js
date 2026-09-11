@@ -13,7 +13,8 @@ global.fetch = function() {
     return Promise.resolve({
         ok: true,
         json: function() {
-            return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { n: fetchCalls } });
+            // Delta numerico (formato unico): font.src id, sin strings.
+            return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { n: fetchCalls, font: { src: 1 } } });
         }
     });
 };
@@ -39,14 +40,33 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
     assert.equal(v1.n, 1, 'the .txm delta must be applied via settingsFromDelta');
     assert.equal(fetchCalls, 1, 'only one fetch for repeated loads');
 
+    // 1b. Delta legacy con font.src string -> rechazo con causa (Q4).
+    // El rechazo NO queda cacheado (igual que un fallo de red): el
+    // retry con delta numerico debe resolverse.
+    const fetchNumerico = global.fetch;
+    global.fetch = function() {
+        return Promise.resolve({
+            ok: true,
+            json: function() {
+                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { font: { src: 'Nintender Regular' } } });
+            }
+        });
+    };
+    await assert.rejects(API.loadPresetByName('legacy-str'), /legacy/);
+    global.fetch = fetchNumerico;
+    const relegado = await API.loadPresetByName('legacy-str');
+    assert.equal(relegado.font.src, 1, 'tras el rechazo legacy, el retry numerico resuelve');
+    API.clearPresetCache();
+    fetchCalls = 0;
+
     // 2. Otro preset -> otro fetch.
     await API.loadPresetByName('gold-metallic');
-    assert.equal(fetchCalls, 2);
+    assert.equal(fetchCalls, 1);
 
     // 3. clearPresetCache -> el proximo load vuelve a fetchear.
     API.clearPresetCache();
     await API.loadPresetByName('neon-glow');
-    assert.equal(fetchCalls, 3, 'cleared cache must refetch');
+    assert.equal(fetchCalls, 2, 'cleared cache must refetch');
 
     // 4. Un fallo NO queda cacheado: el retry reevalua (el .txm y el .json
     //    legacy fallan -> rechaza; luego el .txm responde y aplica el delta).
@@ -56,7 +76,8 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
         return Promise.resolve({
             ok: true,
             json: function() {
-                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { retry: true } });
+                // Delta numerico (formato unico): sin strings legacy.
+                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { retry: true, font: { src: 2 } } });
             }
         });
     };

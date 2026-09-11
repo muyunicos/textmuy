@@ -61,20 +61,23 @@ textmuy/
 ├── css/                   <- style.css (unico CSS del modulo)
 ├── js/
 │   ├── main.js            <- Bootstrap del editor
+│   ├── catalog.js         <- Parser unico de catalogos (ok/free/invalid) + tile=id-1
 │   ├── editor.js          <- Estado + render del canvas (fuente de verdad del settings)
 │   ├── controls.js        <- Binding UI (TEXT/STYLES/ICON/BACKGROUND/DOWNLOAD)
 │   ├── galeria.js         <- Galería unificada de imágenes (preview en vivo)
 │   ├── fuentes-galeria.js <- Galería de fuentes (CRUD físico estilo galería)
 │   ├── preset-manager.js  <- CRUD de presets + puente + formato .txm (settingsFromDelta)
-│   ├── api.js             <- API pública: renderTextToPNG / renderBatch / cache presets
+│   ├── api.js             <- API pública: renderTextToPNG / renderBatch / loadPresetById /
+│   │                         prepareImgRefs / cache presets y catálogos
 │   ├── export.js          <- Exportación PNG transparente
-│   ├── fonts.js           <- Carga de fuentes (Google Fonts + locales) y ensureFontReady
+│   ├── fonts.js           <- Carga de fuentes (Google Fonts + catálogo) y ensureFontReady
 │   ├── gradient-picker.js <- Picker de gradientes de N colores
-│   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js (+ .min)
+│   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (pickr, grapick, potrace, pica, gif-
 │                             encoder, stackblur, sortable, toastify, svgo...). NO editar
-└── tests/                 <- 6 tests Node (preset-cache, preset-delta, preset-load,
-                              distort-engine, flag-wave, pattern-block-box)
+└── tests/                 <- 10 tests Node (catalog-unified, fonts-catalog, img-refs,
+                              preset-cache, preset-delta, preset-load, distort-engine,
+                              flag-wave, pattern-block-box, controls-init)
 ```
 
 ## 3. Flujo de trabajo
@@ -87,7 +90,13 @@ textmuy/
 3. **Galería de imágenes** (`js/galeria.js`): un solo "Galería" en los importadores
    (rellenos, fondos, texturas, iconos), con tabs (fondos/iconos/varios), buscador, subida
    (botón + drag&drop + pegar) y **preview en vivo** que se revierte si se cierra sin
-   "Aplicar".
+   "Aplicar". Lee `img/img.json` numérico + sprite 100x100.
+3.1. **Galería de fuentes** (`js/fuentes-galeria.js`): tabs dinámicas desde el catálogo
+   (`fonts.json`) + sprite `fuentes` 180x30, upload TTF/OTF/WOFF/WOFF2, footer
+   nombre+categoría+Save/Delete/Select.
+3.2. **Catálogos únicos** (`js/catalog.js` + `TextMuyAPI.loadCatalogo`): un JSON por ámbito
+   en `uploads/tm/{fonts,img,presets}/` (`fonts.json`, `img.json`, `presets.json`), ítems
+   tupla `[id,title,cats,file]` con id numérico = tile `id-1` del sprite del ámbito.
 4. **Importador TextStudio**: extrae el preset de una URL de textstudio.com
    (`window.__PRESET__` / JSON-LD) y lo guarda como `.txm` vía puente (y lo aplica local).
 5. **Export** (pestaña DOWNLOAD): PNG transparente al tamaño del canvas (× Scale), archivo SVG (efectos básicos compatibles).
@@ -113,27 +122,41 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC21**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC24**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
    `migrateLegacyPresets` desde la galería).
 7. **Escritura al servidor SOLO vía puente**: el módulo nunca toca el servidor sin puente
    (fetch a admin-post con nonce). Standalone = 100% client-side, cero escrituras.
+8. **Catálogo único por ámbito (v5.0)**: `{thumbs:{w,h,c}, items:[[id,title,cats,file],...]}`
+   en `uploads/tm/{fonts,img,presets}/` (espejo dev `../uploads/tm/` = `wp-content/uploads/tm/`
+   en WP). Parser compartido `js/catalog.js` (clases `ok`/`free`/`invalid` con causa):
+   `invalid` en GALERÍA = salto + `console.warn` + contador visible; en RENDER = rechazo
+   `ambito:id:motivo`. Sprite fusionado por ámbito (fonts 180x30, img 100x100,
+   presets 200x100), tile derivado `id-1`, cero manifiestos por tile.
+9. **Refs numéricas en `.txm`**: `settings.font.src` e imágenes de settings referencian
+   recursos por id del catálogo; cualquier string legacy = rechazo "re-guardar el preset
+   desde el editor" (sin migración bajo demanda). `api.js::prepareImgRefs` resuelve los ids
+   de imagen → URL (fail-fast en render; base `imagenesBase` o `img/` standalone).
 
 ## 5. Formatos y convenciones de nombres (NO CAMBIAR)
 
-- Preset: `{nombre}.txm` (JSON `textmuy-project` v1) + `{nombre}.webp` (miniatura
-  200x100, auto-generada al primer uso si falta).
+- Preset: `{nombre}.txm` (JSON `textmuy-project` v1). Miniatura en el sprite
+  `presets.webp` 200x100 (los `.webp` sueltos quedaron deprecados; limpieza física
+  pendiente del plugin).
 - Nombres sanitizados: `[a-z0-9_-]` (`sanitizeName`).
 - `settings.canvas.width/height`: única fuente de verdad del tamaño de render.
 - **Todos los datos de usuario (presets, imágenes, fuentes) viven en
-  `wp-content/uploads/personalizador-pdf/textmuy/`**, gestionados por el plugin (ver su
-  AGENTS.md §5). Este repositorio NO versiona datos: standalone arranca sin presets ni
-  imágenes (lista vacía) y el admin los crea desde cero en uploads.
+  `wp-content/uploads/tm/`** (espejo local de dev: `../uploads/tm/`), gestionados por el
+  plugin (ver su AGENTS.md §5). Este repositorio NO versiona datos: standalone arranca sin
+  presets ni imágenes (lista vacía) y el admin los crea desde cero en uploads.
 
 ## 6. Responsabilidades por archivo JS
 
+- **`catalog.js`**: parser único de catálogos (clasificación `ok`/`free`/`invalid` con causa
+  `ambito:id:motivo`), `tileDeId` (tile=`id-1`), `huecoParaAlta` (reutiliza el tombstone más
+  bajo), walker `mapImgRefs`/`hasNumericImgRefs` (refs de imagen por id en settings).
 - **`editor.js`**: estado del proyecto (`createDefaultSettings`, `loadPreset`) y render de
   todas las capas: fill/pattern/palette, outline, shadows, bevel, specular, icon,
   background, lettering (blendmodes, textures).
@@ -148,8 +171,9 @@ textmuy/
   categoría; Google = solo lectura).
 - **`preset-manager.js`**: CRUD de presets (puente/standalone), formato `.txm`,
   miniaturas, migración legacy, `presetUrlBase()`, listados para el plugin.
-- **`api.js`**: API pública (`renderTextToPNG`, `renderBatch`, `clearPresetCache`) y cache
-  de presets (1 fetch por preset; no cachea fallos).
+- **`api.js`**: API pública (`renderTextToPNG`, `renderBatch`, `loadPresetById`,
+  `prepareImgRefs`, `clearPresetCache`) y cache de presets + catálogos (1 fetch por recurso;
+  no cachea fallos). Resolución de refs de imagen por id (fail-fast con causa en render).
 - **`export.js`**: PNG transparente al tamaño exacto del canvas.
 - **`fonts.js`**: carga Google Fonts + locales, `ensureFontReady`, resolución de la fuente
   de un preset (`resolveFontFromPreset`).
@@ -179,39 +203,23 @@ textmuy/
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
 - ✅ **Fuentes como datos: catalogo Google en `fonts.json` + fisicas auto (v4.2,
-  formato SUPERADO por v4.3)**: `uploads/.../textmuy/fonts/fonts.json` (copia
+  formato SUPERADO por v4.3, hoy por v5.0; HISTORICO)**: `uploads/.../textmuy/fonts/fonts.json` (copia
   editable del admin, UNICA fuente de catalogo): `[{nombre, titulo, categoria, google?}]`
   (`google:"Familia:wght@..."` = online lazy via link inyectado; `url` = fisica a
   mano con HEAD previo).
-- ✅ **Formato compacto de catalogo de fuentes (v4.3, RC22)**: `fonts.json` usa
-  **tuplas de 4** `[id, titulo, categorias, referencia]` como canonico (unico
-  formato editado a mano/por el admin):
-    1. **[0] `id`**: identificador unico (es la clave que salva `settings.font.src`).
-    2. **[1] `titulo`**: legible, editable desde la galeria (Save).
-    3. **[2] `categorias`**: una o mas separadas por coma/espacio; default `custom`.
-    4. **[3] `referencia`**: **sin extension** = Google online (spec `Familia:wght@...`)
-       via link inyectado; **con `.ttf/.otf/.woff/.woff2`** = archivo fisico en
-       `uploads/.../textmuy/fonts/` (se valida con HEAD; si no existe se omite en
-       silencio: cero 404).
-  ⚠️ **SIN compat legacy (de entrada)**: el parser acepta UN SOLO formato (la tupla
-  de 4). NO se soportan objetos cortos `{n,t,c,f}` ni el legacy
-  `{nombre,titulo,categoria,google|url}`: el sistema esta en construccion y
-  sostener formatos viejos en el parser lo vuelve mas grande y complejo sin
-  beneficio. Las entradas que no sean tupla se IGNORAN en silencio. Si un
-  `fonts.json` viejo tiene objetos, el admin debe migrarlo a tuplas (el plugin
-  ya escribe tuplas al subir).
-  `fonts.js` deriva familias y categorias del json (categorias dinamicas, fetch
-  `no-store`). Las **fisicas** reales (archivo existente + extension) las manda el
-  plugin por `bridge.fuentes` y el modulo filtra por extension; el puente VIEJO que
-  mezclaba entradas Google (sin archivo) YA NO produce FontFace (ignoradas). Al
-  abrir la app: **cero fuentes** (solo la etiqueta `DEFAULT_FONT_FAMILY`, se
-  reemplaza al elegir/cargar una real via `setDefaultFont`); carga lazy por
-  galeria/seleccion/render (`ensureGoogleFontBySpec` inyecta un `<link>` por
-  familia, con timeout 3s sin red). Thumbs: sprite global `fuentes` 180x30
-  (`ensureFontsSprite`; las online se dibujan con fuente de sistema, cero red).
-  **Contrato lado plugin**: `urls.fuentesBase` + `fuentes:[{nombre,titulo,url}]`
-  SOLO con archivos fisicos reales; handlers `subirFuente` (escribe tupla en el
-  catalogo) / `borrarFuente|cambiarFuente` (+ `guardarSprite scope fuentes`).
+- ✅ **Formato único de recursos (v5.0, RC24)**: catálogo por ámbito
+  `{thumbs:{w,h,c}, items:[[id,title,cats,file],...]}` con `id` NUMÉRICO denso desde 1 =
+  tile `id-1`; libre = tombstone `[id,"","",""]` (SIN lista `free[]`); `cats` string
+  (coma/espacio/barra, default `custom`); `file` con extensión = físico (HEAD previo), sin
+  extensión = Google SOLO en `fonts` (lazy `<link>`). Parser compartido `js/catalog.js` con
+  3 clases `ok/free/invalid` (constitución IV v2.1.0): `invalid` en galería = salto + warn +
+  contador visible; en render = rechazo con causa. Los `.txm` referencian por id numérico
+  (`font.src`, imágenes de settings): string legacy = rechazo "re-guardar el preset" (sin
+  migración bajo demanda). Ámbitos en `uploads/tm/{fonts,img,presets}/`: `fonts.json`
+  (espejo `../uploads/tm/` = `wp-content/uploads/tm/`), `img.json` (antes `catalogo.json`),
+  `presets.json` (nuevo); migrados via `here/specs/001-unified-resource-format/migrate-tm.mjs`
+  (fonts 72, img 128, presets 10; backups `.legacy`). Lado plugin pendiente: escribir tuplas
+  en alta/baja + regenerar sprites + limpiar `thumbs/presets.json` y `.webp` sueltos.
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
   = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que
@@ -246,7 +254,12 @@ textmuy/
 - ⚠️ **Fuentes**: sin internet, Google Fonts no carga y cae al fallback; `fonts/` local
   está vacía por defecto. `ensureFontReady` obliga a cargar la familia antes de renderizar
   (si no, el canvas usa la fuente del sistema).
-- ⚠️ **WebGL puede no estar disponible**: bevel/especular tienen fallback Canvas 2D.
+- ⚠️ **WebGL puede no estar disponible**: bevel/especular tienen fallback Canvas 2D, PERO en
+  la ruta de la API (constitución II) sin WebGL el render falla con causa (sin fallback
+  silencioso).
+- ⚠️ **Git-Bash + carpeta `here/`**: en comandos largos de shell el cwd se pierde (ENOENT
+  fantasma con `cp`/`mkdir`); usar rutas absolutas Windows, `node -e` con `fs`, o la
+  herramienta editor.
 - ⚠️ **Vivir integrado**: este repo es hermano del plugin en el proyecto (`../textmuy`);
   para probarlo integrado, copiarlo a `../personalizador-pdf/modules/textmuy/`
   (instrucciones en `modules/LEEME.md`).
@@ -254,21 +267,26 @@ textmuy/
 ## 9. Cómo probar
 
 ```bash
+node tests/catalog-unified.test.js    # parser unico: ok/free/invalid + tile=id-1 + tombstone
+node tests/fonts-catalog.test.js      # wiring fonts.js al parser + rechazo legacy (tuplas string)
+node tests/img-refs.test.js           # refs de imagen por id (prepareImgRefs, fail-fast)
 node tests/preset-cache.test.js
 node tests/preset-delta.test.js
-node tests/preset-load.test.js        # valida los presets de uploads (lee de ../uploads/.../textmuy/presets)
+node tests/preset-load.test.js        # valida los presets de uploads (lee de ../uploads/tm/presets)
 node tests/distort-engine.test.js
 node tests/flag-wave.test.js
 node tests/pattern-block-box.test.js
 node tests/controls-init.test.js      # smoke: Controls.init() corre sin lanzar (atrapa ReferenceError de scope)
-node --check js/preset-manager.js
-node --check js/api.js
+node --check js/catalog.js js/fonts.js js/preset-manager.js js/api.js js/editor.js js/galeria.js js/fuentes-galeria.js
 ```
 
 - **Standalone**: abrir `index.html` (o servirlo por HTTP) y probar editor + galería +
-  export PNG (arranca sin presets ni imágenes: el admin los crea desde cero).
+  export PNG (arranca sin presets ni imágenes: el admin los crea desde cero en
+  `uploads/tm/`).
 - **Integrado**: pestaña "Estilos de Texto" del plugin (guardar/borrar preset, subir
   imagen) y vista previa / Procesar de un grupo con texto estilizado.
+- **Migrar datos**: `node here/specs/001-unified-resource-format/migrate-tm.mjs` (convierte
+  los formatos legacy del espejo `../uploads/tm/` al canónico v5.0, con backups `.legacy`).
 
 ## 10. Reglas para la IA al editar
 
