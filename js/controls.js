@@ -318,6 +318,14 @@
         el.addEventListener('change', function() {
             const fontKey = this.value;
             const requestId = ++fontLoadRequestId;
+            // Al elegir fuente en el picker/galeria: es la fuente real del
+            // proyecto (reemplaza la etiqueta generica inicial). La carga lazy
+            // (Google inyectada o TTF local) la resuelve loadFont al renderizar.
+            try {
+                if (window.FontLoader && window.FontLoader.setDefaultFont) {
+                    window.FontLoader.setDefaultFont(fontKey);
+                }
+            } catch (_) { /* etiqueta best-effort */ }
             setNestedSetting('font.src', fontKey);
 
             const settings = editor.getSettings();

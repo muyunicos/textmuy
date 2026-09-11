@@ -59,12 +59,15 @@
     }
 
     /** Resuelve la clave de fuente del settings via FontLoader (si esta disponible). */
+    function defaultFamily() {
+        return (window.FontLoader && FontLoader.DEFAULT_FONT_FAMILY) || 'Bangers';
+    }
     function resolveFontKey(font) {
         if (window.FontLoader && FontLoader.resolveFontFromPreset) {
             return FontLoader.resolveFontFromPreset(font);
         }
-        if (font && typeof font === 'object') return font.src || font.name || 'Bangers';
-        return (typeof font === 'string' && font) ? font : 'Bangers';
+        if (font && typeof font === 'object') return font.src || font.name || defaultFamily();
+        return (typeof font === 'string' && font) ? font : defaultFamily();
     }
 
     /**

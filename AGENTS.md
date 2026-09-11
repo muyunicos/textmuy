@@ -58,7 +58,7 @@ textmuy/
 ├── index.html             <- Editor completo (UI; iframe del plugin o standalone)
 ├── render-core.html       <- Motor de render headless (~220 KB sin UI: fonts + effects +
 │                             editor + export + api); iframe off-screen del plugin
-├── css/                   <- editor.min.css, animate.min.css, font-picker.min.css
+├── css/                   <- style.css (unico CSS del modulo)
 ├── js/
 │   ├── main.js            <- Bootstrap del editor
 │   ├── editor.js          <- Estado + render del canvas (fuente de verdad del settings)
@@ -113,7 +113,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC20**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC21**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -179,15 +179,19 @@ textmuy/
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
 - ✅ **Fuentes como datos: catalogo Google en `fonts.json` + fisicas auto (v4.2)**:
-  `fonts/fonts.json` (plantilla, 56 familias) y `uploads/.../textmuy/fonts/
-  fonts.json` (copia editable del admin): `[{nombre, titulo, categoria}]` (sin
-  `url` = online via `document.fonts`). `fonts.js` ya NO hardcodea familias ni
-  categorias: `loadCatalog()` las deriva del json (categorias dinamicas, fetch
-  `no-store` para ver altas/bajas sin Ctrl+F5). Las **fisicas** (TTF en la
-  carpeta) las **escanea el plugin y las manda por el puente**
-  (`bridge.fuentes`); aparecen solas al subir (sin editar json). Tambien se
-  aceptan entradas con `url` en el catalogo (HEAD previo, cero 404). Picker y
-  filtro reconstruidos desde datos (`rebuildFontPicker`). Thumbs: sprite global
+  `uploads/.../textmuy/fonts/fonts.json` (copia editable del admin, UNICA fuente
+  de catalogo): `[{nombre, titulo, categoria, google?}]` (`google:
+  "Familia:wght@..."` = online lazy via link inyectado; `url` = fisica a mano
+  con HEAD previo). **En el repo NO hay fuentes ni catalogo**: se eliminaron
+  `fonts/fonts.json` y los 3 `.min.css` huerfanos (`css/` = solo `style.css`).
+  `fonts.js` deriva familias y categorias del json (categorias dinamicas, fetch
+  `no-store`). Las **fisicas** (TTF en la carpeta) las **escanea el plugin y las
+  manda por el puente** (`bridge.fuentes`); aparecen solas al subir. Al abrir la
+  app: **cero fuentes** (solo la etiqueta generica `DEFAULT_FONT_FAMILY`, que se
+  reemplaza al elegir/cargar una real via `setDefaultFont`); la carga es lazy
+  por galeria/seleccion/render (`ensureGoogleFontBySpec` inyecta un `<link>`
+  por familia, con timeout 3s sin red). Picker y filtro reconstruidos desde
+  datos (`rebuildFontPicker`, picker vacio = fallback). Thumbs: sprite global
   `fuentes` 180x30 (`ensureFontsSprite`, sin `.webp` sueltos). Galeria de
   fuentes con cambiar categoria / crear categoria / eliminar / subir
   (`fuentes-galeria.js`). **Contrato lado plugin**: `urls.fuentesBase` +

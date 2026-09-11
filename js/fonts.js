@@ -30,8 +30,11 @@
     // Las fisicas (TTF en la carpeta, escaneadas por el plugin via puente)
     // se registran aparte con path local + HEAD previo. fontCategories se
     // deriva del catalogo (dinamico: categorias nuevas sin tocar codigo).
-    // Estrategia de carga (cache-bust ?v=RCn NO aplica a datos: el json se
-    // pide con cache:'no-store' para ver altas/bajas sin Ctrl+F5).
+    // Nombre generico inicial del canvas (NO es una fuente cargada: es la
+    // etiqueta que muestra el picker vacio y la que resuelven los presets sin
+    // fuente declarada hasta que el usuario elige una real).
+    // Se reemplaza en cuanto el usuario elige/carga una fuente (ver setDefaultFont).
+    var DEFAULT_FONT_FAMILY = 'Bangers';
     var catalogPromise = null;
     var catalogFonts = {};   // nombre -> {titulo, categoria}
     var fontCategories = {}; // categoria -> [nombres] (derivado del catalogo)
@@ -69,7 +72,8 @@
             lista.forEach(function (f) {
                 if (!f || !f.nombre) return;
                 var cat = f.categoria || 'custom';
-                catalogFonts[f.nombre] = { titulo: f.titulo || f.nombre, categoria: cat };
+                // google:"Familia:wght@..." (online lazy) o url (fisica a mano).
+                catalogFonts[f.nombre] = { titulo: f.titulo || f.nombre, categoria: cat, google: f.google || null, url: f.url || null };
                 if (!fontCategories[cat]) fontCategories[cat] = [];
                 if (fontCategories[cat].indexOf(f.nombre) === -1) fontCategories[cat].push(f.nombre);
             });
@@ -267,7 +271,7 @@
     }
 
     function resolveFontFromPreset(font) {
-        if (!font) return 'Bangers';
+        if (!font) return DEFAULT_FONT_FAMILY;
         if (typeof font === 'string') {
             if (fontRegistry[font]) return font;
             if (catalogFonts[font]) return font;
@@ -285,7 +289,7 @@
             if (nameToKeyMap[font.name]) return nameToKeyMap[font.name];
             return font.name;
         }
-        return 'Bangers';
+        return DEFAULT_FONT_FAMILY;
     }
 
     function loadFont(fontKey) {
@@ -299,18 +303,19 @@
         var fontInfo = fontRegistry[fontKey];
         if (!fontInfo) {
             // Clave desconocida: si esta en el catalogo Google (fonts.json),
-            // resolver via document.fonts SIN intentar FontFace local
-            // (evita 404 + spam en consola).
+            // inyectar SU spec (campo google con pesos) via link dedicado.
             if (catalogFonts[fontKey]) {
-                return ensureGoogleFont(catalogFonts[fontKey].titulo || fontKey);
+                const entry = catalogFonts[fontKey];
+                return ensureGoogleFontBySpec(entry.google || entry.titulo || fontKey);
             }
-            console.warn('Font not found in registry, using fallback:', fontKey, '->', 'Bangers');
-            return ensureGoogleFont('Bangers');
+            console.warn('Font not found in registry, using fallback:', fontKey, '->', DEFAULT_FONT_FAMILY);
+            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
         }
 
-        // Entrada de catalogo online sin path local (solo nombre Google Fonts).
+        // Entrada de catalogo online sin path local: inyectar su spec Google.
         if (!fontInfo.path) {
-            return ensureGoogleFont(fontInfo.name || fontKey);
+            const spec = (catalogFonts[fontKey] && catalogFonts[fontKey].google) || fontInfo.name || fontKey;
+            return ensureGoogleFontBySpec(spec);
         }
 
         var font = new FontFace(fontInfo.name, 'url(' + fontInfo.path + ')');
@@ -321,23 +326,47 @@
         }).catch(function(err) {
             console.warn('Failed to load font ' + fontKey + ':', err);
             delete loadingPromises[fontKey];
-            // Fallback a Google Fonts (categoria de la fuente o Bangers).
-            return ensureGoogleFont('Bangers');
+            // Fallback a Google Fonts (categoria de la fuente o default).
+            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
         });
 
         return loadingPromises[fontKey];
     }
 
-    // Resuelve una familia Google Fonts via document.fonts (ya llegan por
-    // <link> en index.html/render-core.html). Cachea en loadedFonts para no
-    // repetir document.fonts.load. Nunca hace fetch ni FontFace: cero 404.
-    function ensureGoogleFont(family) {
+    // Inyecta el <link> css2 de UNA familia Google (campo google del json:
+    // "Oswald:wght@400;500;600;700") y espera a document.fonts. Solo se llama
+    // al elegir/renderizar esa familia: al abrir la app, cero fuentes.
+    // Sin red o sin document.fonts: resuelve igual (canvas usa fallback).
+    var googleLinksInjected = {};
+    function googleFamilyOf(spec) {
+        return String(spec || '').split(':')[0].replace(/\+/g, ' ') || spec;
+    }
+    function ensureGoogleFontBySpec(spec) {
+        spec = String(spec || '').trim();
+        if (!spec) return Promise.resolve(DEFAULT_FONT_FAMILY);
+        const family = googleFamilyOf(spec);
         if (loadedFonts[family]) return Promise.resolve(loadedFonts[family]);
         if (loadingPromises[family]) return loadingPromises[family];
-        var p;
+        // 1. Inyectar el <link> css2 una sola vez por familia.
         try {
-            if (document.fonts && document.fonts.load) {
-                p = document.fonts.load('16px "' + family + '"').then(function () {
+            if (typeof document !== 'undefined' && document.createElement && !googleLinksInjected[family]) {
+                googleLinksInjected[family] = true;
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?family=' + spec.split(' ').join('+') + '&display=swap';
+                link.setAttribute('data-textmuy-font', family);
+                (document.head || document.getElementsByTagName('head')[0] || document.body).appendChild(link);
+            }
+        } catch (_) { /* sin DOM: seguir al paso 2 */ }
+        // 2. Esperar a document.fonts (con timeout: sin red resuelve igual).
+        let p;
+        try {
+            if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+                const timeout = new Promise(function (res) { setTimeout(function () { res(false); }, 3000); });
+                p = Promise.race([
+                    document.fonts.load('16px "' + family + '"'),
+                    timeout
+                ]).then(function () {
                     loadedFonts[family] = family;
                     return family;
                 }).catch(function () {
@@ -355,7 +384,8 @@
         loadingPromises[family] = p;
         return p;
     }
-
+    // Compat: antes recibia el nombre de familia; ahora deriva el spec del
+    // catalogo (campo google) y delega. Si no hay spec, usa la familia tal cual.
     function getFontName(fontKey) {
         if (fontRegistry[fontKey]) {
             return fontRegistry[fontKey].name;
@@ -368,19 +398,16 @@
     }
 
     function preloadAll() {
-        // 1. Catalogo Google (fonts.json) via document.fonts, sin FontFace
-        //    local. 2. Fisicas del puente + fonts.json con url + HEAD previo.
-        // Ya no hay TTF locales en el modulo: cero 404 en el arranque.
+        // Lazy real: al abrir la app NO se carga ninguna fuente. Solo se deja
+        // el catalogo listo (para la galeria) y se asegura la fuente del
+        // template/preset activo si es Google (una sola familia) o local.
         return loadCatalog().then(function () {
-            var names = Object.keys(catalogFonts);
-            var jobs = names.map(function (k) {
-                return ensureGoogleFont((catalogFonts[k] && catalogFonts[k].titulo) || k);
-            });
-            jobs.push(loadUserFonts().then(function (keys) {
-                return Promise.all(keys.map(function (k) { return loadFont(k); }));
-            }));
-            return Promise.all(jobs);
-        });
+            const cur = resolveFontFromPreset(
+                (typeof state !== 'undefined' && state.settings && state.settings.font)
+                    ? state.settings.font : DEFAULT_FONT_FAMILY
+            );
+            return loadFont(cur).catch(function () { return cur; });
+        }).catch(function () { return DEFAULT_FONT_FAMILY; });
     }
 
     function getAvailableFonts() {
@@ -506,9 +533,20 @@
         });
     }
 
+    // Cambia la fuente generica inicial (p.ej. al elegir una real en la
+    // galeria o al cargar el template predeterminado).
+    function setDefaultFont(family) {
+        if (typeof family === 'string' && family.trim()) {
+            DEFAULT_FONT_FAMILY = family.trim();
+        }
+        return DEFAULT_FONT_FAMILY;
+    }
+
     window.FontLoader = {
+        DEFAULT_FONT_FAMILY: DEFAULT_FONT_FAMILY,
+        setDefaultFont: setDefaultFont,
         loadFont: loadFont,
-        ensureGoogleFont: ensureGoogleFont,
+        ensureGoogleFontBySpec: ensureGoogleFontBySpec,
         loadUserFonts: loadUserFonts,
         loadCatalog: loadCatalog,
         listServerFonts: listServerFonts,

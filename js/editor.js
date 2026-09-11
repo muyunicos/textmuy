@@ -5,6 +5,8 @@
 
     // Default settings matching TextStudio's preset structure
     // Conceptual order: TEXT → 3D & FILLING → OUTLINES → SHADOWS → ICON → BACKGROUND → ANIMATION → DOWNLOAD
+    // font.src es etiqueta generica inicial (ver FontLoader.DEFAULT_FONT_FAMILY):
+    // NO implica fuente cargada; se reemplaza al elegir/cargar una real.
     const defaultSettings = {
         editable: 1,
         // ===== TEXT =====

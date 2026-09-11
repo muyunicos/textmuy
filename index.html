@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TextMuy - Online Text Effects & Logo Generator</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Freckle+Dragon&family=Permanent+Marker&family=Rock+Salt&family=Bangers&family=Anton&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&family=Pacifico&family=Press+Start+2P&family=Creepster&family=Share+Tech+Mono&family=Rubik+Wet+Paint&family=Carter+One&family=Fascinate&family=Kanit:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Carter+One&family=Lobster&family=Raleway:wght@400;500;600;700;800;900&family=Open+Sans:wght@400;500;600;700;800&family=Lato:wght@400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Merriweather:wght@400;500;600;700;800;900&family=Source+Sans+Pro:wght@400;500;600;700;800;900&family=Nunito:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&family=Ubuntu:wght@400;500;600;700;800;900&family=Righteous&family=Abril+Fatface&family=Satisfy&family=Dancing+Script:wght@400;500;600;700&family=Indie+Flower&family=Shadows+Into+Light&family=Architects+Daughter&family=Patrick+Hand&family=Kalam:wght@400;500;600;700&family=Amatic+SC:wght@400;500;600;700&family=Caveat:wght@400;500;600;700&family=Zeyada&family=Great+Vibes&family=Alex+Brush&family=Allura&family=Sacramento&family=Tangerine:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&family=Work+Sans:wght@400;500;600;700;800;900&family=Josefin+Sans:wght@400;500;600;700&family=Quattrocento+Sans:wght@400;500;600;700&family=Crimson+Text:wght@400;500;600;700&family=Libre+Baskerville:wght@400;500;600;700&family=PT+Sans:wght@400;500;600;700&family=Source+Serif+Pro:wght@400;500;600;700&family=Slabo+27px&family=Arimo:wght@400;500;600;700&family=Arvo:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Vollkorn:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts de texto: SIN <link> masivo. fonts.js inyecta solo la
+      familia del template/preset activo (google:"Familia:wght@...") via
+      ensureGoogleFontBySpec() justo antes de renderizar. Al abrir: cero fuentes. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -115,12 +117,6 @@
                                         <div class="tt-option" style="margin-bottom: 8px;">
                                             <select id="tt-font-category-filter" >
                                                 <option value="all">All Categories</option>
-                                                <option value="display">Display</option>
-                                                <option value="handwriting">Handwriting</option>
-                                                <option value="sans-serif">Sans-Serif</option>
-                                                <option value="serif">Serif</option>
-                                                <option value="monospace">Monospace</option>
-                                                <option value="gaming">Gaming</option>
                                                 <option value="custom">Custom</option>
                                             </select>
                                         </div>
@@ -134,76 +130,10 @@
                                             </button>
                                         </div>
                                         <select id="tt-font-picker-input" data-tt-option="font.src" class="tt-font-select">
-                                            <optgroup label="Display">
-                                                <option value="Bangers">Bangers</option>
-                                                <option value="Anton">Anton</option>
-                                                <option value="Bebas Neue">Bebas Neue</option>
-                                                <option value="Righteous">Righteous</option>
-                                                <option value="Abril Fatface">Abril Fatface</option>
-                                                <option value="Fascinate">Fascinate</option>
-                                                <option value="Creepster">Creepster</option>
-                                                <option value="Freckle Dragon">Freckle Dragon</option>
-                                            </optgroup>
-                                            <optgroup label="Handwriting">
-                                                <option value="Permanent Marker">Permanent Marker</option>
-                                                <option value="Rock Salt">Rock Salt</option>
-                                                <option value="Pacifico">Pacifico</option>
-                                                <option value="Satisfy">Satisfy</option>
-                                                <option value="Dancing Script">Dancing Script</option>
-                                                <option value="Indie Flower">Indie Flower</option>
-                                                <option value="Shadows Into Light">Shadows Into Light</option>
-                                                <option value="Architects Daughter">Architects Daughter</option>
-                                                <option value="Patrick Hand">Patrick Hand</option>
-                                                <option value="Kalam">Kalam</option>
-                                                <option value="Amatic SC">Amatic SC</option>
-                                                <option value="Caveat">Caveat</option>
-                                                <option value="Zeyada">Zeyada</option>
-                                                <option value="Great Vibes">Great Vibes</option>
-                                                <option value="Alex Brush">Alex Brush</option>
-                                                <option value="Allura">Allura</option>
-                                                <option value="Sacramento">Sacramento</option>
-                                                <option value="Tangerine">Tangerine</option>
-                                                <option value="Lobster">Lobster</option>
-                                            </optgroup>
-                                            <optgroup label="Sans-Serif">
-                                                <option value="Roboto">Roboto</option>
-                                                <option value="Oswald">Oswald</option>
-                                                <option value="Montserrat">Montserrat</option>
-                                                <option value="Open Sans">Open Sans</option>
-                                                <option value="Lato">Lato</option>
-                                                <option value="Source Sans Pro">Source Sans Pro</option>
-                                                <option value="Nunito">Nunito</option>
-                                                <option value="Poppins">Poppins</option>
-                                                <option value="Ubuntu">Ubuntu</option>
-                                                <option value="Quicksand">Quicksand</option>
-                                                <option value="Work Sans">Work Sans</option>
-                                                <option value="Josefin Sans">Josefin Sans</option>
-                                                <option value="Quattrocento Sans">Quattrocento Sans</option>
-                                                <option value="PT Sans">PT Sans</option>
-                                                <option value="Arimo">Arimo</option>
-                                                <option value="Raleway">Raleway</option>
-                                                <option value="Kanit">Kanit</option>
-                                            </optgroup>
-                                            <optgroup label="Serif">
-                                                <option value="Playfair Display">Playfair Display</option>
-                                                <option value="Merriweather">Merriweather</option>
-                                                <option value="Crimson Text">Crimson Text</option>
-                                                <option value="Libre Baskerville">Libre Baskerville</option>
-                                                <option value="Source Serif Pro">Source Serif Pro</option>
-                                                <option value="Slabo 27px">Slabo 27px</option>
-                                                <option value="Arvo">Arvo</option>
-                                                <option value="Lora">Lora</option>
-                                                <option value="Vollkorn">Vollkorn</option>
-                                            </optgroup>
-                                            <optgroup label="Monospace">
-                                                <option value="Press Start 2P">Press Start 2P</option>
-                                                <option value="Share Tech Mono">Share Tech Mono</option>
-                                            </optgroup>
-                                            <optgroup label="Gaming">
-                                                <option value="Press Start 2P">Press Start 2P</option>
-                                                <option value="Creepster">Creepster</option>
-                                                <option value="Rubik Wet Paint">Rubik Wet Paint</option>
-                                            </optgroup>
+                                            <!-- Picker desde datos: rebuildFontPicker() lo
+                                              reconstruye desde fonts.json (Google) + fisicas
+                                              del puente + uploads locales. Esqueleto vacio =
+                                              fallback si el json falla. -->
                                             <optgroup label="Custom" data-font-group="custom">
                                             </optgroup>
                                         </select>
@@ -1459,21 +1389,21 @@
         </div>
     </div>
 
-    <script src="js/fonts.js?v=RC20"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC20"></script>
-    <script src="js/effects/specular-webgl.js?v=RC20"></script>
-    <script src="js/effects/distort-engine.js?v=RC20"></script>
-    <script src="js/preset-manager.js?v=RC20"></script>
-    <script src="js/gradient-picker.js?v=RC20"></script>
-    <script src="js/editor.js?v=RC20"></script>
+    <script src="js/fonts.js?v=RC21"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC21"></script>
+    <script src="js/effects/specular-webgl.js?v=RC21"></script>
+    <script src="js/effects/distort-engine.js?v=RC21"></script>
+    <script src="js/preset-manager.js?v=RC21"></script>
+    <script src="js/gradient-picker.js?v=RC21"></script>
+    <script src="js/editor.js?v=RC21"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC20"></script>
+    <script src="js/galeria.js?v=RC21"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC20"></script>
-    <script src="js/controls.js?v=RC20"></script>
-    <script src="js/export.js?v=RC20"></script>
-    <script src="js/api.js?v=RC20"></script>
-    <script src="js/main.js?v=RC20"></script>
+    <script src="js/fuentes-galeria.js?v=RC21"></script>
+    <script src="js/controls.js?v=RC21"></script>
+    <script src="js/export.js?v=RC21"></script>
+    <script src="js/api.js?v=RC21"></script>
+    <script src="js/main.js?v=RC21"></script>
 </body>
 </html>
 
