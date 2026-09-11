@@ -1,26 +1,5 @@
 # TextMuy Constitution
 
-<!--
-Sync Impact Report (temporal, remover antes de commit):
-- Version change: 2.0.0 -> 2.1.0 (MINOR: principio IV redefinido de
-  free[] a tombstone + regla de higiene de listado en VI; responde a
-  decisiones Q1/Q2 del usuario en here/specs/001-unified-resource-format).
-- IV. Preset Delta Estricto y Catalogos Unicos (reescrito parcial):
-  catalogo {thumbs:{w,h,c},items} SIN free[]; libre = tombstone
-  [id,"","",""]; alta reutiliza hueco mas bajo; cats como string
-  (coma/espacio/barra, default custom); parser con 3 clases
-  ok/free/invalid.
-- VI. Firmeza Fail-Fast (matiz): invalid en GALERIA = salto +
-  console.warn + contador visible (higiene de listado, no sustitucion
-  de render); en RENDER = rechazo duro ambito:id:motivo sin parciales.
-- Flujo de Desarrollo: 8 suites -> 9 suites (nueva
-  catalog-unified.test.js).
-- Removed: lista free[] separada; manifiesto thumbs/presets.json
-  mencionado como ejemplo (ya estaba prohibido, se explicita).
-- TODOs: ninguno. AGENTS.md se MANTIENE (ver analisis al pie del
-  resumen): es guia runtime operativa, no duplica gobernanza.
--->
-
 ## Core Principles
 
 ### I. Editor de Estilos de Textos Pequenos
