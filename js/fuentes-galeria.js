@@ -86,10 +86,12 @@ function crearPanel(){
   items=[];seleccionado=null;
   const cats=(FL()&&FL().getFontCategories)?FL().getFontCategories():{};
   Object.keys(cats).forEach(function(c){
-   (cats[c]||[]).forEach(function(nombre){
-    let tit=nombre;
-    try{tit=(FL().getCatalogFonts()[nombre]||{}).titulo||nombre;}catch(_){}
-    items.push({slug:nombre,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:true});
+   (cats[c]||[]).forEach(function(id){
+    let ent=null;
+    try{ent=(FL().getCatalogFonts()||{})[id];}catch(_){}
+    const tit=ent&&ent.titulo?id:(id||'');
+    const online=ent?!!ent.online:(id.indexOf('.')<0);
+    items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online});
    });
   });
   if(FL()&&FL().listServerFonts){

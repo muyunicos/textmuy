@@ -2165,6 +2165,10 @@
             if (!customGroup) return;
             if (bridge && Array.isArray(bridge.fuentes)) {
                 bridge.fuentes.forEach(function (f) {
+                    // Solo fisicas reales (nombre con extension de fuente). El
+                    // puente viejo mezclaba entradas Google (sin archivo): esas
+                    // generaban spam de 404. Sin extension, se ignoran.
+                    if (!f || !f.nombre || !/\.(ttf|otf|woff|woff2)$/i.test(f.nombre)) return;
                     var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
                     var opt = customGroup.querySelector('option[value="' + key + '"]');
                     if (!opt) {

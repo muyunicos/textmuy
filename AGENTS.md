@@ -178,25 +178,40 @@ textmuy/
   `fonts.js` registra las fuentes desde el puente y reemplaza `localStorage`
   (`textmuy_custom_fonts`) dentro del plugin (standalone mantiene localStorage); preview
   webp generada en el navegador al subir o auto-generada al primer uso si falta.
-- ✅ **Fuentes como datos: catalogo Google en `fonts.json` + fisicas auto (v4.2)**:
-  `uploads/.../textmuy/fonts/fonts.json` (copia editable del admin, UNICA fuente
-  de catalogo): `[{nombre, titulo, categoria, google?}]` (`google:
-  "Familia:wght@..."` = online lazy via link inyectado; `url` = fisica a mano
-  con HEAD previo). **En el repo NO hay fuentes ni catalogo**: se eliminaron
-  `fonts/fonts.json` y los 3 `.min.css` huerfanos (`css/` = solo `style.css`).
+- ✅ **Fuentes como datos: catalogo Google en `fonts.json` + fisicas auto (v4.2,
+  formato SUPERADO por v4.3)**: `uploads/.../textmuy/fonts/fonts.json` (copia
+  editable del admin, UNICA fuente de catalogo): `[{nombre, titulo, categoria, google?}]`
+  (`google:"Familia:wght@..."` = online lazy via link inyectado; `url` = fisica a
+  mano con HEAD previo).
+- ✅ **Formato compacto de catalogo de fuentes (v4.3, RC22)**: `fonts.json` usa
+  **tuplas de 4** `[id, titulo, categorias, referencia]` como canonico (unico
+  formato editado a mano/por el admin):
+    1. **[0] `id`**: identificador unico (es la clave que salva `settings.font.src`).
+    2. **[1] `titulo`**: legible, editable desde la galeria (Save).
+    3. **[2] `categorias`**: una o mas separadas por coma/espacio; default `custom`.
+    4. **[3] `referencia`**: **sin extension** = Google online (spec `Familia:wght@...`)
+       via link inyectado; **con `.ttf/.otf/.woff/.woff2`** = archivo fisico en
+       `uploads/.../textmuy/fonts/` (se valida con HEAD; si no existe se omite en
+       silencio: cero 404).
+  ⚠️ **SIN compat legacy (de entrada)**: el parser acepta UN SOLO formato (la tupla
+  de 4). NO se soportan objetos cortos `{n,t,c,f}` ni el legacy
+  `{nombre,titulo,categoria,google|url}`: el sistema esta en construccion y
+  sostener formatos viejos en el parser lo vuelve mas grande y complejo sin
+  beneficio. Las entradas que no sean tupla se IGNORAN en silencio. Si un
+  `fonts.json` viejo tiene objetos, el admin debe migrarlo a tuplas (el plugin
+  ya escribe tuplas al subir).
   `fonts.js` deriva familias y categorias del json (categorias dinamicas, fetch
-  `no-store`). Las **fisicas** (TTF en la carpeta) las **escanea el plugin y las
-  manda por el puente** (`bridge.fuentes`); aparecen solas al subir. Al abrir la
-  app: **cero fuentes** (solo la etiqueta generica `DEFAULT_FONT_FAMILY`, que se
-  reemplaza al elegir/cargar una real via `setDefaultFont`); la carga es lazy
-  por galeria/seleccion/render (`ensureGoogleFontBySpec` inyecta un `<link>`
-  por familia, con timeout 3s sin red). Picker y filtro reconstruidos desde
-  datos (`rebuildFontPicker`, picker vacio = fallback). Thumbs: sprite global
-  `fuentes` 180x30 (`ensureFontsSprite`, sin `.webp` sueltos). Galeria de
-  fuentes con cambiar categoria / crear categoria / eliminar / subir
-  (`fuentes-galeria.js`). **Contrato lado plugin**: `urls.fuentesBase` +
-  `fuentes:[{nombre,titulo,url,categoria?}]` en el puente; handlers
-  `subirFuente|borrarFuente|cambiarFuente` (+ `guardarSprite scope fuentes`).
+  `no-store`). Las **fisicas** reales (archivo existente + extension) las manda el
+  plugin por `bridge.fuentes` y el modulo filtra por extension; el puente VIEJO que
+  mezclaba entradas Google (sin archivo) YA NO produce FontFace (ignoradas). Al
+  abrir la app: **cero fuentes** (solo la etiqueta `DEFAULT_FONT_FAMILY`, se
+  reemplaza al elegir/cargar una real via `setDefaultFont`); carga lazy por
+  galeria/seleccion/render (`ensureGoogleFontBySpec` inyecta un `<link>` por
+  familia, con timeout 3s sin red). Thumbs: sprite global `fuentes` 180x30
+  (`ensureFontsSprite`; las online se dibujan con fuente de sistema, cero red).
+  **Contrato lado plugin**: `urls.fuentesBase` + `fuentes:[{nombre,titulo,url}]`
+  SOLO con archivos fisicos reales; handlers `subirFuente` (escribe tupla en el
+  catalogo) / `borrarFuente|cambiarFuente` (+ `guardarSprite scope fuentes`).
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
   = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que

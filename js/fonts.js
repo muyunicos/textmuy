@@ -23,23 +23,49 @@
         'LEMON MILK': 'Kanit'
     };
 
-    // ===== CATALOGO GOOGLE VIA fonts.json (cero hardcode) =====
-    // fonts/fonts.json (plantilla) y uploads/.../textmuy/fonts/fonts.json
-    // (copia editable del admin): [{nombre, titulo, categoria}]. Sin campo
-    // url/path = online (se resuelve via document.fonts, nunca FontFace).
-    // Las fisicas (TTF en la carpeta, escaneadas por el plugin via puente)
-    // se registran aparte con path local + HEAD previo. fontCategories se
-    // deriva del catalogo (dinamico: categorias nuevas sin tocar codigo).
+    // ===== CATALOGO UNICO DE FUENTES VIA fonts.json (cero hardcode) =====
+    // uploads/.../textmuy/fonts/fonts.json es la UNICA fuente de verdad. El
+    // catalogo lo tiene TODO (Google online + fisicas + categorias + titulos):
+    //   [["Montserrat", "Montserrat", "sans-serif", "Montserrat:wght@400"], ...]
+    //   [0]=id unico, [1]=titulo legible, [2]=categorias (1+ separadas por
+    //   coma/espacio), [3]=referencia. Sin extension en [3] = Google online
+    //   (spec "Familia:wght@..." via link inyectado). Con .ttf/.otf/.woff/.woff2
+    //   = archivo fisico en uploads/.../textmuy/fonts/ (se valida con HEAD).
+    // ⚠️ UNICO formato: la tupla de 4. SIN compat legacy ni objetos (ver
+    // AGENTS.md v4.3): entradas que no sean tupla se ignoran en silencio.
     // Nombre generico inicial del canvas (NO es una fuente cargada: es la
     // etiqueta que muestra el picker vacio y la que resuelven los presets sin
     // fuente declarada hasta que el usuario elige una real).
     // Se reemplaza en cuanto el usuario elige/carga una fuente (ver setDefaultFont).
     var DEFAULT_FONT_FAMILY = 'Bangers';
     var catalogPromise = null;
-    var catalogFonts = {};   // nombre -> {titulo, categoria}
-    var fontCategories = {}; // categoria -> [nombres] (derivado del catalogo)
+    var catalogFonts = {};   // id -> {titulo, categorias:[], file, online}
+    var fontCategories = {}; // categoria -> [ids] (derivado del catalogo)
+    var FONT_EXT_RE = /\.(ttf|otf|woff|woff2)$/i;
     function catalogUrl() {
         return fontUrlBase() + 'fonts.json';
+    }
+    // Normaliza UNA entrada del catalogo. UNICO formato soportado: tupla
+    // posicional de 4 [id, titulo, categorias, referencia] (ver AGENTS.md).
+    // NO hay compat legacy ni objetos cortos: el sistema esta en construccion
+    // y mantener formatos viejos en el parser lo vuelve mas grande y complejo
+    // sin beneficio. Entradas que no sean tupla -> null (se ignoran).
+    function parseCatalogEntry(f) {
+        if (!Array.isArray(f) || f.length < 4) return null;
+        var id = f[0], titulo = f[1];
+        var rawCats = f[2], file = f[3];
+        if (!id || typeof id !== 'string') return null;
+        // Categorias: array, o string con separadores coma/barra/espacio.
+        var catArr = Array.isArray(rawCats)
+            ? rawCats.map(function (s) { return String(s).trim(); }).filter(Boolean)
+            : String(rawCats || 'custom').split(/[,/]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!catArr.length) catArr = ['custom'];
+        if (typeof file === 'string' && FONT_EXT_RE.test(file)) {
+            // FISICA: archivo real (se valida con HEAD en loadUserFonts).
+            return { id: id, titulo: titulo || id, categorias: catArr, file: file, online: false };
+        }
+        // GOOGLE online (spec "Familia:wght@..." o familia a secas).
+        return { id: id, titulo: titulo || id, categorias: catArr, file: String(file || ''), online: true };
     }
     // Fuentes fisicas conocidas por el puente (escaneo del servidor). El
     // plugin manda bridge.fuentes al hacer syncServerFonts; esto solo expone
@@ -62,6 +88,32 @@
     }
     function loadCatalog() {
         if (catalogPromise) return catalogPromise;
+        // Dentro del iframe del plugin, el fonts.json real vive en uploads y la
+        // base URL llega por el puente (textmuy-bridge-ready). Al arrancar el
+        // puente puede no haber llegado aun; diferir el fetch hasta que llegue
+        // (o hasta un timeout corto en standalone/arranque sin puente).
+        // Evita el 404 engañoso a fonts/fonts.json del modulo en iframe.
+        var inIframe = (typeof window !== 'undefined' && window.parent && window.parent !== window);
+        if (inIframe) {
+            var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+            if (!b || !b.urls || !b.urls.fuentesBase) {
+                catalogPromise = new Promise(function (resolve) {
+                    var done = false;
+                    var finish = function () {
+                        if (done) return;
+                        done = true;
+                        catalogPromise = null; // reiniciar para que la carga real corra
+                        resolve(fetchCatalog());
+                    };
+                    window.addEventListener('textmuy-bridge-ready', finish);
+                    setTimeout(finish, 1200); // fallback: arranque con puente lento
+                });
+                return catalogPromise;
+            }
+        }
+        return fetchCatalog();
+    }
+    function fetchCatalog() {
         catalogPromise = fetch(catalogUrl(), { cache: 'no-store' }).then(function (r) {
             if (!r.ok) throw new Error('sin fonts.json en ' + catalogUrl());
             return r.json();
@@ -70,12 +122,13 @@
             catalogFonts = {};
             fontCategories = {};
             lista.forEach(function (f) {
-                if (!f || !f.nombre) return;
-                var cat = f.categoria || 'custom';
-                // google:"Familia:wght@..." (online lazy) o url (fisica a mano).
-                catalogFonts[f.nombre] = { titulo: f.titulo || f.nombre, categoria: cat, google: f.google || null, url: f.url || null };
-                if (!fontCategories[cat]) fontCategories[cat] = [];
-                if (fontCategories[cat].indexOf(f.nombre) === -1) fontCategories[cat].push(f.nombre);
+                var e = parseCatalogEntry(f);
+                if (!e) return;
+                catalogFonts[e.id] = e;
+                (e.categorias || ['custom']).forEach(function (c) {
+                    if (!fontCategories[c]) fontCategories[c] = [];
+                    if (fontCategories[c].indexOf(e.id) === -1) fontCategories[c].push(e.id);
+                });
             });
             return catalogFonts;
         }).catch(function (err) {
@@ -95,15 +148,24 @@
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
         if (!bridge || !Array.isArray(bridge.fuentes)) return;
         bridge.fuentes.forEach(function (f) {
+            if (!f || !f.nombre) return;
+            // SOLO fuentes fisicas reales: el nombre del archivo debe llevar
+            // extension de fuente. El puente VIEJO mezclaba entradas Google
+            // (sin archivo) en bridge.fuentes: esas generaban FontFace 404/500
+            // (GET .../fonts/Nunito?v=0). Ahora se ignoran en silencio.
+            if (!FONT_EXT_RE.test(f.nombre)) return;
             var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
-            fontRegistry[key] = {
-                name: f.titulo || f.nombre,
-                path: f.url,
-                isCustom: true,
-                isServer: true,
-                serverFile: f.nombre
-            };
-            nameToKeyMap[f.titulo || f.nombre] = key;
+            if (!fontRegistry[key]) {
+                fontRegistry[key] = {
+                    name: f.titulo || f.nombre,
+                    path: f.url,
+                    isCustom: true,
+                    isServer: true,
+                    serverFile: f.nombre,
+                    categoria: f.categoria || 'custom'
+                };
+                nameToKeyMap[f.titulo || f.nombre] = key;
+            }
         });
         bridgeFontsLoaded = true;
     }
@@ -127,37 +189,43 @@
         var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : 'fonts/';
         return base.slice(-1) === '/' ? base : base + '/';
     }
-    function fontFileExists(url) {
+    function fontFileExists(url, esFisica) {
         try {
             if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve(true);
         } catch (_) { /* sin location en Node */ }
-        return fetch(url, { method: 'HEAD' }).then(function (r) { return !!r.ok; }).catch(function () { return false; });
+        // Fisicas del catalogo: file es relativo a uploads/.../textmuy/fonts/.
+        var full = (esFisica && url && !/^(https?:)?\/\//i.test(url)) ? fontUrlBase() + url : url;
+        if (!full) return Promise.resolve(false);
+        return fetch(full, { method: 'HEAD' }).then(function (r) { return !!r.ok; }).catch(function () { return false; });
     }
     function sanitizeFontKey(nombre) {
         return 'user-' + String(nombre || 'fuente').replace(/[^a-zA-Z0-9_-]/g, '_');
     }
     function loadUserFonts() {
         if (userFontsPromise) return userFontsPromise;
-        // El fonts.json del catalogo Google puede traer entradas con url
-        // (fisicas declaradas a mano). Esas se registran aqui mismo con HEAD
-        // previo; las fisicas del puente llegan por syncServerFonts.
+        // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS (con
+        // extension real en file) se registran aqui con HEAD previo: si el
+        // archivo no existe en uploads/.../textmuy/fonts/ se omiten en silencio
+        // (cero 404 de FontFace, cero spam en consola). Las ONLINE son lazy:
+        // se cargan via link Google al elegir/renderizar (loadFont).
         userFontsPromise = loadCatalog().then(function () {
-            var jobs = Object.keys(catalogFonts).map(function (nombre) {
-                var entry = catalogFonts[nombre];
-                if (!entry || !entry.url) return Promise.resolve(null);
-                var key = sanitizeFontKey(nombre);
+            var jobs = Object.keys(catalogFonts).map(function (id) {
+                var entry = catalogFonts[id];
+                if (!entry || entry.online) return Promise.resolve(null);
+                var key = sanitizeFontKey(id);
                 if (fontRegistry[key]) return Promise.resolve(key);
-                return fontFileExists(entry.url).then(function (ok) {
+                return fontFileExists(entry.file, true).then(function (ok) {
                     if (!ok) return null;
                     fontRegistry[key] = {
-                        name: entry.titulo || nombre,
-                        path: entry.url,
+                        id: id,
+                        name: entry.titulo || id,
+                        path: entry.file,
                         isCustom: true,
                         isUserFile: true,
-                        categoria: entry.categoria || 'custom'
+                        categoria: (entry.categorias || ['custom'])[0]
                     };
-                    nameToKeyMap[entry.titulo || nombre] = key;
-                    nameToKeyMap[nombre] = key;
+                    nameToKeyMap[entry.titulo || id] = key;
+                    nameToKeyMap[id] = key;
                     return key;
                 });
             });
@@ -301,12 +369,38 @@
         }
 
         var fontInfo = fontRegistry[fontKey];
+        // Entrada de catalogo (fonts.json): online -> Google lazy, fisica -> FontFace.
+        if (!fontInfo && catalogFonts[fontKey]) {
+            const entry = catalogFonts[fontKey];
+            if (entry.online) {
+                // Spec Google: file guarda "Familia:wght@..." (o la familia a secas).
+                return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
+            }
+            // Fisica: file es relativo a uploads/.../textmuy/fonts/.
+            const fullUrl = /^(https?:)?\/\//i.test(entry.file) ? entry.file : fontUrlBase() + entry.file;
+            const p = fontFileExists(fullUrl).then(function (ok) {
+                if (!ok) {
+                    delete loadingPromises[fontKey];
+                    return ensureGoogleFontBySpec(entry.titulo || fontKey);
+                }
+                const font = new FontFace(entry.titulo || fontKey, 'url(' + fullUrl + ')');
+                return font.load().then(function (loaded) {
+                    document.fonts.add(loaded);
+                    loadedFonts[fontKey] = entry.titulo || fontKey;
+                    return entry.titulo || fontKey;
+                }).catch(function () {
+                    delete loadingPromises[fontKey];
+                    return ensureGoogleFontBySpec(entry.titulo || fontKey);
+                });
+            });
+            loadingPromises[fontKey] = p;
+            return p;
+        }
         if (!fontInfo) {
-            // Clave desconocida: si esta en el catalogo Google (fonts.json),
-            // inyectar SU spec (campo google con pesos) via link dedicado.
+            // Clave desconocida: si esta en el catalogo, resolver GOOGLE por su name.
             if (catalogFonts[fontKey]) {
                 const entry = catalogFonts[fontKey];
-                return ensureGoogleFontBySpec(entry.google || entry.titulo || fontKey);
+                return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
             }
             console.warn('Font not found in registry, using fallback:', fontKey, '->', DEFAULT_FONT_FAMILY);
             return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
@@ -314,7 +408,7 @@
 
         // Entrada de catalogo online sin path local: inyectar su spec Google.
         if (!fontInfo.path) {
-            const spec = (catalogFonts[fontKey] && catalogFonts[fontKey].google) || fontInfo.name || fontKey;
+            const spec = (catalogFonts[fontKey] && catalogFonts[fontKey].file) || fontInfo.name || fontKey;
             return ensureGoogleFontBySpec(spec);
         }
 
@@ -389,6 +483,9 @@
     function getFontName(fontKey) {
         if (fontRegistry[fontKey]) {
             return fontRegistry[fontKey].name;
+        }
+        if (catalogFonts[fontKey]) {
+            return catalogFonts[fontKey].titulo || fontKey;
         }
         return fontKey;
     }
@@ -466,6 +563,23 @@
         alto = alto || 30;
         var fontKey = typeof fontItem === 'string' ? fontItem : (fontItem.key || fontItem.nombre);
         var fontName = (fontItem && fontItem.name) || (fontRegistry[fontKey] && fontRegistry[fontKey].name) || fontKey;
+        var esOnline = !!(fontItem && fontItem.online) || (catalogFonts[fontKey] && catalogFonts[fontKey].online);
+
+        // Online Google: preview con fuente del sistema (rapido, sin red/links).
+        if (esOnline) {
+            var cvS = document.createElement('canvas');
+            cvS.width = ancho;
+            cvS.height = alto;
+            var ctxS = cvS.getContext('2d');
+            ctxS.fillStyle = '#ffffff';
+            ctxS.fillRect(0, 0, ancho, alto);
+            ctxS.font = '14px sans-serif';
+            ctxS.fillStyle = '#666666';
+            ctxS.textAlign = 'left';
+            ctxS.textBaseline = 'middle';
+            ctxS.fillText(fontName, 6, Math.round(alto / 2));
+            return Promise.resolve(cvS);
+        }
 
         return loadFont(fontKey).then(function () {
             var cv = document.createElement('canvas');
@@ -516,9 +630,17 @@
         if (!window.ThumbEngine) {
             return Promise.resolve(null);
         }
-        var fonts = getAvailableFonts();
-        var items = fonts.map(function (f) {
-            return { nombre: f.key, name: f.name, key: f.key };
+        // Items = catalogo (fonts.json: online Google + fisicas del json) +
+        // fisicas del puente registradas. Las online se dibujan con fuente del
+        // sistema (cero red/cero FontFace: el preview real es lazy al elegir).
+        var items = [];
+        Object.keys(catalogFonts).forEach(function (id) {
+            var e = catalogFonts[id];
+            items.push({ nombre: id, name: e.titulo || id, key: id, online: !!e.online });
+        });
+        getAvailableFonts().forEach(function (f) {
+            if (catalogFonts[f.key]) return;
+            items.push({ nombre: f.key, name: f.name, key: f.key, online: false });
         });
 
         var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
