@@ -1,9 +1,12 @@
-# sprite-layout.md — Sprite fusionado por ambito
+# sprite-layout.md — Sprite unico por ambito (sin manifiesto)
 
-`uploads/tm/{fonts,img,presets}/` (espejo `../uploads/tm/`): un `sprite.webp`
-+ `sprite.json` FIJOS por ambito, junto a su catalogo y fisicos (sin
-subcarpeta `thumbs/`, sin manifiesto por tile, sin `.webp` sueltos).
-En standalone los tiles se renderizan en memoria (data-URL del sheet).
+`uploads/tm/{fonts,img,presets}/` (espejo `../uploads/tm/`): un unico
+`thumbs.webp` plano por ambito, junto a su catalogo y fisicos (sin `thumbs/`,
+sin manifiesto JSON en disco, sin `.webp` sueltos). Las coordenadas de cada
+tile derivan del catalogo (`{thumbs,items}`, `tile = id-1`); el manifiesto de
+dibujo se construye en memoria en el cliente. El `thumbs.webp` se regenera via
+`guardarSprite` tras alta/baja/Save; en standalone los tiles se renderizan en
+memoria (data-URL del sheet).
 
 ## Grilla
 
