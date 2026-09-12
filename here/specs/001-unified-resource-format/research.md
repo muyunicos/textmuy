@@ -2,7 +2,7 @@
 
 **Feature**: `001-unified-resource-format` | **Fecha**: 2026-09-11 | **Fase**: 0 (todas las NEEDS CLARIFICATION resueltas por decision del usuario + inspeccion de codigo y datos reales).
 
-**Ruta de datos (Q5)**: `C:\Users\Jonatan\Documents\GitHub\personalizador-pdf\uploads\tm` = espejo local de dev de **`wp-content/uploads/tm/` en WordPress** (en el plugin real cuelga de `wp-content/uploads/personalizador-pdf/textmuy/`). Estado legacy verificado por lectura: `fonts/fonts.json` 57 tuplas string, 0 fisicas declaradas (15 `MUY-*.ttf` huerfanos en disco); `img/catalogo.json` objetos sin ids; `presets/*.txm` con `font.src` string + `.webp` sueltos + `presets/thumbs/presets.json` separado.
+**Ruta de datos (Q5)**: `C:\Users\Jonatan\Documents\GitHub\personalizador-pdf\uploads\tm` = espejo local de dev de **`wp-content/uploads/tm/` en WordPress** (ubicacion unica definitiva desde 2026-09-12; ruta historica `wp-content/uploads/personalizador-pdf/textmuy/` abandonada sin migracion). Estado legacy verificado por lectura (antes de R008/R009): `fonts/fonts.json` 57 tuplas string, 0 fisicas declaradas (15 `MUY-*.ttf` huerfanos en disco); `img/catalogo.json` objetos sin ids; `presets/*.txm` con `font.src` string + `.webp` sueltos + `presets/thumbs/presets.json` separado.
 
 ## R1 — Q1: invalid en galeria vs en render
 

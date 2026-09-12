@@ -1,6 +1,9 @@
 # sprite-layout.md — Sprite fusionado por ambito
 
-Un `.webp` por ambito junto a su catalogo (`fonts.webp`, `img.webp`, `presets.webp` bajo `wp-content/uploads/tm/{scope}/`, espejo `../uploads/tm/{scope}/`). Cero manifiestos por tile (Q3): se eliminan `presets/thumbs/presets.json` y los `.webp` sueltos.
+`uploads/tm/{fonts,img,presets}/` (espejo `../uploads/tm/`): un `sprite.webp`
++ `sprite.json` FIJOS por ambito, junto a su catalogo y fisicos (sin
+subcarpeta `thumbs/`, sin manifiesto por tile, sin `.webp` sueltos).
+En standalone los tiles se renderizan en memoria (data-URL del sheet).
 
 ## Grilla
 

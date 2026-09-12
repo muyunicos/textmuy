@@ -4,7 +4,7 @@
 
 **Input**: Feature specification de `spec.md` (Opcion A: id numerico puro con ruptura total; stories P1/P2/P2; FR-001..FR-012; SC-001..SC-004).
 
-**Nota de ruta (Q5)**: `C:\Users\Jonatan\Documents\GitHub\personalizador-pdf\uploads\tm` es el espejo local de dev de **`wp-content/uploads/tm/` en WordPress** (en el plugin real cuelga de `wp-content/uploads/personalizador-pdf/textmuy/`, ver AGENTS.md sec. 5). Este plan define formato + parsers + galerias + tests en este repo; la migracion fisica la ejecuta el plugin hermano. En implementacion se permite leer/escribir fixtures en `../uploads/tm/` (datos de prueba, no codigo del modulo).
+**Nota de ruta (Q5)**: `C:\Users\Jonatan\Documents\GitHub\personalizador-pdf\uploads\tm` es el espejo local de dev de **`wp-content/uploads/tm/` en WordPress** (ubicacion unica definitiva desde 2026-09-12; ruta historica `wp-content/uploads/personalizador-pdf/textmuy/` abandonada, sin migracion). Este plan define formato + parsers + galerias + tests en este repo; la escritura de datos la ejecuta el plugin hermano. En implementacion se permite leer/escribir fixtures en `../uploads/tm/` (datos de prueba, no codigo del modulo).
 
 ## Summary
 

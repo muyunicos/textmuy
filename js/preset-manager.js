@@ -8,8 +8,8 @@
  * guardarSprite (thumbs/{scope}.webp + {scope}.json). NO se generan .webp
  * sueltos junto al .txm (ahorran inodes y se sirven en una sola peticion).
  *
- * Desde 4.0.0 del plugin, dentro de WordPress los archivos viven en
- * uploads/personalizador-pdf/textmuy/presets/ y la base URL de LECTURA
+ * Desde 4.0.0 del plugin, dentro de WordPress los archivos viven en la
+ * ubicacion unica uploads/tm/presets/ y la base URL de LECTURA
  * llega por el puente (bridge.urls.presetsBase). Sin puente (standalone)
  * se leen de presets/ relativo al modulo.
  *
@@ -327,7 +327,7 @@
         return true;
     }
 
-    // ===== IMAGENES SUBIDAS (modules/textmuy/imagenes/{fondos,iconos,varios}) =====
+    // ===== IMAGENES SUBIDAS (uploads/tm/img/, unificado con el catalogo) =====
     const CATEGORIAS_IMAGENES = ['fondos', 'iconos', 'varios'];
 
     /**
@@ -364,7 +364,7 @@
             bridge.imagenes.push(item);
         }
         if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
+            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
         }
         return item;
     }
@@ -391,7 +391,7 @@
             });
         }
         if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
+            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
         }
         return true;
     }
@@ -422,7 +422,7 @@
             bridge.imagenes.push(itemNuevo);
         }
         if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('imagenes'); } catch (_) {}
+            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
         }
         return itemNuevo;
     }
@@ -646,7 +646,7 @@
         deletePreset,
         bridgeAvailable,
         getBridge: function () { return bridge; },
-        // Imagenes subidas (modules/textmuy/imagenes/{fondos,iconos,varios})
+        // Imagenes subidas (uploads/tm/img/, fisicos + catalogo img.json)
         CATEGORIAS_IMAGENES,
         uploadImage,
         deleteImage,

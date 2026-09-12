@@ -1,6 +1,8 @@
 ﻿/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
  * API: window.TextMuyGaleria.abrir(fuente, aplicar)
  *   fuente: 'bgs'|'icons'|'misc' (server) | 'presets' | 'catalogo:iconos'|'catalogo:fondos'
+ * aplicar(src, item): item trae {slug,titulo,src,categoria,imgId} — imgId es el
+ * id numerico del catalogo img.json (R2: en el .txm se guarda SOLO el id).
  */
 (function(){
 'use strict';
@@ -15,7 +17,7 @@ function cargarSpriteGlobal() {
  const items = todas.map(function(i){ return { nombre: i.nombre, url: i.url }; });
  var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
  return window.ThumbEngine.ensureSprite({
-  scope: 'imagenes',
+  scope: 'img',
   items: items,
   ancho: 100,
   alto: 100,
@@ -156,6 +158,25 @@ function crearPanel(){
    if(/^(https?:)?\/\//i.test(file))return file;
    return base+file;
   }
+  // R2: lo que se GUARDA en el settings/.txm es el id numerico (o la URL
+  // legacy/data-URL si el item no tiene id); lo que se MUESTRA (preview,
+  // <img>, canvas) es siempre la URL resuelta.
+  function idVista(it){
+   if(!it)return null;
+   if(typeof it.imgId==='number'&&isFinite(it.imgId)&&Math.floor(it.imgId)===it.imgId&&it.imgId>=1)return it.imgId;
+   return it.src;
+  }
+  function srcVista(it){
+   if(!it)return '';
+   if(typeof it.imgId==='number'&&isFinite(it.imgId)&&Math.floor(it.imgId)===it.imgId&&it.imgId>=1){
+    var cat=null;
+    try{
+     if(window.TextMuyAPI&&window.TextMuyAPI.loadCatalogoSync)cat=window.TextMuyAPI.loadCatalogoSync('img');
+    }catch(_){cat=null;}
+    if(cat&&cat.items&&cat.items[it.imgId]&&cat.items[it.imgId].file)return imgUrl(cat.items[it.imgId].file);
+   }
+   return it.src||'';
+  }
   async function cargar(){
   list.innerHTML='';status.textContent='';items=[];
   const q=(search.value||'').toLowerCase();
@@ -223,7 +244,7 @@ function crearPanel(){
   if(!bridgeOK()){if(!items.length)status.textContent=status.textContent||'Requiere el plugin (iframe).';montarTabs();ocultarUpload(false);render();return;}
   let imgs=PM().listImages(fuenteActual);
   if(q)imgs=imgs.filter(function(i){return (i.nombre+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
-  for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server'});}
+  for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server',imgId:(typeof i.id==='number'&&i.id>=1)?i.id:null});}
   montarTabs();ocultarUpload(false);
   if (!galeriaSpriteInfo) {
    cargarSpriteGlobal().then(function(){ render(); });
@@ -234,7 +255,7 @@ function crearPanel(){
 
  function actImg(it){
   const t=list.querySelector('[data-slug="'+it.slug+'"]');
-  if(t){const img=t.querySelector('img');if(img&&it.src)img.src=it.src;}
+  if(t){const img=t.querySelector('img');var s2=srcVista(it);if(img&&s2)img.src=s2;}
  }
 
  function montarTabs(){
@@ -268,7 +289,7 @@ function crearPanel(){
     window.ThumbEngine.drawTile(ctx, galeriaSpriteInfo.spriteImage, galeriaSpriteInfo.manifest, it.slug, 0, 0, 100, 100);
     t.appendChild(cv);
    } else {
-    img.src = (it.tipo === 'server' && it.thumb) ? it.thumb : it.src;
+    img.src = (it.tipo === 'server' && it.thumb) ? it.thumb : srcVista(it);
     t.appendChild(img);
    }
    if(it.enUso)t.appendChild(el('tt-galpanel-enuso','span','\u25cf'));
@@ -283,9 +304,10 @@ function crearPanel(){
   list.querySelectorAll('.tt-galpanel-tile').forEach(function(t){t.classList.remove('sel');});
   const tile=list.querySelector('[data-slug="'+it.slug+'"]');
   if(tile)tile.classList.add('sel');
-  // En preview mode: aplicar inmediatamente (live preview)
+  // En preview mode: live preview con la URL (imgId queda en el item para
+  // guardar SOLO el id al confirmar; R2).
   if(previewOpts&&previewOpts.preview&&aplicarActual){
-   aplicarActual(it.src,it);
+   aplicarActual(srcVista(it),it);
   }
   rfFooter();
  }
@@ -333,12 +355,14 @@ function crearPanel(){
    const nc=catSel.value||'varios';
    PM().moverImagen(it,nn.replace(/\.[^.]+$/,''),nc).then(function(it2){
     it.slug=it2.nombre;it.src=it2.url;it.categoria=it2.categoria;
+    it.imgId=(typeof it2.id==='number'&&it2.id>=1)?it2.id:null;
     status.textContent='Guardado.';saveBtn.hidden=true;fuenteActual=it2.categoria;cargar();
    }).catch(function(e){status.textContent=e.message;});
   }else if(it.tipo==='catalogo'){
    // Copia el asset del catalogo al server con el nombre elegido.
-   fetch(it.src).then(function(r){return r.blob();}).then(function(blob){
-    const ext=(it.src.split('.').pop()||'svg');
+   fetch(srcVista(it)).then(function(r){return r.blob();}).then(function(blob){
+    const _src=srcVista(it)||it.src||'';
+    const ext=(_src.split('.').pop()||'svg');
     const f=new File([blob],nn+'.'+ext,{type:blob.type||'image/svg+xml'});
     return PM().uploadImage(f,{categoria:fuenteActual,nombre:nn});
    }).then(function(){
@@ -397,12 +421,15 @@ function crearPanel(){
  closeBtn.addEventListener('click',function(){cerrar(false);});
  selBtn.addEventListener('click',function(){
   if(previewOpts&&previewOpts.preview){
-   cerrar(true); // Aplicar: no revertir el live preview
+   // Aplicar: confirmar el id numerico en el settings (R2: solo id en .txm).
+   var it0=seleccionado;
+   if(it0&&aplicarActual) aplicarActual(idVista(it0),it0);
+   cerrar(true); // no revertir el live preview
    return;
   }
   const it=seleccionado;
   if(!it||!aplicarActual){status.textContent='Selecciona primero.';return;}
-  aplicarActual(it.src,it);
+  aplicarActual(idVista(it),it);
   cerrar();
  });
  search.addEventListener('input',cargar);

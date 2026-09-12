@@ -708,22 +708,36 @@
         });
     }
 
-    /** Aplica una imagen (URL del servidor o data-URL) a un input de imagen: settings + previews. */
+    /** Aplica una imagen a un input: guarda el id (R2: solo id en .txm) y
+     * muestra la preview con la URL resuelta. src puede ser id numerico,
+     * URL legacy o data-URL (standalone/embebida). */
     function aplicarImagenAInput(input, src) {
         const settingPath = input.dataset.ttOption;
         if (settingPath) setNestedSetting(settingPath, src);
+        const url = urlDeImgRef(src);
         const preview = input.parentElement.nextElementSibling;
         if (preview && preview.classList.contains('tt-texture-preview')) {
             preview.style.display = 'block';
             const img = preview.querySelector('.tt-texture-preview-image');
-            if (img) img.src = src;
+            if (img && url) img.src = url;
         }
         const previewContainer = input.closest('.tt-option')?.querySelector('[id$="preview-container"]');
         if (previewContainer) {
             previewContainer.style.display = 'block';
             const img = previewContainer.querySelector('img');
-            if (img) img.src = src;
+            if (img && url) img.src = url;
         }
+    }
+
+    // R2: resuelve un imgRef (id numerico | URL | data-URL) a URL mostrable
+    // (delega en TextMuyAPI, unica fuente). Si el catalogo aun no cargo,
+    // '' para ids (cero 404 de ruido: el re-render tras prepareImgRefs pinta
+    // la preview); strings tal cual.
+    function urlDeImgRef(ref) {
+        try {
+            if (window.TextMuyAPI && window.TextMuyAPI.urlDeImgRef) return window.TextMuyAPI.urlDeImgRef(ref);
+        } catch (_) {}
+        return (typeof ref === 'string') ? ref : '';
     }
 
     // ===== TEXTURE UPLOADS (imagenes al servidor via puente) =====
@@ -743,11 +757,12 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 const categoria = categoriaDe(input);
-                // Con puente: la imagen va a modules/textmuy/imagenes/{categoria} y el
-                // settings guarda su URL. Sin puente (standalone): data-URL embebida.
+                // Con puente: la imagen sube a tm/img/ y el settings guarda SU ID
+                // numerico (R2: solo id en .txm; la preview usa la URL resuelta).
+                // Sin puente (standalone): data-URL embebida.
                 if (window.PresetManager && PresetManager.bridgeAvailable && PresetManager.bridgeAvailable()) {
                     PresetManager.uploadImage(file, { categoria: categoria }).then(function(res) {
-                        aplicarImagen(res.url);
+                        aplicarImagen(res.id > 0 ? res.id : res.url);
                     }).catch(function(err) {
                         alert(((err && err.message) || 'No se pudo subir la imagen.')
                             + ' La imagen se usara embebida en el preset.');
@@ -805,7 +820,8 @@
             var categoria = categoriaDe(input);
             var sec = input.closest('section');
             if (categoria === 'fondos' && window.TextMuyGaleria) {
-                // BACKGROUND con preview en vivo: backup + controles Opacity/Repeat
+                // BACKGROUND con preview en vivo: backup + controles Opacity/Repeat.
+                // La galeria confirma el id numerico (R2); el preview usa la URL.
                 var backupBg = getNestedSetting ? JSON.parse(JSON.stringify(getNestedSetting('background.fill.image') || {})) : {};
                 window.TextMuyGaleria.abrir('fondos', function(src) {
                     setNestedSetting('background.active', true);
@@ -1603,9 +1619,10 @@
                 var backupType = style.type;
                 var backupActive = style.active;
                 window.TextMuyGaleria.abrir('fondos', function(src) {
-                    // Live preview: aplicar la imagen inmediatamente
+                    // Live preview con URL resuelta; al confirmar (Aplicar) la
+                    // galeria re-llama con el id numerico (R2: solo id en .txm).
                     const layers = getFillLayers();
-                    layers[layerIdx].styles[styleIdx].texture.src = src;
+                    layers[layerIdx].styles[styleIdx].texture.src = (typeof src === 'number') ? src : (window.TextMuyAPI && window.TextMuyAPI.urlDeImgRef ? window.TextMuyAPI.urlDeImgRef(src) : src);
                     layers[layerIdx].styles[styleIdx].type = 'texture';
                     layers[layerIdx].styles[styleIdx].active = true;
                     setFillLayers(layers);
@@ -1622,7 +1639,7 @@
                     },
                     applyLabel: 'Aplicar',
                     onCancel: function() {
-                        // Restaurar el backup
+                        // Restaurar el backup (puede ser id numerico R2)
                         const layers = getFillLayers();
                         layers[layerIdx].styles[styleIdx].texture = JSON.parse(JSON.stringify(backupTex));
                         layers[layerIdx].styles[styleIdx].type = backupType;

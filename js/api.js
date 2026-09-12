@@ -22,6 +22,8 @@
 
     function clearPresetCache() {
         presetCache = {};
+        catalogCache = {};
+        catalogSync = {};
     }
 
     // SIN async en la firma: asi las llamadas repetidas devuelven LA MISMA promesa
@@ -82,8 +84,11 @@
             if (!r.ok) throw new Error(ambito + ':catalogo:ausente (' + url + ')');
             return r.json();
         }).then(function (data) {
-            if (window.TextMuyCatalog) return window.TextMuyCatalog.parseCatalog(data, ambito);
-            return { items: {}, libres: [], invalidas: [], categorias: {}, maxId: 0, thumbs: { w: 0, h: 0, c: 1 } };
+            var parsed;
+            if (window.TextMuyCatalog) parsed = window.TextMuyCatalog.parseCatalog(data, ambito);
+            else parsed = { items: {}, libres: [], invalidas: [], categorias: {}, maxId: 0, thumbs: { w: 0, h: 0, c: 1 } };
+            catalogSync[ambito] = parsed;
+            return parsed;
         });
         catalogCache[url] = p;
         p.catch(function () { delete catalogCache[url]; });
@@ -102,6 +107,31 @@
             if (!entry) throw new Error('presets:' + id + ':ausente o invalido');
             return loadPresetByName(entry.file.replace(/\.txm$/i, ''));
         });
+    }
+
+    // Cache sincrono del ultimo catalogo parseado por ambito (lo llena
+    // loadCatalogo; lo leen urlDeImgRef/galeria/controls para previews sin
+    // fetch extra). null si aun no cargo o fallo (cero 404 de ruido).
+    var catalogSync = {};
+    function loadCatalogoSync(ambito) {
+        return catalogSync[ambito] || null;
+    }
+
+    // R2: resuelve un imgRef (id numerico | URL | data-URL) a URL mostrable.
+    // Para ids usa el catalogo sincrono; si aun no cargo, '' (el re-render
+    // tras prepareImgRefs pinta la preview). Strings se devuelven tal cual.
+    function urlDeImgRef(ref) {
+        if (typeof ref === 'number' && isFinite(ref) && Math.floor(ref) === ref && ref >= 1) {
+            var cat = catalogSync.img;
+            if (cat && cat.items && cat.items[ref] && cat.items[ref].file) {
+                var b2 = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+                var base2 = (b2 && b2.urls && b2.urls.imagenesBase) ? b2.urls.imagenesBase : 'img/';
+                var f = cat.items[ref].file;
+                return /^(https?:)?\/\//i.test(f) ? f : base2 + f;
+            }
+            return '';
+        }
+        return (typeof ref === 'string') ? ref : '';
     }
 
     // Resolucion autoritativa de refs de imagen por id numerico (formato
@@ -226,6 +256,8 @@
         loadPresetByName: loadPresetByName,
         loadPresetById: loadPresetById,
         loadCatalogo: loadCatalogo,
+        loadCatalogoSync: loadCatalogoSync,
+        urlDeImgRef: urlDeImgRef,
         prepareImgRefs: prepareImgRefs,
         clearPresetCache: clearPresetCache
     };

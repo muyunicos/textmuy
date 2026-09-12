@@ -115,14 +115,14 @@ textmuy/
    descarga el `.txm`, las imágenes se embeben como data-URL y el listado usa `presets/`
    local.
 3. **Base URL de presets**: `PresetManager.presetUrlBase()` — con puente devuelve
-   `bridge.urls.presetsBase` (uploads/.../textmuy/presets/ del plugin); standalone
+   `bridge.urls.presetsBase` (uploads/tm/presets/ del plugin); standalone
    devuelve `presets/` relativo al módulo. `fetchPreset`, `ensureThumbnail` y `api.js`
    DEBEN usarla (nunca hardcodear `'presets/'`).
 4. **Formato `.txm`**: payload `{format:'textmuy-project', version:1, name, settings}`
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC25**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC27**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -192,8 +192,9 @@ textmuy/
 - ✅ **Un solo panel de presets**: la galería inferior expandible (no recrear paneles
   viejos: fieldset "Presets" ni "Local projects" eliminados).
 - ✅ **Formato único `.txm`** (+ `.webp`).
-- ✅ **Datos del admin en uploads del plugin**: presets, fuentes e imágenes
-  viven en `uploads/.../textmuy/`.
+- ✅ **Datos del admin en uploads/tm (ubicación única)**: presets, fuentes e
+  imágenes viven en `uploads/tm/{fonts,img,presets}/` (espejo dev
+  `../uploads/tm/` = `wp-content/uploads/tm/` en WP).
 - ✅ **Sin datos de fábrica en el módulo (v4.1)**: se eliminaron las carpetas `presets/`,
   `imagenes/` y `fonts/` del repositorio; standalone arranca con listas vacías.
 - 🔜 **FUTURO — Fuentes como datos de usuario** (no implementado): `uploads/.../textmuy/
