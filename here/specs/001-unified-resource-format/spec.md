@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-11
 
-**Status**: Draft
+**Status**: Implemented (pendiente integracion plugin: T012/T016/T019, ver tasks.md R006/R007)
 
 **Input**: User description: "recursos (fuentes, imagenes, presets y thumbs) en uploads/tm/ con un json unico por ambito {thumbs:{w,h,c,f}, items:[[id,title,cats,file]]}; id numerico unico = posicion en thumbs; file sin extension = Google. Opcion A: id numerico puro con migracion y ruptura total."
 
@@ -59,9 +59,9 @@ Los `.txm` guardan referencias por id numerico y la galeria muestra miniaturas 2
 ### Edge Cases
 
 - `file` fisico inexistente: en galeria se omite con warning (cero 404); en render rechazo con causa `ambito:id:ausente`. HEAD previo para fisicos como hoy.
-- id duplicado o fuera de rango del sprite: el parser lo rechaza, la entrada se ignora y no se muestra.
+- id duplicado o fuera de rango del sprite (no deberia suceder): el parser la clasifica `invalid` con causa (`ambito:id:duplicado` / fuera de rango); por ahora se reporta en consola (`console.warn` + contador visible en galeria) y la entrada no se muestra. La resolucion definitiva de conflictos queda a futuro (proponer solucion entonces).
 - `.txm` viejos con `font.src` string tras migrar: formato legacy, rechazo explicito con causa y mensaje "re-guardar el preset desde el editor" (decision Q4 del plan; ver FR-010). Sin migracion bajo demanda.
-- Falta `thumbs/{scope}.webp` existiendo catalogo: fallback a render lazy hasta regenerar.
+- Falta el sprite del ambito (via `ThumbEngine.ensureSprite`; el directorio `thumbs/` ya no existe en el formato unico) existiendo catalogo: en galeria tile placeholder + `console.warn` + contador visible (higiene de listado, Const. VI); en render no aplica (las miniaturas no participan del render).
 - Altas/bajas: el id es estable y unico; la posicion en sprite deriva de `id-1`; baja = tombstone `[id,"","",""]`, alta reutiliza el hueco mas bajo (sprite fusionado, Q3).
 
 ## Requirements *(mandatory)*
@@ -71,8 +71,8 @@ Los `.txm` guardan referencias por id numerico y la galeria muestra miniaturas 2
 - **FR-001**: Cada ambito (`fonts`, `img`, `presets` bajo `uploads/tm/`) MUST tener un unico JSON `{thumbs:{w,h,c}, items:[[id,title,cats,file],...]}`. Entrada libre = tombstone `[id,"","",""]` (SIN lista `free[]`; la baja escribe tombstone, el alta reutiliza el hueco mas bajo).
 - **FR-002**: `id` MUST ser numerico, unico por ambito, y corresponderse con la posicion del tile en el sprite del ambito.
 - **FR-003**: `title` MUST ser legible y editable desde la galeria (Save del footer).
-- **FR-004**: `cats` MUST ser una o mas categorias separadas por coma/espacio, editables; default `custom` si vacio.
-- **FR-005**: `file` con extension = archivo fisico (fuentes `.ttf/.otf/.woff/.woff2`; imagenes `.svg/.webp/.png/.avif/.jpg/.jpeg/.gif`, lista cerrada en `js/catalog.js` FISICO_RE; presets `.txm`); sin extension = elemento Google (solo valido en `fonts`).
+- **FR-004**: `cats` con UNA categoria = string `"cat"`; con VARIAS = array `["cat","cat"]`; editables; default `custom` si vacio. El parser (`parseCats` en `js/catalog.js`) admite ambas formas y normaliza a array (la forma string con separadores coma/espacio/barra queda como lectura legacy). Requiere enmienda de Const. IV (tarea R003).
+- **FR-005**: `file` con extension = archivo fisico (fuentes `.ttf/.otf/.woff/.woff2`; imagenes `.svg/.webp/.png/.avif/.jpg/.jpeg/.gif`, lista cerrada (regex inline en `parseCatalogEntry` de `js/catalog.js`); presets `.txm`); sin extension = elemento Google (solo valido en `fonts`).
 - **FR-006**: `thumbs` MUST describir el sprite con `{w,h,c}` (ej. fonts 180x30, presets 200x100, imagenes 100x100); filas = `ceil(maxId/c)` derivable, no se guardan.
 - **FR-007**: El parser MUST clasificar cada entrada en `ok` / `free` / `invalid` con causa (`ambito:id:motivo`). `invalid` en galeria MUST saltarse con `console.warn` + contador visible en el status; en render MUST rechazarse con causa (`ambito:id:motivo`). Sin compat legacy, sin objetos, sin tuplas string, sin `free[]`.
 - **FR-008**: Los `.txm` MUST referenciar recursos por id numerico (`settings.font.src` numerico incluido).
@@ -100,7 +100,7 @@ Los `.txm` guardan referencias por id numerico y la galeria muestra miniaturas 2
 ## Assumptions
 
 - Datos en `uploads/tm/` del plugin hermano (este repo define formato y parsers; la migracion fisica la ejecuta el plugin).
-- `thumbs:{w,h,c}` describe la grilla y la posicion del tile se deriva (`tile=id-1`); cero manifiestos por tile (decision Q3: sprite fusionado).
+- `thumbs:{w,h,c}` describe la grilla y la posicion del tile se deriva (`tile=id-1`); cero manifiestos por tile (decision Q3: sprite fusionado). El campo `f` del input original fue descartado (filas derivables de `c`).
 - Google = solo lectura; fisicos = CRUD con puente. Standalone = listas vacias, sin escrituras.
-- Constitucion vigente v2.1.0 (ya enmendada por esta feature: ids numericos + tombstone, sin `free[]`); FR-001/FR-006/FR-007 quedan sincronizados con ella.
+- Constitucion vigente v2.1.0 (ya enmendada por esta feature: ids numericos + tombstone, sin `free[]`); FR-001/FR-006/FR-007 quedan sincronizados con ella. PENDIENTE: enmienda de Const. IV a la representacion `cats` string|array de FR-004 (tarea R003 en tasks.md); hasta entonces FR-004 prevalece como decision del usuario.
 

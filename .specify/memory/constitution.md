@@ -55,9 +55,11 @@ Cada ambito (`fonts`, `img`, `presets`) MUST tener un unico catalogo
 `free[]` separada): `thumbs` con ancho/alto de tile y columnas
 (filas = `ceil(maxId/c)`, derivable, no se guarda); `items` con
 tuplas `[id,title,cats,file]` donde `id` es numerico denso desde 1
-(salvo tombstones), `title` legible y editable, `cats` string con
-una o mas categorias separadas por coma/espacio/barra (default
-`custom`), `file` el nombre fisico con extension o, solo en
+(salvo tombstones), `title` legible y editable, `cats` con UNA
+categoria = string, con VARIAS = array de strings (default
+`custom` si vacio; el parser normaliza a array y la forma string con
+separadores queda como lectura legacy), `file` el nombre fisico con
+extension o, solo en
 `fonts`, spec Google sin extension. Libre = tombstone
 `[id,"","",""]` (todo vacio salvo `id`): la baja MUST escribir
 tombstone sin reindexar; el alta MUST reutilizar el hueco mas bajo
@@ -120,7 +122,8 @@ alli, preguntar, no inventar. AGENTS.md es la guia runtime
 operativa del modulo (mapa de archivos, contrato del puente,
 formato `.txm`, reglas RC, como probar); esta constitucion es la
 gobernanza y prevalece en caso de conflicto. Node existe SOLO para
-testing (`node tests/*.test.js`, 9 suites) y `node --check` de los
+testing (`node tests/*.test.js`, todas las suites vigentes de
+`tests/`) y `node --check` de los
 JS tocados. Probar integrado primero (pestana Estilos de Texto del
 plugin: presets, imagenes, preview de grupo); standalone es
 harness dev sin garantias. `render-core.html` MUST mantener
@@ -137,4 +140,12 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 2.1.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-11
+**Version**: 2.2.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-11
+
+## Sync Impact Report (v2.2.0, 2026-09-11)
+
+- **Bump**: MINOR (refinamiento de Const. IV; sin ruptura de lectura).
+- **Cambios**: IV — `cats` con UNA categoria = string, con VARIAS = array de strings (decision del usuario post-analisis; `js/catalog.js::parseCats` ya normaliza ambas formas; tupla tombstone sin cambios `[id,"","",""]`). Flujo — literal "9 suites" reemplazado por "todas las suites vigentes de `tests/`" (regla generica, sin numeros fragiles; auditoria de suites como tarea R004).
+- **Fuente**: here/specs/001-unified-resource-format/tasks.md (R003), decisiones del usuario del 2026-09-11.
+- **Impacto en el plugin**: ninguno inmediato; la escritura de tuplas v5.0 es la tarea R006. Los JSON existentes con `cats` string siguen leyendose (retrocompatible).
+- **Migracion**: no requiere migrador (los migradores legacy se eliminan por decision del usuario, R007).

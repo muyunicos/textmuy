@@ -3,9 +3,10 @@
  * Desde 3.2.0 el almacenamiento unico de presets son ARCHIVOS:
  *   {nombre}.txm  -> delta de settings (formato textmuy-project v1)
  *
- * Las miniaturas viven en el spritesheet global thumbs/presets.webp gestionado
- * por ThumbEngine.ensureSprite({scope:'presets'}). NO se generan .webp sueltos
- * junto al .txm (ahorran inodes y se sirven en una sola peticion).
+ * Las miniaturas viven en el sprite del ambito presets gestionado por
+ * ThumbEngine.ensureSprite({scope:'presets'}); el plugin lo persiste via
+ * guardarSprite (thumbs/{scope}.webp + {scope}.json). NO se generan .webp
+ * sueltos junto al .txm (ahorran inodes y se sirven en una sola peticion).
  *
  * Desde 4.0.0 del plugin, dentro de WordPress los archivos viven en
  * uploads/personalizador-pdf/textmuy/presets/ y la base URL de LECTURA
@@ -542,10 +543,10 @@
     }
 
     /**
-     * URL de miniatura de un preset: presets/{name}.webp si existe en el
-     * servidor; si no, render lazy 100x200 en memoria (uso standalone o preset
-     * sin .webp). Nunca escribe en localStorage: las miniaturas viven junto al
-     * .txm (presets/{name}.webp).
+     * Miniatura de un preset: render 100x200 en memoria (data-URL) para
+     * poblar el sprite del ambito; en el servidor persiste via guardarSprite
+     * (sprite + manifest por scope). Nunca escribe en localStorage ni
+     * genera .webp suelto junto al .txm.
      */
     async function ensureThumbnail(name) {
         if (thumbnailCache.has(name)) return thumbnailCache.get(name);
@@ -563,7 +564,7 @@
                     settings = converted;
                 }
                 // Miniatura en memoria (data-URL) para poblar el sprite; NO persiste
-                // ningun .webp junto al .txm: el sheet vive en thumbs/presets.webp.
+                // ningun .webp junto al .txm: el sheet vive en thumbs/{scope}.webp.
                 const url = await thumbnailDataUrl(settings);
                 thumbnailCache.set(name, url);
                 return url;
@@ -652,7 +653,7 @@
         moverImagen,
         // Fuentes fisicas (uploads/.../textmuy/fonts/, escaneo del plugin)
         moverFuente,
-        // Miniaturas de galeria (spritesheet global thumbs/presets.webp o render lazy)
+        // Miniaturas de galeria (spritesheet global thumbs/{scope}.webp o render lazy)
         ensureThumbnail,
         thumbnailDataUrl,
         // Migracion unica de presets legacy (localStorage de versiones previas)

@@ -122,7 +122,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` legacy (TextStudio crudo) es SOLO de carga.
 5. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del modulo, subir el numero en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC24**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC25**). El plugin detecta
    modulos viejos por el contrato y avisa con Ctrl+F5.
 6. **Sin localStorage para presets**: el CRUD por localStorage se ELIMINÓ. Las claves
    `textmuy_presets`/`textstudio_presets` son SOLO LECTURA (migración única vía
@@ -217,9 +217,9 @@ textmuy/
   (`font.src`, imágenes de settings): string legacy = rechazo "re-guardar el preset" (sin
   migración bajo demanda). Ámbitos en `uploads/tm/{fonts,img,presets}/`: `fonts.json`
   (espejo `../uploads/tm/` = `wp-content/uploads/tm/`), `img.json` (antes `catalogo.json`),
-  `presets.json` (nuevo); migrados via `here/specs/001-unified-resource-format/migrate-tm.mjs`
-  (fonts 72, img 128, presets 10; backups `.legacy`). Lado plugin pendiente: escribir tuplas
-  en alta/baja + regenerar sprites + limpiar `thumbs/presets.json` y `.webp` sueltos.
+  `presets.json` (nuevo). Escritura de tuplas en alta/baja implementada en el
+  plugin (`tupla_textmuy_alta`/`tupla_textmuy_baja` en `personalizador-pdf.php`);
+  sin migradores (decision 2026-09-11: los datos se crean desde cero).
 - ✅ Efectos WebGL con fallback a Canvas 2D (funciona sin WebGL).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
   = `{activeTarget, overrides}` (delta disperso contra la base, solo lo que
@@ -285,8 +285,6 @@ node --check js/catalog.js js/fonts.js js/preset-manager.js js/api.js js/editor.
   `uploads/tm/`).
 - **Integrado**: pestaña "Estilos de Texto" del plugin (guardar/borrar preset, subir
   imagen) y vista previa / Procesar de un grupo con texto estilizado.
-- **Migrar datos**: `node here/specs/001-unified-resource-format/migrate-tm.mjs` (convierte
-  los formatos legacy del espejo `../uploads/tm/` al canónico v5.0, con backups `.legacy`).
 
 ## 10. Reglas para la IA al editar
 
