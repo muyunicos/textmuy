@@ -81,7 +81,7 @@
 - [X] T023 Subir `?v=RC23` → `?v=RC24` en `index.html` y `render-core.html` (todos los `<script>` propios)
 - [X] T024 Enmienda menor Constitucion IV (`free[]` → tombstone `[id,"","",""]`) con Sync Impact Report en `.specify/memory/constitution.md`
 - [X] T025 [P] Corregir `tests/preset-load.test.js` (ruta `uploads/personalizador-pdf/textmuy/presets` inexistente → `uploads/tm/presets`, preexistente anotado en T003)
-- [X] T026 `node tests/*.test.js` (10 suites incl. `catalog-unified` + `img-refs`) + `node --check` de tocados en verde; correr `quickstart.md` end-to-end (integrado primero, standalone despues)
+- [X] T026 `node tests/*.test.js` (10 suites incl. `catalog-unified` + `img-refs`) + `node --check` de tocados en verde; correr `quickstart.md` end-to-end (prueba integrada: unico modo, Const. III v3.0.0)
 
 ---
 
@@ -130,44 +130,37 @@ Juntos: Setup + Foundational. Luego: A=US1 (fuentes), B=US2 (imagenes), C=US3 (p
 ## Notes
 
 - Repo `c:\Users\Jonatan\Documents\GitHub\personalizador-pdf\textmuy`; datos `c:\Users\Jonatan\Documents\GitHub\personalizador-pdf\uploads\tm` (= `wp-content/uploads/tm/`).
-- No editar `js/utils/*`; no `localStorage` para recursos; escritura solo via puente; standalone = harness.
+- No editar `js/utils/*`; no `localStorage` para recursos; escritura solo via puente; sin puente el editor NO opera (Const. III v3.0.0).
 - Commit por tarea o grupo logico; detener en checkpoints para validar cada historia sola.
-- `migrate-tm.mjs` migra SOLO el espejo dev (Node = testing, Const.); la migracion en WP la ejecuta el plugin en PHP dentro de `migrar_textmuy()` (tarea R007). No hay migracion bajo demanda en el parser (Q4: rechazo puro).
+- Sin migradores (R007): `migrate-tm.mjs` y `migrar_textmuy()` eliminados; los datos se crean desde cero en `uploads/tm/`. No hay migracion bajo demanda en el parser (Q4: rechazo puro).
 
 
 
 ---
-## Estado de implementacion (2026-09-11, actualizado post-remediacion)
+## Estado (2026-09-12, unificado)
 
-- Completadas: 26/26 (T001-T026; T012/T016/T019 cerradas por R006/R007 lado plugin).
-  T015 (refs numericas de imagen) resuelta en modulo con `prepareImgRefs` +
-  test `img-refs.test.js`.
-- Integracion con el plugin hermano: tuplas v5.0 en `fonts.json`/`img.json`/
-  `presets.json` (helpers `tupla_textmuy_alta`/`tupla_textmuy_baja`), handler
-  nuevo `cambiar_fuente` expuesto en el puente, sprite por scope via
-  `guardarSprite`.
-- Suite completa 10/10 verdes (incl. `img-refs`); `node --check` de los
-  7 JS tocados OK (catalog, fonts, api, preset-manager, galeria,
-  fuentes-galeria, editor).
-- Espejo `../uploads/tm` en canonico v5.0 (fonts 72, img 128, presets 10);
-  `migrate-tm.mjs` eliminado por decision del usuario (sin migradores).
-- [X] R010 HECHA (2026-09-12, decision del usuario): sprite por ambito = UNICO `thumbs.webp` plano junto al catalogo (`tm/{img,fonts,presets}/thumbs.webp`); SE ELIMINA el manifiesto persistido `sprite.json` (y el `sprite.webp` del anterior formato). `assets/miniaturas.js`: fuera la validacion/probe de manifiesto persistido y la actualizacion incremental; `ensureSprite` = cache en memoria (mismosNombres) o generacion completa; `persistirSheet` POSTea solo `thumbs.webp` (sin `manifest`); manifiesto solo en memoria para `tile()`/`drawTile()`. `.php` `handle_guardar_sprite`: ya no exige/escribe manifiesto, escribe `{ambito}/thumbs.webp` y borra restos `sprite.{webp,json}`. Docs actualizadas (plugin AGENTS sec. 5, sprite-layout.md, bridge-contract.md). Sin cambios en JS del modulo (RC27 se mantiene). Desaparece el 404 de `sprite.json` en consola. Validacion: node --check miniaturas.js, php -l, suites 10/10.
-- RC24 -> RC25 en `index.html` (14 tags) y `render-core.html` (9 tags);
-  `js/catalog.js` incluido antes de `fonts.js` en ambos.
-- Constitucion enmendada a v2.2.0 (tombstone sin `free[]`; `cats` string|array;
-  sin literal numerico de suites).
-
-## Estado post-remediacion (2026-09-11)
-
-- T001-T026 completas (T012/T016/T019 cerradas por R006/R007 lado plugin).
-- R001-R007 completas: constitucion v2.2.0; auditoria de tests (10/10 utiles,
-  0 eliminadas); RC24 -> RC25; plugin escribiendo tuplas v5.0 en
-  `fonts.json`/`img.json`/`presets.json`; migradores eliminados.
-- Pendiente de verificacion manual: prueba integrada (subir/borrar imagen y
-  fuente, guardar/borrar preset, render de grupo) tras copiar el modulo a
-  `modules/textmuy/` (LEEME.md). Los 2 presets legacy del espejo
-  (`retro-wave`, `simple-gradient`) quedan rechazados con causa hasta
-  re-guardarlos desde el editor.
+- Completadas: T001-T026 (26/26; T012/T016/T019 cerradas por R006/R007/R009 lado
+  plugin) + remediaciones R001-R010 y R9-R13 (ambas secciones de remediacion,
+  abajo). T015 resuelta con `prepareImgRefs` + test `img-refs.test.js`.
+- Ubicacion unica de datos: `wp-content/uploads/tm/{fonts,img,presets}/`
+  (catalogo + fisicos unificados en `tm/img/`; sin `imagenes/` ni `thumbs/`;
+  sprite unico `thumbs.webp` por ambito, sin manifiesto — R009/R010).
+- Sprite: ThumbEngine sin probe de manifiesto ni actualizacion incremental
+  (cache en memoria o generacion completa; POST solo `thumbs.webp`).
+- Suite 10/10 verdes; `node --check` de los JS tocados OK; `php -l` del
+  plugin OK. RC vigente: **RC27** (modulo desplegado en `modules/textmuy/`).
+- Constitucion vigente: **v3.0.0** (sin standalone, motor de galerias Const.
+  VII, cero legado Const. VIII).
+- Modulo desplegado y R2 en produccion: `.txm` guardan imagenes SOLO por id
+  numerico; galeria aplica id al confirmar y URL resuelta en preview.
+- Pendientes: (a) T030 — prueba manual integrada en WP; (b) re-guardar o
+  eliminar los 2 presets legacy del espejo (`retro-wave`, `simple-gradient`,
+  `font.src` string) para SC-002; (c) **motor de galerias** (Const. VII:
+  clase + endpoint unico `op=` y purga de fallbacks standalone del modulo)
+  como feature 002; (d) sync de AGENTS.md (ambos repos) a Const. v3.0.0;
+  (e) purga de `parseCats` (lectura de strings con separadores PROHIBIDA por
+  Const. IV v3.0.1 + test `catalog-unified` que la valida) — ira con feature
+  002.
 
 ---
 
@@ -179,8 +172,47 @@ Hallazgos del analisis: U1 (plugin pendiente), C2/D1/A1/A2/A4 (spec), I1 (marcad
 - [X] R002 (tasks.md) T020 deja de ser `[P]` (comparte `js/api.js` con T018); nota de `migrate-tm.mjs` en Notes; esta seccion.
 - [X] R003 (governance) HECHA (2026-09-11): Constitucion enmendada a v2.2.0 con Sync Impact Report en `.specify/memory/constitution.md` (Const. IV: `cats` una = string, varias = array; regla generica "todas las suites vigentes de `tests/`" en vez de literal "9 suites").
 - [X] R004 HECHA (2026-09-11): auditoria de las 10 suites — TODAS validan comportamiento real (geometrias, cache con conteo de fetch, parser con causas, round-trips, fail-fast); 0 eliminadas. Unica redundancia menor: `fonts-catalog` §1-2 re-testea el parser ya cubierto por `catalog-unified` (se conserva por costo nulo). HALLAZGO de datos: `retro-wave.txm` y `simple-gradient.txm` en `../uploads/tm/presets` siguen legacy (`font.src` string) — los tests los saltan con causa; re-guardarlos desde el editor (o eliminarlos) para cumplir SC-002.
-- [X] R005 HECHA (2026-09-11, ampliada 2026-09-12): la escritura de tuplas es lado plugin (el modulo solo consume los JSON, R006); comentarios de sprites actualizados en `js/preset-manager.js` a `thumbs/{scope}.webp + {scope}.json` (formato real de `handle_guardar_sprite`); RC24 -> RC25 -> RC26 en `index.html` (14 tags) y `render-core.html` (9 tags).
+- [X] R005 HECHA (2026-09-11, ampliada 2026-09-12): la escritura de tuplas es lado plugin (el modulo solo consume los JSON, R006); comentarios de sprites actualizados en `js/preset-manager.js` (POSTeriormente a `thumbs.webp` unico por ambito, R010); RC24 -> RC25 -> RC26 -> RC27 en `index.html` y `render-core.html`.
 - [X] R006 HECHA (2026-09-11): plugin convertido a tuplas v5.0 en `personalizador-pdf.php` — helpers `catalogo_textmuy`/`guardar_catalogo_textmuy`/`tupla_textmuy_alta`/`tupla_textmuy_baja`/`tupla_textmuy_id_de_file`; handlers subir/borrar/cambiar imagen, subir/borrar fuente y guardar/borrar preset escriben tupla (`img.json` en `textmuy/img/`, `fonts.json`, `presets.json`; tombstone al borrar); bug corregido: `borrar_fuente` leia objetos sobre tuplas (no encontraba la entrada) y `subir_fuente` escribia ids-string sin wrapper; bug corregido: `recursos_textmuy` usaba `$dirTextMuy` indefinida; handler NUEVO `handle_textmuy_cambiar_fuente` + `cambiarFuente` en el puente (`admin/estilos-texto.php`), que `PresetManager.moverFuente` ya esperaba; ya NO se borra `thumbs/presets.webp` en cada save (lo persiste `guardarSprite`); `php -l` OK en ambos PHP; AGENTS.md del plugin (sec. 5) actualizado a v5.0.
 - [X] R007 HECHA (2026-09-11): migradores eliminados — `migrate-tm.mjs` borrado; `migrar_textmuy()` (+ propiedad `$textmuy_migrado`, 3 llamadas en `dir_*` y llamada en el hook de activacion) eliminada del plugin; catalogo legacy `catalogo.json` (objetos) dejado de leer/escribir (canonico `img/img.json`); AGENTS.md de ambos repos sin referencias de migracion.
-- [X] R008 HECHA (2026-09-12): limpieza fisica del espejo `../uploads/tm/` — 15 archivos eliminados: `fonts/fonts.json.legacy`, `img/catalogo.json`, `img/catalogo.json.legacy`, `img/thumbs.webp` (artefacto del formato anterior; el ThumbEngine actual solo escribe/lee `sprite.webp` fijo por ambito), `presets/thumbs/` completa (`presets.json` + `presets.webp` viejos por nombre) y los 9 `.webp` sueltos de presets. Solo quedan los 3 JSON canonicos (`fonts.json` 72 items, `img.json` 128 items, `presets.json` 10 items) + fisicos + `.txm`. Los sprites se regeneran idempotentes via `guardarSprite` al abrir cada galeria.
+- [X] R008 HECHA (2026-09-12): limpieza fisica del espejo `../uploads/tm/` — 15 archivos eliminados: `fonts/fonts.json.legacy`, `img/catalogo.json`, `img/catalogo.json.legacy`, `img/thumbs.webp` (artefacto del formato anterior; el ThumbEngine persiste el sprite unico por ambito junto al catalogo — hoy `thumbs.webp`, R010), `presets/thumbs/` completa (`presets.json` + `presets.webp` viejos por nombre) y los 9 `.webp` sueltos de presets. Solo quedan los 3 JSON canonicos (`fonts.json` 72 items, `img.json` 128 items, `presets.json` 10 items) + fisicos + `.txm`. Los sprites se regeneran idempotentes via `guardarSprite` al abrir cada galeria.
 - [X] R009 HECHA (2026-09-12): ubicacion unica definitiva `wp-content/uploads/tm/` (opcion B: catalogo + fisicos unificados en `tm/img/`, sin `imagenes/`; sprite unico por ambito; sin `thumbs/`). PLUGIN: `dir_tm()`/`subdir_tm()` en `personalizador-pdf.php`; `dir_textmuy_*`/`url_base_textmuy_*` -> `tm/{fonts,img,presets}`; `catalogo_textmuy` con seed lazy (crea el JSON vacio en la primera visita); `handle_guardar_miniatura` -> `tm/img/` plano; comentarios/mensajes/readme/ayuda/LEEME/AGENTS del plugin actualizados. MODULO: scope de sprite `imagenes`->`img` (galeria + invalidate de preset-manager); R2 (solo id en `.txm`): `js/galeria.js` confirma `idVista` (id numerico al Aplicar/Select; URL en live preview), `js/controls.js` guarda `res.id` al subir y `urlDeImgRef` para previews, `js/api.js` expone `loadCatalogoSync` + `urlDeImgRef` y `clearPresetCache` resetea `catalogCache`/`catalogSync`; RC26 -> RC27. Validacion: suites 10/10, `node --check`, `php -l` OK.
+
+
+## Remediation 2 (ubicacion unica + R2 ids, 2026-09-12)
+
+Decisiones del usuario: (1) ubicacion unica definitiva de datos
+`wp-content/uploads/tm/{fonts,img,presets}/` — fin de
+`uploads/personalizador-pdf/textmuy/` (sin migrador: disenando);
+(2) unificacion total: fisicos de imagenes en `tm/img/` junto a `img.json`
+(sin subcarpeta `imagenes/`); (3) R2: en los `.txm` las imagenes se guardan
+SOLO por id numerico; (4) sprite unico por ambito (sin subcarpeta
+`thumbs/`, sin manifiestos por item) — decision evolucionada:
+`sprite.webp` + `sprite.json` en R9/R10, SUPERADA por R010 (`thumbs.webp`
+unico, sin manifiesto persistido).
+
+- [X] R9 (plugin) `dir_tm()`/`subdir_tm()` raiz `uploads/tm/`; helpers
+  `dir_textmuy_*`/`url_base_textmuy_*` reapuntados; `ruta_catalogo_textmuy_ambito('img')`
+  unificado a `tm/img/img.json`; seed lazy del catalogo canonico vacio en
+  `catalogo_textmuy()` (fin del 404 de `fonts.json`: primera visita crea los 3 JSON);
+  `handle_guardar_sprite` escribe el sprite del ambito junto a su catalogo
+  (scope `img`, alias legacy `imagenes`); `handle_guardar_miniatura` sin `thumbs/`
+  (fisico junto a `tm/img/`); mensajes de error y comentarios actualizados.
+  [R9 escrito con `sprite.webp`+`sprite.json`; SUPERADO por R010: `thumbs.webp`]
+- [X] R10 (plugin/assets) `assets/miniaturas.js` ThumbEngine: URLs de sprite
+  fijas por ambito (sin `thumbs/`); miniatura individual junto a los fisicos;
+  `php -l` + `node --check` OK. [R10 escrito con `sprite.webp`/`sprite.json`;
+  SUPERADO por R010: `thumbs.webp`, sin manifiesto]
+- [X] R11 (modulo, R2 ids) `js/galeria.js` scope `img` + `idVista`/`srcVista`
+  (id numerico al Aplicar/Select; URL para preview/<img>); `js/controls.js`
+  `aplicarImagen(res.id)` al subir + `urlDeImgRef` (delega en API) para previews
+  de inputs y pattern layers; `js/api.js` cache sincrona `loadCatalogoSync` +
+  `urlDeImgRef` unica fuente + `clearPresetCache` resetea catalogos.
+- [X] R12 (docs) AGENTS.md del plugin §2.3/§5/§11 + `modules/LEEME.md` +
+  `readme.txt` + `admin/estilos-texto.php` a `uploads/tm/` y `sprite.*`;
+  AGENTS.md del modulo sin cambios de ruta (ya decia `wp-content/uploads/tm/`).
+- [X] R13 Validacion R9-R12: suites del modulo 10/10, `node --check` (api,
+  controls, galeria, preset-manager, fonts, catalog, editor), `php -l` (plugin +
+  estilos-texto), ThumbEngine carga en Node. Pendiente manual: prueba integrada
+  en WP (verificar creacion de `tm/{fonts,img,presets}/*.json` al abrir la
+  pestana, subir/borrar imagen-fuente, guardar/borrar preset, sprite regenerado).

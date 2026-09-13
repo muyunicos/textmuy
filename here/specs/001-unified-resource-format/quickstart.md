@@ -23,4 +23,4 @@ Abrir la pestana Estilos de Texto del plugin con catalogos migrados (fixtures `f
 
 ## 3. Render (headless + editor)
 
-Cargar `.txm` numerico (ej. `font.src: 12`) y verificar fuente/imagenes correctas al primer intento, tamano exacto `settings.canvas.width/height`, `renderBatch` con 1 id invalido → rechazo `presets:<id>:...` sin parciales (contrato en `contracts/txm-numeric-refs.md`, puente en `contracts/bridge-contract.md`). Standalone despues como harness (listas vacias si no hay fixtures).
+Cargar `.txm` numerico (ej. `font.src: 12`) y verificar fuente/imagenes correctas al primer intento, tamano exacto `settings.canvas.width/height`, `renderBatch` con 1 id invalido → rechazo `presets:<id>:...` sin parciales (contrato en `contracts/txm-numeric-refs.md`, puente en `contracts/bridge-contract.md`). Sin puente el editor no opera (Const. III v3.0.0): la prueba es unicamente integrada.

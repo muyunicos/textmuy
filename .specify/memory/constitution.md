@@ -9,9 +9,9 @@ colores, fondos bitmap, sombras, 3D, composiciones con imagenes) cuyo
 fin es recrear estilos de marcas y cultura pop. El editor trabaja
 sobre un lienzo donde se define como se comporta el texto, con hasta
 4 lineas que pueden tener estilo propio (All/L1/L2/L3). El editor es
-el MEDIO para producir presets; el FIN es la API de render. Abrir
-`index.html` fuera del plugin es solo harness de desarrollo, sin
-garantias contractuales.
+el MEDIO para producir presets; el FIN es la API de render. El editor
+NO existe fuera del plugin: sin el puente el editor MUST NOT operar
+(estado de error claro y visible; ver III). No hay modo standalone.
 
 ### II. API de Render (NON-NEGOTIABLE)
 
@@ -28,17 +28,21 @@ fuente de verdad). `render-core.html` MUST exponer el motor headless
 off-screen en paridad con el editor. WebGL se ASUME disponible; sin
 WebGL la API MUST fallar en vez de degradar (sin fallback).
 
-### III. Integrado WordPress Primero
+### III. Integrado WordPress UNICO (sin standalone) — NON-NEGOTIABLE
 
-TextMuy se prueba y opera integrado al plugin propio via iframe
-same-origin + puente postMessage `{type:'textmuy-bridge',
-bridge:{urls:{presetsBase,fuentesBase,imagenesBase,guardarSprite,
-miniaturas}, nonces, presets, imagenes, fuentes}}` en los 3 momentos:
-load del iframe, aviso `textmuy-ready` y envio inmediato. Todo fetch
+TextMuy opera SOLO integrado al plugin via iframe same-origin + puente
+postMessage `{type:'textmuy-bridge', bridge:{urls:{presetsBase,
+fuentesBase,imagenesBase,guardarSprite,miniaturas}, nonces, presets,
+imagenes, fuentes}}` en los 3 momentos: load del iframe, aviso
+`textmuy-ready` y envio inmediato. El puente es REQUISITO de
+funcionamiento: sin el, el editor muestra un estado de error claro y
+accionable. PROHIBIDO operar con datos locales relativos del modulo
+(`presets/`, `fonts/`, `img/`), data-URL embebidas como modo de
+guardado, o cualquier fallback client-side (ver VIII). Todo fetch
 MUST resolverse via esas bases; hardcodear rutas esta PROHIBIDO. Los
 datos viven en `uploads/tm/{fonts,img,presets}` gestionados por el
-plugin. Este repo MUST NOT versionar datos. Escrituras al servidor
-SOLO via puente (admin-post + nonce).
+plugin (ver VII). Este repo MUST NOT versionar datos. Escrituras al
+servidor SOLO via puente (admin-post + nonce).
 
 ### IV. Preset Delta Estricto y Catalogos Unicos
 
@@ -57,8 +61,9 @@ Cada ambito (`fonts`, `img`, `presets`) MUST tener un unico catalogo
 tuplas `[id,title,cats,file]` donde `id` es numerico denso desde 1
 (salvo tombstones), `title` legible y editable, `cats` con UNA
 categoria = string, con VARIAS = array de strings (default
-`custom` si vacio; el parser normaliza a array y la forma string con
-separadores queda como lectura legacy), `file` el nombre fisico con
+`custom` si vacio; el parser normaliza a array; la lectura de
+strings con separadores —formato anterior— esta PROHIBIDA por
+VIII), `file` el nombre fisico con
 extension o, solo en
 `fonts`, spec Google sin extension. Libre = tombstone
 `[id,"","",""]` (todo vacio salvo `id`): la baja MUST escribir
@@ -71,7 +76,8 @@ Cero manifiesto por tile, cero `thumbs/*.json` separados, cero
 4 con id numerico) y clasificar cada entrada en `ok` / `free` /
 `invalid` con causa (`ambito:id:motivo`): `invalid` en galeria se
 salta con `console.warn` + contador visible (higiene de listado,
-ver VI); en render se rechaza. Sin compat legacy, sin objetos,
+ver VI); en render se rechaza. La lectura de formatos superados
+queda PROHIBIDA, no tolerada: sin compat legacy, sin objetos,
 sin tuplas string.
 
 ### V. 100% Libre y Alcance Cerrado
@@ -104,6 +110,29 @@ MUST subir `?v=RCn` en `index.html` Y `render-core.html` (regla
 generica, sin numero literal). Vendors `js/utils/` NO editables;
 `.min` propios NO regenerables.
 
+### VII. Motor de Galerias del Plugin (responsable unico del storage)
+
+El plugin es el UNICO responsable de leer, escribir, listar y
+persistir `uploads/tm/` (catalogos, fisicos, sprites): implementado
+como un motor unico (clase + endpoint unico con `op=`), no como
+handlers sueltos. TextMuy es consumidor: pide galerias/items y envia
+operaciones (alta/baja/edicion/sprite) via el puente; nunca accede al
+storage por otra via. El render de miniaturas es del CLIENTE
+(ThumbEngine): el motor recibe y persiste lo que el cliente produce;
+PROHIBIDO un renderizador server-side de thumbs. Todo ambito nuevo
+(usr_img, etc.) se agrega AL MOTOR, no como handler aislado; los
+dominios ajenos a galerias (pdfs/, datasets) quedan FUERA del motor.
+
+### VIII. Cero Legado y Responsabilidad Unica
+
+Toda decision de diseno REEMPLAZA (no convive): PROHIBIDO mantener
+rutas dobles, fallbacks de compatibilidad, codigo obsoleto o lecturas
+de formatos superados. Cuando un cambio invalida codigo, la purga va
+en la MISMA entrega que lo introduce. Un responsable unico por
+operacion/archivo; la redundancia se elimina, no se documenta. El
+codigo se escribe limpio desde el inicio: no se acumula "temporal"
+que se limpia despues.
+
 ## Restricciones Tecnicas y de Integracion
 
 Stack: Canvas 2D + WebGL en vanilla JS, sin frameworks; unico CSS
@@ -124,9 +153,10 @@ formato `.txm`, reglas RC, como probar); esta constitucion es la
 gobernanza y prevalece en caso de conflicto. Node existe SOLO para
 testing (`node tests/*.test.js`, todas las suites vigentes de
 `tests/`) y `node --check` de los
-JS tocados. Probar integrado primero (pestana Estilos de Texto del
-plugin: presets, imagenes, preview de grupo); standalone es
-harness dev sin garantias. `render-core.html` MUST mantener
+JS tocados. Probar integrado es el unico modo: pestana Estilos de
+Texto del plugin (presets, imagenes, preview de grupo); NO existe
+modo standalone (las suites de `tests/` corren en Node: testing, no
+es modo standalone). `render-core.html` MUST mantener
 paridad con el editor.
 
 ## Governance
@@ -140,7 +170,42 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 2.2.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-11
+**Version**: 3.0.1 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-12
+
+<!-- Sync Impact Report (v3.0.1, 2026-09-12) — TEMPORAL: remover antes del commit.
+- **Bump**: PATCH — clarificacion de Const. IV (coherencia interna).
+- **Cambios**: Const. IV eliminaba la frase "la forma string con separadores
+  queda como lectura legacy", que contradecia el "PROHIBIDA, no tolerada"
+  agregado por v3.0.0 (Const. VIII). Ahora: "el parser normaliza a array; la
+  lectura de strings con separadores —formato anterior— esta PROHIBIDA por
+  VIII". Sin cambio de comportamiento vigente (los datos actuales usan cats
+  string simple o array, ambas formas validas).
+- **Fuente**: analisis /speckit-analyze (hallazgo C13), 2026-09-12.
+-->
+
+<!-- Sync Impact Report (v3.0.0, 2026-09-12) — TEMPORAL: remover antes del commit.
+- **Bump**: MAJOR — eliminacion del modo standalone como capacidad soportada
+  (redefinicion incompatible de I y III) + 2 principios nuevos (VII, VIII).
+- **Principios modificados**: I (sin standalone; el editor NO opera sin puente);
+  III renombrado "Integrado WordPress Primero" -> "Integrado WordPress UNICO
+  (sin standalone) — NON-NEGOTIABLE" (puente = requisito; PROHIBIDOS datos
+  locales relativos, data-URL embed como guardado y fallbacks client-side).
+- **Principios agregados**: VII Motor de Galerias del Plugin (responsable unico
+  del storage; cliente renderiza thumbs, motor persiste; ambitos nuevos AL
+  motor; pdfs/ fuera); VIII Cero Legado y Responsabilidad Unica (REEMPLAZA no
+  convive; purga en la misma entrega; sin rutas dobles ni compat).
+- **Secciones modificadas**: Flujo de Desarrollo (standalone ya no es modo de
+  prueba; Node = testing unicamente); IV (lectura de formatos superados
+  PROHIBIDA, no tolerada).
+- **Secciones eliminadas**: el modo standalone como capacidad (harness dev).
+- **TODOs / impactos diferidos**:
+  (a) purga del codigo standalone/fallback del modulo (presets/, fonts/, img/
+  relativos, data-URL embed, migrateLegacyPresets) -> feature 002;
+  (b) motor PHP (clase + endpoint unico op=) -> feature 002;
+  (c) AGENTS.md de ambos repos desactualizado respecto a standalone -> sync;
+  (d) quickstart.md y flujos dev -> sync;
+  (e) suites de tests/ no afectadas (Node = testing, no standalone).
+-->
 
 ## Sync Impact Report (v2.2.0, 2026-09-11)
 

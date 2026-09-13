@@ -20,4 +20,4 @@ Puente postMessage `{type:'textmuy-bridge', bridge:{...}}` en los 3 momentos (lo
 - `fuentes`: `[{nombre,titulo,url}]` SOLO archivos fisicos reales (contrato ya vigente: el puente viejo que mezclaba Google queda prohibido).
 - `imagenes`: fisica + categorias (formato actual `listImages`, a migrar a ids en implementacion).
 - `presets`: nombres (a migrar a ids via `presets.json` en implementacion).
-- Sin puente (standalone): listas vacias, lectura de fixtures locales si existen, cero escrituras (harness dev).
+- Sin puente: el modulo NO opera (estado de error claro; Const. III v3.0.0). Cero lectura de datos locales, cero escrituras.

@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-11
 
-**Status**: Implemented (pendiente integracion plugin: T012/T016/T019, ver tasks.md R006/R007)
+**Status**: Implemented (modulo+plugin en uploads/tm/, RC27; pendiente: motor de galerias Const. VII — feature 002 — y re-guardar 2 presets legacy)
 
 **Input**: User description: "recursos (fuentes, imagenes, presets y thumbs) en uploads/tm/ con un json unico por ambito {thumbs:{w,h,c,f}, items:[[id,title,cats,file]]}; id numerico unico = posicion en thumbs; file sin extension = Google. Opcion A: id numerico puro con migracion y ruptura total."
 
@@ -71,14 +71,14 @@ Los `.txm` guardan referencias por id numerico y la galeria muestra miniaturas 2
 - **FR-001**: Cada ambito (`fonts`, `img`, `presets` bajo `uploads/tm/`) MUST tener un unico JSON `{thumbs:{w,h,c}, items:[[id,title,cats,file],...]}`. Entrada libre = tombstone `[id,"","",""]` (SIN lista `free[]`; la baja escribe tombstone, el alta reutiliza el hueco mas bajo).
 - **FR-002**: `id` MUST ser numerico, unico por ambito, y corresponderse con la posicion del tile en el sprite del ambito.
 - **FR-003**: `title` MUST ser legible y editable desde la galeria (Save del footer).
-- **FR-004**: `cats` con UNA categoria = string `"cat"`; con VARIAS = array `["cat","cat"]`; editables; default `custom` si vacio. El parser (`parseCats` en `js/catalog.js`) admite ambas formas y normaliza a array (la forma string con separadores coma/espacio/barra queda como lectura legacy). Requiere enmienda de Const. IV (tarea R003).
+- **FR-004**: `cats` con UNA categoria = string `"cat"`; con VARIAS = array `["cat","cat"]`; editables; default `custom` si vacio. El parser (`parseCats` en `js/catalog.js`) normaliza a array; la lectura de strings con separadores (formato anterior) esta PROHIBIDA (Const. VIII).
 - **FR-005**: `file` con extension = archivo fisico (fuentes `.ttf/.otf/.woff/.woff2`; imagenes `.svg/.webp/.png/.avif/.jpg/.jpeg/.gif`, lista cerrada (regex inline en `parseCatalogEntry` de `js/catalog.js`); presets `.txm`); sin extension = elemento Google (solo valido en `fonts`).
 - **FR-006**: `thumbs` MUST describir el sprite con `{w,h,c}` (ej. fonts 180x30, presets 200x100, imagenes 100x100); filas = `ceil(maxId/c)` derivable, no se guardan.
 - **FR-007**: El parser MUST clasificar cada entrada en `ok` / `free` / `invalid` con causa (`ambito:id:motivo`). `invalid` en galeria MUST saltarse con `console.warn` + contador visible en el status; en render MUST rechazarse con causa (`ambito:id:motivo`). Sin compat legacy, sin objetos, sin tuplas string, sin `free[]`.
 - **FR-008**: Los `.txm` MUST referenciar recursos por id numerico (`settings.font.src` numerico incluido).
 - **FR-009**: Las galerias MUST leer titulo, categorias y miniatura desde el catalogo unico + sprite de su ambito.
 - **FR-010**: La migracion de datos viejos (slugs, objetos, `font.src` string) MUST tener comportamiento legacy explicito (migrar bajo demanda o rechazar con mensaje).
-- **FR-011**: Escritura al servidor SOLO via puente del plugin; standalone 100% client-side.
+- **FR-011**: Escritura al servidor SOLO via puente del plugin (admin-post + nonce). Sin puente el editor NO opera (estado de error claro y visible): sin datos locales relativos, sin data-URL embebidas, sin fallbacks client-side (Const. III/VIII, enmienda v3.0.0).
 - **FR-012**: El principio IV de la constitucion MUST enmendarse a ids numericos con su ruptura (bump semver).
 
 ### Key Entities
@@ -101,6 +101,6 @@ Los `.txm` guardan referencias por id numerico y la galeria muestra miniaturas 2
 
 - Datos en `uploads/tm/` del plugin hermano (este repo define formato y parsers; la migracion fisica la ejecuta el plugin).
 - `thumbs:{w,h,c}` describe la grilla y la posicion del tile se deriva (`tile=id-1`); cero manifiestos por tile (decision Q3: sprite fusionado). El campo `f` del input original fue descartado (filas derivables de `c`).
-- Google = solo lectura; fisicos = CRUD con puente. Standalone = listas vacias, sin escrituras.
-- Constitucion vigente v2.1.0 (ya enmendada por esta feature: ids numericos + tombstone, sin `free[]`); FR-001/FR-006/FR-007 quedan sincronizados con ella. PENDIENTE: enmienda de Const. IV a la representacion `cats` string|array de FR-004 (tarea R003 en tasks.md); hasta entonces FR-004 prevalece como decision del usuario.
+- Google = solo lectura; fisicos = CRUD con puente. Sin puente el editor NO opera (Const. III v3.0.0).
+- Constitucion vigente v3.0.0 (enmiendas v2.1.0/v2.2.0/v3.0.0 aplicadas: ids numericos + tombstone, cats string|array, sin standalone, motor de galerias en el plugin); FR-001/FR-006/FR-007/FR-011 quedan sincronizados con ella.
 

@@ -16,9 +16,9 @@ Unificar los 3 ambitos (`fonts`, `img`, `presets` bajo `uploads/tm/`) en un unic
 
 **Primary Dependencies**: Cero frameworks. Vendors `js/utils/*.min.js` NO editables. `ThumbEngine` lo inyecta el plugin via `bridge.urls.miniaturas` + `guardarSprite`; `render-core.html` carga `fonts + distort + bevel + specular + editor + preset-manager + export + api` en paridad con el editor.
 
-**Storage**: `uploads/tm/{fonts,img,presets}/` (espejo `../uploads/tm/`, canonico WP `wp-content/uploads/tm/`). Un JSON por ambito + un sprite `.webp` por ambito. Escritura SOLO via puente postMessage; standalone = harness dev sin garantias (Const. I).
+**Storage**: `uploads/tm/{fonts,img,presets}/` (espejo `../uploads/tm/`, canonico WP `wp-content/uploads/tm/`). Un JSON por ambito + un unico `thumbs.webp` por ambito (sin manifiesto). Escritura SOLO via puente postMessage; sin puente el editor NO opera (Const. III v3.0.0: sin standalone).
 
-**Testing**: `node tests/*.test.js` (hoy 8 suites; esta feature agrega `catalog-unified.test.js` y extiende `fonts-catalog.test.js`) + `node --check` de tocados. Integrado primero, standalone segundo.
+**Testing**: `node tests/*.test.js` (hoy 8 suites; esta feature agrega `catalog-unified.test.js` y extiende `fonts-catalog.test.js`) + `node --check` de tocados. Integrado es el unico modo de prueba (Node = testing, no es modo standalone; Const. III v3.0.0).
 
 **Target Platform**: Navegador moderno con Canvas 2D + WebGL. WebGL ASUMIDO; sin WebGL la API MUST fallar (Const. II). `file://` limita fetch (HEAD previo para fisicos).
 

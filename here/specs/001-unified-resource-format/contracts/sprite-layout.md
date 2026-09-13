@@ -5,8 +5,8 @@
 sin manifiesto JSON en disco, sin `.webp` sueltos). Las coordenadas de cada
 tile derivan del catalogo (`{thumbs,items}`, `tile = id-1`); el manifiesto de
 dibujo se construye en memoria en el cliente. El `thumbs.webp` se regenera via
-`guardarSprite` tras alta/baja/Save; en standalone los tiles se renderizan en
-memoria (data-URL del sheet).
+`guardarSprite` tras alta/baja/Save; sin puente el modulo no opera: cero
+data-URL de fallback (Const. III/VIII).
 
 ## Grilla
 
