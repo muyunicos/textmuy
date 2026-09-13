@@ -13,27 +13,59 @@
             }
         });
 
-        // Initialize editor
-        TextEditor.init('tt-canvas');
-        
-        // Initialize controls (pass editor instance)
-        if (window.Controls) {
-            Controls.init(TextEditor);
-        }
-        
-        // Initialize export manager
-        if (window.ExportManager) {
-            ExportManager.init(TextEditor);
+        // Gating Const. III: el editor SOLO opera con el puente del plugin.
+        // Espera breve a que llegue textmuy-bridge-ready; si no, muestra error
+        // claro y detiene la inicializacion (cero fetches locales, cero 404).
+        var bridgeChecked = false;
+        function arrancarEditor() {
+            if (bridgeChecked) return;
+            bridgeChecked = true;
+            if (!window.TMMotor) {
+                mostrarErrorSinPuente();
+                return;
+            }
+            TextEditor.init('tt-canvas');
+
+            // Initialize controls (pass editor instance)
+            if (window.Controls) {
+                Controls.init(TextEditor);
+            }
+
+            // Initialize export manager
+            if (window.ExportManager) {
+                ExportManager.init(TextEditor);
+            }
+
+            // Hide loading overlay
+            var loading = document.getElementById('tt-canvas-loading');
+            if (loading) {
+                setTimeout(function() { loading.style.display = 'none'; }, 300);
+            }
+
+            // Initialize range slider visual fills
+            initRangeSliders();
         }
 
-        // Hide loading overlay
-        var loading = document.getElementById('tt-canvas-loading');
-        if (loading) {
-            setTimeout(function() { loading.style.display = 'none'; }, 300);
+        function mostrarErrorSinPuente() {
+            var loading = document.getElementById('tt-canvas-loading');
+            if (loading) {
+                loading.innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif">' +
+                    '<h2>Editor de estilos de texto</h2>' +
+                    '<p><strong>Este editor solo funciona dentro del plugin Personalizador PDF.</strong></p>' +
+                    '<p>Abre la pesta&ntilde;a <em>Estilos de Texto</em> del panel de administraci&oacute;n.</p>' +
+                    '</div>';
+                loading.style.display = 'block';
+            }
         }
 
-        // Initialize range slider visual fills
-        initRangeSliders();
+        window.addEventListener('textmuy-bridge-ready', arrancarEditor);
+        // Fallback: si el puente ya llego antes de este script, arranca ya.
+        if (window.TMMotor) {
+            arrancarEditor();
+        } else {
+            // Timeout de gracia: si en 2s no llego el puente, muestra error.
+            setTimeout(function () { if (!bridgeChecked) arrancarEditor(); }, 2000);
+        }
 
         // Ensure fill is active by default
         var fillCheckbox = document.getElementById('tt-fill-active-input');

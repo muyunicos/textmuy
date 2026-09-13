@@ -11,20 +11,21 @@
 (function() {
     'use strict';
 
-    var CAT_SEP_RE = /[,/ ]+/;
+    var CAT_FISICO_RE = /\.(ttf|otf|woff|woff2|svg|webp|png|jpg|jpeg|gif|avif|txm)$/i;
 
     function isFreeTuple(title, cats, file) {
         return title === '' && cats === '' && file === '';
     }
 
-    /* cats -> array: string con separadores coma/barra/espacio y
-     * trim; vacio -> ["custom"]. */
+    /* cats -> array: string con separadores (coma/barra/espacio) o array;
+     * vacio -> ["custom"]. Formato v5.0: cats puede ser string con separadores
+     * (formato v5.0) o array (también v5.0). */
     function parseCats(rawCats) {
         var arr;
         if (Array.isArray(rawCats)) {
             arr = rawCats.map(function(s) { return String(s).trim(); }).filter(Boolean);
         } else {
-            arr = String(rawCats || 'custom').split(CAT_SEP_RE).map(function(s) {
+            arr = String(rawCats || 'custom').split(/[,/ ]+/).map(function(s) {
                 return s.trim();
             }).filter(Boolean);
         }
@@ -62,7 +63,7 @@
         }
         var cats = (typeof rawCats === 'string') ? rawCats : '';
         var categorias = parseCats(rawCats);
-        var isFisico = /\.(ttf|otf|woff|woff2|svg|webp|png|jpg|jpeg|gif|avif|txm)$/i.test(file);
+        var isFisico = CAT_FISICO_RE.test(file);
         if (!file) {
             return { status: 'invalid', reason: ambito + ':' + id + ':file vacio (no tombstone)' };
         }

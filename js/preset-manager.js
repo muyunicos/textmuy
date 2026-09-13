@@ -5,27 +5,24 @@
  *
  * Las miniaturas viven en el sprite del ambito presets gestionado por
  * ThumbEngine.ensureSprite({scope:'presets'}); el plugin lo persiste via
- * guardarSprite (thumbs/{scope}.webp + {scope}.json). NO se generan .webp
- * sueltos junto al .txm (ahorran inodes y se sirven en una sola peticion).
+ * el motor (scope presets, op=sprite -> thumbs/{scope}.webp). NO se generan
+ * .webp sueltos junto al .txm (ahorran inodes y se sirven en una sola peticion).
  *
- * Desde 4.0.0 del plugin, dentro de WordPress los archivos viven en la
- * ubicacion unica uploads/tm/presets/ y la base URL de LECTURA
- * llega por el puente (bridge.urls.presetsBase). Sin puente (standalone)
- * se leen de presets/ relativo al modulo.
- *
- * Dentro del plugin (iframe de "Estilos de Texto") el guardado/borrado y la
- * subida de imagenes van por el puente PHP (admin-post). Sin puente (uso
- * standalone) "guardar" descarga el .txm y las imagenes se siguen embebiendo
- * como data-URL.
- * Las claves localStorage de versiones anteriores son SOLO LECTURA: la galeria
- * ofrece migrarlas al servidor una unica vez (migrateLegacyPresets).
+ * Los archivos viven en la ubicacion unica uploads/tm/presets/ y la base URL
+ * de LECTURA llega por el puente (bridge.urls.presetsBase). Sin puente el
+ * editor NO opera (Const. III v3.0.0): cero rutas locales, cero data-URL,
+ * cero fallbacks client-side (Const. VIII). Todas las escrituras via el
+ * motor de galerias (action=tm_galeria&op=...), el unico endpoint (Const. VII).
  */
 (function() {
     'use strict';
 
     // ===== PUENTE CON PERSONALIZADOR PDF (postMessage same-origin) =====
-    // La pagina del admin envia {type:'textmuy-bridge', bridge:{urls,nonces,presets,imagenes}}
-    // cuando el iframe carga. Sin puente: bridge queda null (modo standalone).
+    // La pagina del admin envia {type:'textmuy-bridge', bridge:{urls,nonces,
+    // presets,imagenes,fuentes}} cuando el iframe carga. El modulo opera SOLO
+    // con puente (Const. III): sin puente espera un tiempo corto y muestra
+    // error (never rutas locales). El motor de galerias es el unico endpoint
+    // de escritura (Const. VII); los listados del puente los genera el motor.
     let bridge = null;
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
         window.addEventListener('message', function (ev) {
@@ -34,12 +31,13 @@
             if (ev.data.bridge && typeof ev.data.bridge === 'object') {
                 bridge = ev.data.bridge;
 
-                // Configurar ThumbEngine y cargar su script si no esta cargado
+                // Configurar ThumbEngine (motor: op=sprite para el spritesheet)
                 function configureThumbEngine() {
-                    if (window.ThumbEngine && bridge.urls && bridge.urls.guardarSprite) {
+                    if (window.ThumbEngine && bridge.urls && bridge.urls.motor) {
                         window.ThumbEngine.configure({
-                            endpoint: bridge.urls.guardarSprite,
-                            nonce: bridge.nonces && bridge.nonces.guardarSprite
+                            endpoint: bridge.urls.motor,
+                            nonce: bridge.nonces && bridge.nonces.motor,
+                            opSprite: 'sprite'
                         });
                     }
                 }
@@ -249,24 +247,16 @@
         return porDefecto;
     }
 
-    function descargarTxm(safe, blob) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = safe + '.txm';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
-    }
+    // descargarTxm ELIMINADA (Const. VIII: sin standalone, sin descarga local).
 
     /**
-     * Guarda el settings actual como par {nombre}.txm + {nombre}.webp.
-     * Con puente: al servidor (disponible en todos los navegadores).
-     * Sin puente: descarga el .txm (el usuario lo coloca en presets/).
-     * Devuelve {name, mode:'server'|'download'}.
+     * Guarda el settings actual como {nombre}.txm en el servidor via el motor
+     * de galerias (scope presets, op=alta). Sin puente NO opera (Const. III).
      */
     async function savePreset(name, settings) {
+        if (!bridgeAvailable() || !window.TMMotor) {
+            throw new Error('El motor de galerias no esta disponible: abri el editor desde el plugin.');
+        }
         const safe = sanitizeName(name || (settings && settings.text) || 'preset');
         const payload = {
             format: PROJECT_FORMAT,
@@ -275,21 +265,7 @@
             settings: diffSettings(getDefaults(), settings) || {}
         };
         const txmBlob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-        if (!bridgeAvailable()) {
-            descargarTxm(safe, txmBlob);
-            return { name: safe, mode: 'download' };
-        }
-        const fd = new FormData();
-        fd.append('nombre', safe);
-        fd.append('txm', txmBlob, safe + '.txm');
-        fd.append('_wpnonce', bridge.nonces.guardarPreset);
-        const resp = await fetch(bridge.urls.guardarPreset, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo guardar el preset en el servidor.'));
-        }
+        await window.TMMotor.alta('presets', txmBlob, { nombre: safe, nombreArchivo: safe + '.txm' });
         // Mantener el listado local al dia (sin recargar la pagina).
         if (Array.isArray(bridge.presets) && bridge.presets.indexOf(safe) === -1) {
             bridge.presets.push(safe);
@@ -303,20 +279,11 @@
     }
 
     async function deletePreset(name) {
-        if (!bridgeAvailable()) {
+        if (!bridgeAvailable() || !window.TMMotor) {
             throw new Error('Borrar presets del servidor solo esta disponible dentro del plugin.');
         }
         const safe = sanitizeName(name);
-        const fd = new FormData();
-        fd.append('nombre', safe);
-        fd.append('_wpnonce', bridge.nonces.borrarPreset);
-        const resp = await fetch(bridge.urls.borrarPreset, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo borrar el preset del servidor.'));
-        }
+        await window.TMMotor.baja('presets', safe);
         if (Array.isArray(bridge.presets)) {
             bridge.presets = bridge.presets.filter(function (n) { return n !== safe; });
         }
@@ -327,36 +294,31 @@
         return true;
     }
 
-    // ===== IMAGENES SUBIDAS (uploads/tm/img/, unificado con el catalogo) =====
+    // ===== IMAGENES (uploads/tm/img/ via motor Const. VII) =====
     const CATEGORIAS_IMAGENES = ['fondos', 'iconos', 'varios'];
+
+    function motor() {
+        if (!window.TMMotor) throw new Error('El motor de galerias no esta cargado (js/motor.js).');
+        return window.TMMotor;
+    }
 
     /**
      * Sube una imagen al servidor. opciones: {categoria, nombre, sobrescribir}
      * (nombre + sobrescribir se usan para guardar una EDICION sobre el archivo).
-     * Devuelve {nombre, categoria, url} (url con cache-bust ?v=mtime).
+     * Devuelve {nombre, categoria, id, url} (url con cache-bust ?v=mtime).
      */
     async function uploadImage(file, opciones) {
         opciones = opciones || {};
-        if (!bridgeAvailable()) {
-            throw new Error('El directorio de imagenes solo esta disponible dentro del plugin.');
-        }
+        const motorCli = motor();
         const categoria = (opciones.categoria && CATEGORIAS_IMAGENES.indexOf(opciones.categoria) !== -1)
             ? opciones.categoria
             : 'varios';
-        const fd = new FormData();
-        fd.append('imagen', file, (file && file.name) || opciones.nombre || 'imagen.png');
-        fd.append('categoria', categoria);
-        if (opciones.nombre) { fd.append('nombre', opciones.nombre); }
-        if (opciones.sobrescribir) { fd.append('sobrescribir', '1'); }
-        fd.append('_wpnonce', bridge.nonces.subirImagen);
-        const resp = await fetch(bridge.urls.subirImagen, {
-            method: 'POST', body: fd, credentials: 'same-origin'
+        const item = await motorCli.alta('img', file, {
+            nombreArchivo: (file && file.name) || opciones.nombre || 'imagen.png',
+            categoria: categoria,
+            nombre: opciones.nombre,
+            sobrescribir: opciones.sobrescribir ? '1' : undefined
         });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo subir la imagen.'));
-        }
-        const item = datos.data;
         if (Array.isArray(bridge.imagenes)) {
             bridge.imagenes = bridge.imagenes.filter(function (im) {
                 return !(im.nombre === item.nombre && (im.categoria || 'varios') === item.categoria);
@@ -371,20 +333,7 @@
 
     /** Borra una imagen del servidor. item: {nombre, categoria}. */
     async function deleteImage(item) {
-        if (!bridgeAvailable()) {
-            throw new Error('El directorio de imagenes solo esta disponible dentro del plugin.');
-        }
-        const fd = new FormData();
-        fd.append('nombre', item.nombre || item.slug);
-        fd.append('categoria', item.categoria || 'varios');
-        fd.append('_wpnonce', bridge.nonces.borrarImagen);
-        const resp = await fetch(bridge.urls.borrarImagen, {
-            method: 'POST', body: fd, credentials: 'same-origin'
-        });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo borrar la imagen.'));
-        }
+        const itemRes = await motor().baja('img', item.nombre || item.slug);
         if (Array.isArray(bridge.imagenes)) {
             bridge.imagenes = bridge.imagenes.filter(function (im) {
                 return !(im.nombre === item.nombre && (im.categoria || 'varios') === (item.categoria || 'varios'));
@@ -398,23 +347,11 @@
 
     /** Renombra y/o mueve de categoria. Devuelve el item actualizado. */
     async function moverImagen(item, nombreNuevo, categoriaNueva) {
-        if (!bridgeAvailable()) {
-            throw new Error('El directorio de imagenes solo esta disponible dentro del plugin.');
-        }
-        const fd = new FormData();
-        fd.append('nombre', item.nombre || item.slug);
-        fd.append('categoria', item.categoria || 'varios');
-        fd.append('nombreNuevo', nombreNuevo);
-        fd.append('categoriaNueva', categoriaNueva || 'varios');
-        fd.append('_wpnonce', bridge.nonces.cambiarImagen);
-        const resp = await fetch(bridge.urls.cambiarImagen, {
-            method: 'POST', body: fd, credentials: 'same-origin'
+        const itemNuevo = await motor().editar('img', {
+            nombre: item.nombre || item.slug,
+            nombreNuevo: nombreNuevo,
+            categoriaNueva: categoriaNueva || 'varios'
         });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo renombrar la imagen.'));
-        }
-        const itemNuevo = datos.data;
         if (Array.isArray(bridge.imagenes)) {
             bridge.imagenes = bridge.imagenes.filter(function (im) {
                 return !(im.nombre === item.nombre && (im.categoria || 'varios') === (item.categoria || 'varios'));
@@ -436,32 +373,19 @@
         return todas;
     }
 
-    // ===== FUENTES FISICAS (uploads/.../textmuy/fonts/) =====
-    // El plugin escanea la carpeta y manda bridge.fuentes [{nombre, titulo,
-    // url, categoria?}]. Renombrar/cambiar categoria = moverFuente (el
-    // servidor renombra el TTF y/o actualiza su categoria). Sin puente no hay
-    // CRUD fisico (standalone = solo lectura del catalogo + uploads locales).
+    // ===== FUENTES FISICAS (uploads/tm/fonts/ via motor Const. VII) =====
+    // El motor expone el CRUD de fuentes (scope fonts, op=alta/baja/editar).
+    // Sin puente NO hay CRUD fisico (Const. III).
     /** Renombra y/o mueve de categoria una fuente. Devuelve el item actualizado. */
     async function moverFuente(item, nombreNuevo, categoriaNueva) {
-        if (!bridgeAvailable()) {
+        if (!bridgeAvailable() || !window.TMMotor) {
             throw new Error('El directorio de fuentes solo esta disponible dentro del plugin.');
         }
-        if (!bridge.urls.cambiarFuente) {
-            throw new Error('El plugin no expone cambiarFuente.');
-        }
-        const fd = new FormData();
-        fd.append('nombre', item.serverFile || item.nombre || item.slug);
-        fd.append('nombreNuevo', nombreNuevo);
-        fd.append('categoriaNueva', categoriaNueva || 'custom');
-        fd.append('_wpnonce', bridge.nonces.cambiarFuente);
-        const resp = await fetch(bridge.urls.cambiarFuente, {
-            method: 'POST', body: fd, credentials: 'same-origin'
+        const itemNuevo = await window.TMMotor.editar('fonts', {
+            nombre: item.serverFile || item.nombre || item.slug,
+            nombreNuevo: nombreNuevo,
+            categoriaNueva: categoriaNueva || 'custom'
         });
-        const datos = await leerJson(resp);
-        if (!resp.ok || !datos || !datos.success) {
-            throw new Error(mensajePuente(datos, resp, 'No se pudo renombrar la fuente.'));
-        }
-        const itemNuevo = datos.data;
         if (Array.isArray(bridge.fuentes)) {
             bridge.fuentes = bridge.fuentes.filter(function (f) {
                 return (f.nombre || f.slug) !== (item.serverFile || item.nombre || item.slug);
@@ -480,20 +404,19 @@
 
     // ===== LISTADO =====
     function bridgeAvailable() {
-        return !!(bridge && bridge.urls && bridge.urls.guardarPreset && bridge.nonces);
+        return !!(bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor && window.TMMotor);
     }
 
     /**
      * Base URL para LEER presets ({nombre}.txm / {nombre}.webp).
-     * Con puente: uploads/.../textmuy/presets/ (plugin >= 4.0.0).
-     * Standalone: presets/ relativo al modulo.
+     * Con puente: tm/presets/ (motor). Sin puente: NO opera (Const. III).
      * Siempre termina en barra.
      */
     function presetUrlBase() {
         const base = (bridge && bridge.urls && bridge.urls.presetsBase)
             ? bridge.urls.presetsBase
-            : 'presets/';
-        return base.slice(-1) === '/' ? base : base + '/';
+            : '';
+        return base.slice(-1) === '/' ? base : (base ? base + '/' : '');
     }
 
     // ===== CARGA =====
@@ -575,60 +498,9 @@
         }
     }
 
-    // ===== MIGRACION LEGACY (localStorage -> servidor, una unica vez) =====
-    // Claves legacy de versiones anteriores (solo lectura, para migrar una unica vez).
-    const LEGACY_STORAGE_KEY = 'textmuy_presets';
-    const LEGACY_IMPORTED_KEY = 'textstudio_presets';
-
-    /** Presets de versiones anteriores guardados en localStorage (solo lectura). */
-    function legacyLocalPresets() {
-        const out = [];
-        try {
-            const loc = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || '{}');
-            Object.keys(loc).forEach(function (n) {
-                out.push({ name: n, kind: 'settings', data: loc[n] });
-            });
-            const imp = JSON.parse(localStorage.getItem(LEGACY_IMPORTED_KEY) || '{}');
-            Object.keys(imp).forEach(function (n) {
-                if (!out.some(function (p) { return p.name === n; })) {
-                    out.push({ name: n, kind: 'raw', data: imp[n].preset || imp[n] });
-                }
-            });
-        } catch (_) { /* storage is optional */ }
-        return out;
-    }
-
-    /** Sube los presets legacy de este navegador al servidor y limpia las claves. */
-    async function migrateLegacyPresets() {
-        const viejos = legacyLocalPresets();
-        if (!viejos.length || !bridgeAvailable()) return [];
-        const subidos = [];
-        for (let i = 0; i < viejos.length; i++) {
-            const p = viejos[i];
-            try {
-                let settings = p.data;
-                if (p.kind === 'raw' && window.TextEditor && window.TextEditor.createDefaultSettings && window.TextEditor.loadPreset) {
-                    settings = window.TextEditor.createDefaultSettings();
-                    window.TextEditor.loadPreset(p.data, settings);
-                }
-                if (settings && typeof settings === 'object') {
-                    delete settings.category;
-                    delete settings.timestamp;
-                }
-                await savePreset(p.name, settings);
-                subidos.push(sanitizeName(p.name));
-            } catch (e) {
-                console.warn('No se pudo migrar el preset local', p.name, e);
-            }
-        }
-        if (subidos.length) {
-            try {
-                localStorage.removeItem(LEGACY_STORAGE_KEY);
-                localStorage.removeItem(LEGACY_IMPORTED_KEY);
-            } catch (_) { /* storage is optional */ }
-        }
-        return subidos;
-    }
+    // ===== MIGRACION LEGACY ELIMINADA (Const. VIII: sin localStorage) =====
+    // migrateLegacyPresets / legacyLocalPresets purgados: los recursos
+    // viven SOLO en el servidor via motor; standalone no opera.
 
     // Expose API
     window.PresetManager = {
@@ -651,13 +523,10 @@
         uploadImage,
         deleteImage,
         moverImagen,
-        // Fuentes fisicas (uploads/.../textmuy/fonts/, escaneo del plugin)
+        // Fuentes fisicas (uploads/tm/fonts/, via motor)
         moverFuente,
         // Miniaturas de galeria (spritesheet global thumbs/{scope}.webp o render lazy)
         ensureThumbnail,
-        thumbnailDataUrl,
-        // Migracion unica de presets legacy (localStorage de versiones previas)
-        legacyLocalPresets,
-        migrateLegacyPresets
+        thumbnailDataUrl
     };
 })();

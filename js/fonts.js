@@ -202,7 +202,9 @@
     var userFontsPromise = null;
     function fontUrlBase() {
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-        var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : 'fonts/';
+        // Sin puente el editor NO opera (Const. III); base vacia evita rutas fantasma.
+        if (!bridge || !bridge.urls || !bridge.urls.fuentesBase) return '';
+        var base = bridge.urls.fuentesBase;
         return base.slice(-1) === '/' ? base : base + '/';
     }
     function fontFileExists(url, esFisica) {
@@ -293,66 +295,40 @@
      * Devuelve una Promise<string> con el key final.
      */
     function uploadCustomFont(fileBlob, name) {
-        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
         var fontName = name || (fileBlob && fileBlob.name ? fileBlob.name.replace(/\.[^/.]+$/, '') : 'Custom Font');
-
-        if (bridge && bridge.urls && bridge.urls.subirFuente && (fileBlob instanceof Blob || fileBlob instanceof File)) {
-            var fd = new FormData();
-            fd.append('fuente', fileBlob, fileBlob.name || fontName);
-            fd.append('titulo', fontName);
-            if (bridge.nonces && bridge.nonces.subirFuente) {
-                fd.append('_wpnonce', bridge.nonces.subirFuente);
-            }
-            return fetch(bridge.urls.subirFuente, { method: 'POST', body: fd, credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (res) {
-                    if (res && res.success && res.data) {
-                        var f = res.data;
-                        var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
-                        fontRegistry[key] = {
-                            name: f.titulo,
-                            path: f.url,
-                            isCustom: true,
-                            isServer: true,
-                            serverFile: f.nombre
-                        };
-                        nameToKeyMap[f.titulo] = key;
-                        if (Array.isArray(bridge.fuentes)) {
-                            bridge.fuentes.push(f);
-                        }
-                        return key;
-                    }
-                    throw new Error('Fallo la subida al servidor');
-                });
+        var motor = window.TMMotor;
+        if (!motor || !motor.motorOK || !motor.motorOK()) {
+            throw new Error('El motor de galerias no esta disponible: subi fuentes desde el plugin.');
         }
-        return Promise.reject(new Error('Subida al servidor no disponible'));
+        return motor.alta('fonts', fileBlob, { nombreArchivo: fileBlob.name || fontName, titulo: fontName })
+            .then(function (f) {
+                var key = 'server-' + (f.nombre || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+                fontRegistry[key] = {
+                    name: f.titulo || fontName,
+                    path: f.url,
+                    isCustom: true,
+                    isServer: true,
+                    serverFile: f.nombre,
+                    fontKey: key,
+                    online: false
+                };
+                fontRegistry[key].fuentesSpriteInvalidated = false;
+                nameToKeyMap[f.titulo || fontName] = key;
+                if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+                    try { window.ThumbEngine.invalidate('fuentes'); } catch (_) {}
+                }
+                var bridge2 = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+                if (Array.isArray(bridge2.fuentes)) {
+                    bridge2.fuentes.push({ nombre: f.nombre, titulo: f.titulo || fontName, url: f.url });
+                }
+                return key;
+            });
     }
 
-    function saveCustomFonts() {
-        try {
-            localStorage.setItem('textmuy_custom_fonts', JSON.stringify(customFonts));
-        } catch (e) {
-            console.warn('Failed to save custom fonts:', e);
-        }
-    }
-
-    function loadCustomFonts() {
-        try {
-            var saved = localStorage.getItem('textmuy_custom_fonts');
-            if (saved) {
-                customFonts = JSON.parse(saved);
-                Object.keys(customFonts).forEach(function(key) {
-                    fontRegistry[key] = {
-                        name: customFonts[key].name,
-                        path: customFonts[key].dataUrl,
-                        isCustom: true
-                    };
-                });
-            }
-        } catch (e) {
-            console.warn('Failed to load custom fonts:', e);
-        }
-    }
+    // saveCustomFonts / loadCustomFonts ELIMINADAS (Const. VIII: sin localStorage,
+// las fuentes custom viven SOLO en el servidor via motor; standalone no opera).
+    var customFonts = {};
+    void customFonts;
 
     function resolveFontFromPreset(font) {
         if (!font) return DEFAULT_FONT_FAMILY;
@@ -564,19 +540,13 @@
 
     function deleteCustomFont(key) {
         var font = fontRegistry[key];
-        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-
-        if (font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.borrarFuente) {
-            var fd = new FormData();
-            fd.append('nombre', font.serverFile);
-            if (bridge.nonces && bridge.nonces.borrarFuente) {
-                fd.append('_wpnonce', bridge.nonces.borrarFuente);
-            }
-            fetch(bridge.urls.borrarFuente, { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (font && font.isServer && font.serverFile && window.TMMotor && window.TMMotor.motorOK && window.TMMotor.motorOK()) {
+            window.TMMotor.baja('fonts', font.serverFile).catch(function () { /* best-effort */ });
             delete fontRegistry[key];
             delete loadedFonts[key];
-            if (Array.isArray(bridge.fuentes)) {
-                bridge.fuentes = bridge.fuentes.filter(function (f) { return f.nombre !== font.serverFile; });
+            var bridge2 = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+            if (Array.isArray(bridge2.fuentes)) {
+                bridge2.fuentes = bridge2.fuentes.filter(function (f) { return f.nombre !== font.serverFile; });
             }
             return true;
         }
@@ -591,8 +561,7 @@
         return false;
     }
 
-    // Load custom fonts from localStorage on initialization
-    loadCustomFonts();
+    // loadCustomFonts() ELIMINADA (Const. VIII: sin localStorage).
 
 
     /**
