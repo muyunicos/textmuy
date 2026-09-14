@@ -4,7 +4,12 @@ const assert = require('node:assert/strict');
 // Node (IIFEs de navegador). api.js resuelve presets .txm via
 // PresetManager.settingsFromDelta (en render-core.html carga igual).
 let fetchCalls = 0;
-global.window = {};
+// window con addEventListener capturado: permite inyectar el puente
+// textmuy-bridge (sin puente el editor rechaza con causa, Const. II).
+let bridgeHandler = null;
+global.window = {
+    addEventListener: function (type, fn) { if (type === 'message') bridgeHandler = fn; }
+};
 global.localStorage = { getItem: function() { return null; }, setItem: function() {} };
 global.document = { fonts: null };
 global.fetch = function() {
@@ -22,6 +27,14 @@ global.fetch = function() {
 require('../js/editor.js');
 require('../js/preset-manager.js');
 require('../js/api.js');
+// Inyecta el puente (bases de lectura de uploads/pmu) por el canal real:
+// postMessage 'textmuy-bridge' que escucha preset-manager.js.
+assert.ok(bridgeHandler, 'preset-manager debe registrar el listener textmuy-bridge');
+bridgeHandler({ source: global.window, data: { type: 'textmuy-bridge', bridge: {
+    urls: { motor: 'http://test/wp-admin/admin-post.php?action=pmu_uploads', imagenesBase: 'img/', presetsBase: 'presets/', fuentesBase: 'fonts/' },
+    nonces: { motor: 'test-nonce' },
+    presets: [], imagenes: [], fuentes: []
+} } });
 const API = global.window.TextMuyAPI;
 const PM = global.window.PresetManager;
 assert.ok(API, 'TextMuyAPI should be exposed');
@@ -82,7 +95,7 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
         });
     };
     const falla = API.loadPresetByName('fallback-test');
-    await assert.rejects(falla, /Preset not found/);
+    await assert.rejects(falla, /recurso:ausente/);
     existe = true;
     const reintentado = await API.loadPresetByName('fallback-test');
     assert.ok(reintentado.retry, 'a failed load must not stay cached');

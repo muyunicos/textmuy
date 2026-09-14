@@ -150,11 +150,11 @@ function crearPanel(){
  }
 
  // Resuelve la URL de un archivo del catalogo img.json frente a la base
-  // del puente (imagenesBase) o relativa standalone.
+  // del puente (imagenesBase) SIN fallback standalone.
   function imgUrl(file){
    if(!file)return '';
    var b=window.PresetManager&&window.PresetManager.getBridge?window.PresetManager.getBridge():null;
-   var base=(b&&b.urls&&b.urls.imagenesBase)?b.urls.imagenesBase:'img/';
+   var base=(b&&b.urls&&b.urls.imagenesBase)?b.urls.imagenesBase:'';
    if(/^(https?:)?\/\//i.test(file))return file;
    return base+file;
   }

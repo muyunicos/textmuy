@@ -235,7 +235,7 @@ function crearPanel(){
    status.textContent='Subida.';
    if(FL().invalidateCatalog){try{FL().invalidateCatalog().catch(function(){});}catch(_){}}
    cargar();
-   if(window.ThumbEngine&&window.ThumbEngine.invalidate){try{window.ThumbEngine.invalidate('fuentes');}catch(_){}}
+   if(window.ThumbEngine&&window.ThumbEngine.invalidate){try{window.ThumbEngine.invalidate('fonts');}catch(_){}}
   }).catch(function(e){status.textContent=e.message;});
  });
  function abrirP(aplicar){

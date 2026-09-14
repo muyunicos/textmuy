@@ -8,7 +8,12 @@ const assert = require('node:assert/strict');
 
 // Stubs minimos (mismo patron que preset-cache.test.js).
 let fetchCalls = 0;
-global.window = {};
+// window con addEventListener capturado: permite inyectar el puente
+// textmuy-bridge (sin puente el editor rechaza con causa, Const. II).
+let bridgeHandler = null;
+global.window = {
+    addEventListener: function (type, fn) { if (type === 'message') bridgeHandler = fn; }
+};
 global.localStorage = { getItem: function() { return null; }, setItem: function() {}, removeItem: function() {} };
 global.document = { fonts: null };
 global.fetch = function() {
@@ -29,6 +34,14 @@ require('../js/catalog.js');
 require('../js/editor.js');
 require('../js/preset-manager.js');
 require('../js/api.js');
+// Inyecta el puente (bases de lectura de uploads/pmu) por el canal real:
+// postMessage 'textmuy-bridge' que escucha preset-manager.js.
+assert.ok(bridgeHandler, 'preset-manager debe registrar el listener textmuy-bridge');
+bridgeHandler({ source: global.window, data: { type: 'textmuy-bridge', bridge: {
+    urls: { motor: 'http://test/wp-admin/admin-post.php?action=pmu_uploads', imagenesBase: 'img/', presetsBase: 'presets/', fuentesBase: 'fonts/' },
+    nonces: { motor: 'test-nonce' },
+    presets: [], imagenes: [], fuentes: []
+} } });
 const CAT = global.window.TextMuyCatalog;
 const API = global.window.TextMuyAPI;
 assert.ok(CAT && API && API.prepareImgRefs, 'TextMuyCatalog y TextMuyAPI.prepareImgRefs expuestos');

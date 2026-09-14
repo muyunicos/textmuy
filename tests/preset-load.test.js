@@ -22,13 +22,13 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager.settingsFromDelta should ex
 
 // 1. Los presets base (.txm delta, el formato unico desde 3.2.0) deben cargar:
 //    delta -> ajustes completos -> loadPreset() sin lanzar.
-// Los datos de usuario viven en uploads/tm (espejo local de
-// wp-content/uploads/tm en WordPress; T023 corrige la ruta legacy).
-const presetsDir = path.join(__dirname, '..', '..', 'uploads', 'tm', 'presets');
+// Los datos de usuario viven en uploads/pmu (raiz unica del plugin;
+// espejo local de wp-content/uploads/pmu en WordPress).
+const presetsDir = path.join(__dirname, '..', '..', '..', 'uploads', 'pmu', 'tm-presets');
 if (!fs.existsSync(presetsDir)) {
     throw new Error(
         'No se encontro la carpeta de presets en ' + presetsDir
-        + '. Asegurate de que uploads/tm/presets exista (datos de usuario).'
+        + '. Asegurate de que uploads/pmu/tm-presets exista (datos de usuario).'
     );
 }
 const files = fs.readdirSync(presetsDir).filter(f => f.endsWith('.txm')).sort();

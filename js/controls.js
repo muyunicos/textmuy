@@ -2233,7 +2233,6 @@
         const grid = document.getElementById('tt-gallery-grid');
         const search = document.getElementById('tt-gallery-search');
         const saveBtn = document.getElementById('tt-gallery-save-btn');
-        const migrateBtn = document.getElementById('tt-gallery-migrate-btn');
         const statusEl = document.getElementById('tt-gallery-status');
         if (!gallery || !toggle || !grid) return;
 
@@ -2247,7 +2246,7 @@
             const items = nombres.map(function(n) { return { nombre: n }; });
             var bP = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
             return window.ThumbEngine.ensureSprite({
-                scope: 'presets',
+                scope: 'tm-presets',
                 items: items,
                 ancho: 200,
                 alto: 100,
@@ -2349,29 +2348,16 @@
                 }
             });
             markSelected();
-            actualizarMigracion();
         }
 
         function borrarPreset(name) {
-            if (!confirm('Borrar el preset "' + name + '" (su .txm y .webp del directorio presets/)?')) return;
+            if (!confirm('Borrar el preset "' + name + '" (su .txm del servidor)?')) return;
             if (!window.PresetManager) return;
             PresetManager.deletePreset(name).then(function() {
                 setStatus('Preset "' + name + '" borrado.');
                 if (currentPresetName === name) currentPresetName = null;
                 populate();
             }).catch(function(e) { setStatus(e.message, true); });
-        }
-
-        function actualizarMigracion() {
-            if (!migrateBtn) return;
-            let n = 0;
-            try {
-                if (window.PresetManager && PresetManager.legacyLocalPresets) {
-                    n = PresetManager.legacyLocalPresets().length;
-                }
-            } catch (_) { n = 0; }
-            migrateBtn.hidden = !n;
-            if (n) migrateBtn.textContent = 'Subir ' + n + ' presets locales al servidor';
         }
 
         function guardarPreset() {
@@ -2383,19 +2369,8 @@
                 if (res.mode === 'server') {
                     setStatus('Preset "' + res.name + '" guardado en el servidor.');
                 } else {
-                    setStatus('Sin servidor: se descargo "' + res.name + '.txm" (colocalo en presets/).');
+                    setStatus('No se pudo guardar el preset.');
                 }
-                populate();
-            }).catch(function(e) { setStatus(e.message, true); });
-        }
-
-        function migrarLocales() {
-            if (!window.PresetManager || !PresetManager.migrateLegacyPresets) return;
-            setStatus('Subiendo presets locales...');
-            PresetManager.migrateLegacyPresets().then(function(subidos) {
-                setStatus(subidos.length
-                    ? 'Migrados ' + subidos.length + ' preset(s) al servidor.'
-                    : 'No habia presets locales para migrar.');
                 populate();
             }).catch(function(e) { setStatus(e.message, true); });
         }
@@ -2414,7 +2389,6 @@
 
         if (search) search.addEventListener('input', filterTiles);
         if (saveBtn) saveBtn.addEventListener('click', guardarPreset);
-        if (migrateBtn) migrateBtn.addEventListener('click', migrarLocales);
 
         // Permite refrescar la galeria desde fuera (import de TextStudio, etc.).
         refrescarGaleriaPresets = function() { populate(); };

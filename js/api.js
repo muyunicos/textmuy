@@ -31,28 +31,23 @@
     function loadPresetByName(name) {
         if (presetCache[name]) return presetCache[name];
         const promise = (async function() {
-            // Base de lectura de presets: con puente es uploads/.../textmuy/presets/
-            // (plugin >= 4.0.0); standalone: presets/ relativo al modulo.
-            // Los .txm son delta textmuy-project (formato unico desde 3.2.0);
-            // fallback al .json legacy (formato TextStudio crudo).
+            // Base de lectura de presets: llega por el puente (uploads/pmu/tm-presets/).
+            // Formato unico delta textmuy-project: NO hay fallback al .json legacy.
             const base = (window.PresetManager && window.PresetManager.presetUrlBase)
                 ? window.PresetManager.presetUrlBase()
-                : 'presets/';
-            let response = await fetch(base + encodeURIComponent(name) + '.txm');
-            if (response.ok) {
-                const payload = await response.json();
-                if (!payload || payload.format !== 'textmuy-project'
-                    || typeof payload.settings !== 'object' || payload.settings === null) {
-                    throw new Error('Unsupported preset format: ' + name);
-                }
-                if (window.PresetManager && window.PresetManager.settingsFromDelta) {
-                    return window.PresetManager.settingsFromDelta(payload.settings);
-                }
-                throw new Error('PresetManager is required to load .txm presets');
+                : '';
+            if (!base) throw new Error('presets:sin_puente: la lectura requiere el plugin.');
+            const response = await fetch(base + encodeURIComponent(name) + '.txm');
+            if (!response.ok) throw new Error('presets:' + name + ':recurso:ausente');
+            const payload = await response.json();
+            if (!payload || payload.format !== 'textmuy-project'
+                || typeof payload.settings !== 'object' || payload.settings === null) {
+                throw new Error('presets:' + name + ':formato: volver a guardar el preset desde el editor.');
             }
-            response = await fetch(base + encodeURIComponent(name) + '.json');
-            if (!response.ok) throw new Error('Preset not found: ' + name);
-            return response.json();
+            if (window.PresetManager && window.PresetManager.settingsFromDelta) {
+                return window.PresetManager.settingsFromDelta(payload.settings);
+            }
+            throw new Error('PresetManager is required to load .txm presets');
         })();
         presetCache[name] = promise;
         // No cachear fallos: un retry (p. ej. tras guardar el preset en el editor) debe reevaluar.
@@ -74,11 +69,15 @@
 
     // Cache de catalogos por ambito para resolucion por id (formato unico).
     var catalogCache = {};
+    // Nombre explicito del catalogo por ambito: NUNCA derivado del directorio.
+    var CATALOGO_FILE = { fonts: 'fonts.json', img: 'img.json', 'tm-presets': 'presets.json' };
+    var CATALOGO_BASE = { fonts: 'fuentesBase', img: 'imagenesBase', 'tm-presets': 'presetsBase' };
     function loadCatalogo(ambito) {
-        var base = (window.PresetManager && window.PresetManager.presetUrlBase)
-            ? window.PresetManager.presetUrlBase()
-            : 'presets/';
-        var url = base + '../' + ambito + '/' + (ambito === 'fonts' ? 'fonts' : ambito === 'img' ? 'img' : 'presets') + '.json';
+        var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        var baseKey = CATALOGO_BASE[ambito];
+        var base = (b && b.urls && baseKey && b.urls[baseKey]) ? b.urls[baseKey] : '';
+        if (!base) throw new Error(ambito + ':catalogo:sin_puente');
+        var url = base + CATALOGO_FILE[ambito];
         if (catalogCache[url]) return catalogCache[url];
         var p = fetch(url, { cache: 'no-store' }).then(function (r) {
             if (!r.ok) throw new Error(ambito + ':catalogo:ausente (' + url + ')');
@@ -125,7 +124,8 @@
             var cat = catalogSync.img;
             if (cat && cat.items && cat.items[ref] && cat.items[ref].file) {
                 var b2 = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-                var base2 = (b2 && b2.urls && b2.urls.imagenesBase) ? b2.urls.imagenesBase : 'img/';
+                var base2 = (b2 && b2.urls && b2.urls.imagenesBase) ? b2.urls.imagenesBase : '';
+                if (!base2) throw new Error('img:sin_puente');
                 var f = cat.items[ref].file;
                 return /^(https?:)?\/\//i.test(f) ? f : base2 + f;
             }
@@ -143,7 +143,8 @@
         if (!window.TextMuyCatalog.hasNumericImgRefs(settings)) return settings;
         var parsed = await loadCatalogo('img');
         var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-        var base = (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : 'img/';
+        var base = (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : '';
+        if (!base) throw new Error('img:sin_puente');
         window.TextMuyCatalog.mapImgRefs(settings, function (v) {
             if (typeof v !== 'number' || !isFinite(v) || Math.floor(v) !== v || v < 1) return v;
             var e = parsed.items[v];

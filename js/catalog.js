@@ -1,5 +1,5 @@
-/* ===== TEXTMUY CATALOG - parser unico de catalogos uploads/tm =====
- * Canonico por ambito (fonts/img/presets):
+/* ===== TEXTMUY CATALOG - parser unico de catalogos uploads/pmu =====
+ * Canonico por ambito (fonts/img/tm-presets):
  *   {"thumbs":{"w":N,"h":N,"c":N},"items":[[id,title,cats,file],...]}
  *   id numerico entero >= 1 (= tile: tile = id-1). title string.
  *   cats string "cat1, cat2" (default custom). file con extension =

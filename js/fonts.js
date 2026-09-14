@@ -24,7 +24,7 @@
     };
 
     // ===== CATALOGO UNICO DE FUENTES VIA fonts.json (cero hardcode) =====
-    // uploads/tm/fonts/fonts.json (= wp-content/uploads/tm en WP) es la
+    // uploads/pmu/fonts/fonts.json (= wp-content/uploads/pmu en WP) es la
     // UNICA fuente de verdad. Formato canonico (constitucion IV):
     //   {"thumbs":{"w":180,"h":30,"c":4},"items":[[id,title,cats,file],...]}
     //   id numerico entero >= 1 (= tile: tile = id-1). cats string
@@ -193,7 +193,7 @@
     }
 
     // ===== FUENTES DE USUARIO: fisicas del puente + url del catalogo =====
-    // Las fisicas viven en uploads/.../textmuy/fonts/ y las escanea el plugin
+    // Las fisicas viven en uploads/pmu/fonts/ y las lista el motor
     // (bridge.fuentes). Tambien se aceptan entradas con url dentro del
     // fonts.json del catalogo (fisicas declaradas a mano). En ambos casos se
     // verifica con HEAD antes de registrar: las que fallan no entran al
@@ -202,14 +202,15 @@
     var userFontsPromise = null;
     function fontUrlBase() {
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-        var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : 'fonts/';
-        return base.slice(-1) === '/' ? base : base + '/';
+        // SIN base de respaldo: sin puente no hay ruta relativa (editor no opera).
+        var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : '';
+        return base && base.slice(-1) !== '/' ? base + '/' : base;
     }
     function fontFileExists(url, esFisica) {
         try {
             if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve(true);
         } catch (_) { /* sin location en Node */ }
-        // Fisicas del catalogo: file es relativo a uploads/.../textmuy/fonts/.
+        // Fisicas del catalogo: file es relativo a uploads/pmu/fonts/.
         var full = (esFisica && url && !/^(https?:)?\/\//i.test(url)) ? fontUrlBase() + url : url;
         if (!full) return Promise.resolve(false);
         return fetch(full, { method: 'HEAD' }).then(function (r) { return !!r.ok; }).catch(function () { return false; });
@@ -221,7 +222,7 @@
         if (userFontsPromise) return userFontsPromise;
         // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS (con
         // extension real en file) se registran aqui con HEAD previo: si el
-        // archivo no existe en uploads/.../textmuy/fonts/ se omiten en silencio
+        // archivo no existe en uploads/pmu/fonts/ se omiten en silencio
         // (cero 404 de FontFace, cero spam en consola). Las ONLINE son lazy:
         // se cargan via link Google al elegir/renderizar (loadFont).
         userFontsPromise = loadCatalog().then(function () {
@@ -289,43 +290,45 @@
     }
 
     /**
-     * Sube un archivo de fuente al servidor (modo plugin) y registra la entrada con URL remota.
+     * Sube un archivo de fuente al servidor via el motor unico
+     * (op=alta, scope=fonts) y registra la entrada con URL remota.
      * Devuelve una Promise<string> con el key final.
      */
     function uploadCustomFont(fileBlob, name) {
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
         var fontName = name || (fileBlob && fileBlob.name ? fileBlob.name.replace(/\.[^/.]+$/, '') : 'Custom Font');
 
-        if (bridge && bridge.urls && bridge.urls.subirFuente && (fileBlob instanceof Blob || fileBlob instanceof File)) {
+        if (bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor
+            && (fileBlob instanceof Blob || fileBlob instanceof File)) {
             var fd = new FormData();
-            fd.append('fuente', fileBlob, fileBlob.name || fontName);
-            fd.append('titulo', fontName);
-            if (bridge.nonces && bridge.nonces.subirFuente) {
-                fd.append('_wpnonce', bridge.nonces.subirFuente);
-            }
-            return fetch(bridge.urls.subirFuente, { method: 'POST', body: fd, credentials: 'same-origin' })
+            fd.append('op', 'alta');
+            fd.append('_wpnonce', bridge.nonces.motor);
+            fd.append('scope', 'fonts');
+            fd.append('title', fontName);
+            fd.append('archivo', fileBlob, fileBlob.name || fontName);
+            return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     if (res && res.success && res.data) {
                         var f = res.data;
                         var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
                         fontRegistry[key] = {
-                            name: f.titulo,
+                            name: fontName,
                             path: f.url,
                             isCustom: true,
                             isServer: true,
                             serverFile: f.nombre
                         };
-                        nameToKeyMap[f.titulo] = key;
+                        nameToKeyMap[fontName] = key;
                         if (Array.isArray(bridge.fuentes)) {
-                            bridge.fuentes.push(f);
+                            bridge.fuentes.push({ nombre: f.nombre, titulo: fontName, url: f.url, id: f.id });
                         }
                         return key;
                     }
-                    throw new Error('Fallo la subida al servidor');
+                    throw new Error((res && res.data) || 'Fallo la subida al servidor');
                 });
         }
-        return Promise.reject(new Error('Subida al servidor no disponible'));
+        return Promise.reject(new Error('Subida al servidor no disponible (sin puente del plugin)'));
     }
 
     function saveCustomFonts() {
@@ -414,7 +417,7 @@
                 // Spec Google: file guarda "Familia:wght@..." (o la familia a secas).
                 return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
             }
-            // Fisica: file es relativo a uploads/.../textmuy/fonts/.
+            // Fisica: file es relativo a uploads/pmu/fonts/.
             const fullUrl = /^(https?:)?\/\//i.test(entry.file) ? entry.file : fontUrlBase() + entry.file;
             const p = fontFileExists(fullUrl).then(function (ok) {
                 if (!ok) {
@@ -566,13 +569,13 @@
         var font = fontRegistry[key];
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
 
-        if (font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.borrarFuente) {
+        if (font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor) {
             var fd = new FormData();
-            fd.append('nombre', font.serverFile);
-            if (bridge.nonces && bridge.nonces.borrarFuente) {
-                fd.append('_wpnonce', bridge.nonces.borrarFuente);
-            }
-            fetch(bridge.urls.borrarFuente, { method: 'POST', body: fd, credentials: 'same-origin' });
+            fd.append('op', 'baja');
+            fd.append('_wpnonce', bridge.nonces.motor);
+            fd.append('scope', 'fonts');
+            fd.append('file', font.serverFile);
+            fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' });
             delete fontRegistry[key];
             delete loadedFonts[key];
             if (Array.isArray(bridge.fuentes)) {
@@ -686,7 +689,7 @@
 
         var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
         return ThumbEngine.ensureSprite({
-            scope: 'fuentes',
+            scope: 'fonts',
             items: items,
             ancho: 180,
             alto: 30,
