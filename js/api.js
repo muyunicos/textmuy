@@ -171,11 +171,32 @@
         }
     }
 
+    /**
+     * H-006 (003-plugin-compat-review): la ruta de API exige WebGL disponible
+     * (Const. II: sin WebGL la API falla con causa, no degrada en silencio a
+     * Canvas 2D). El editor conserva su fallback documentado; el render de la
+     * API no.
+     */
+    function assertWebGLDisponible() {
+        try {
+            const cv = document.createElement('canvas');
+            const gl = cv.getContext('webgl') || cv.getContext('experimental-webgl');
+            if (!gl) {
+                throw new Error('render:webgl:no_disponible (la API requiere WebGL; sin el el estilo se degradaria)');
+            }
+        } catch (e) {
+            if (e && /render:webgl/.test(e.message || '')) { throw e; }
+            throw new Error('render:webgl:no_disponible (la API requiere WebGL; sin el el estilo se degradaria)');
+        }
+    }
+
     async function renderTextToPNG(params) {
         params = params || {};
         if (typeof params.text !== 'string') throw new Error('text must be a string');
         if (!params.preset && !params.settings) throw new Error('preset or settings is required');
         if (!window.TextEditor || !window.ExportManager) throw new Error('TextMuy has not finished loading');
+        // H-006: fail-fast de WebGL en la ruta de API (Const. II).
+        assertWebGLDisponible();
 
         let settings;
         if (params.settings) {

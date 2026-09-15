@@ -1,8 +1,8 @@
-# Specification Quality Checklist: Formato Unico de Recursos uploads/tm
+# Specification Quality Checklist: plugin-compat-review
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-09-11
-**Feature**: here/specs/001-unified-resource-format/spec.md
+**Created**: 2026-09-14
+**Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
@@ -31,7 +31,9 @@
 
 ## Notes
 
-- Validation iteration 1: all items pass. No [NEEDS CLARIFICATION] markers: the numeric-id semantics (Option A) was resolved by user choice before spec creation; the sprite-manifest question (separate vs merged) is recorded as a plan-level decision in Assumptions/Edge Cases, not a spec blocker.
-- Pre-hook check: `.specify/extensions.yml` does not exist, skipped silently. Post-hook check: same file absent, no after_specify hooks.
-- `feature.json` persisted with `here/specs/001-unified-resource-format` (repo uses `here/` convention per init-options.json).
-- Ready for `/speckit-clarify` or `/speckit-plan`.
+- Validacion v1 (2026-09-14): todos los items pasan. La spec describe el contrato
+  integrado plugin-módulo en terminos observables (entrega de configuracion, punto
+  unico de escritura, inventarios, paridad de render, estados de error); los nombres
+  de contrato ("motor sin interfaz", "estilos guardados", "hoja de miniaturas") son
+  conceptos del sistema visible al administrador, no detalles de implementacion.
+- Listo para `/speckit-clarify` o `/speckit-plan`.

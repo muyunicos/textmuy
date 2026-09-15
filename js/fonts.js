@@ -285,7 +285,6 @@
             isCustom: true
         };
         customFonts[key] = { name: name, dataUrl: dataUrl };
-        saveCustomFonts();
         return key;
     }
 
@@ -331,31 +330,10 @@
         return Promise.reject(new Error('Subida al servidor no disponible (sin puente del plugin)'));
     }
 
-    function saveCustomFonts() {
-        try {
-            localStorage.setItem('textmuy_custom_fonts', JSON.stringify(customFonts));
-        } catch (e) {
-            console.warn('Failed to save custom fonts:', e);
-        }
-    }
-
-    function loadCustomFonts() {
-        try {
-            var saved = localStorage.getItem('textmuy_custom_fonts');
-            if (saved) {
-                customFonts = JSON.parse(saved);
-                Object.keys(customFonts).forEach(function(key) {
-                    fontRegistry[key] = {
-                        name: customFonts[key].name,
-                        path: customFonts[key].dataUrl,
-                        isCustom: true
-                    };
-                });
-            }
-        } catch (e) {
-            console.warn('Failed to load custom fonts:', e);
-        }
-    }
+    // H-004 (003-plugin-compat-review): se elimino la persistencia en
+    // localStorage de fuentes personalizadas (prohibida por el contrato,
+    // sin lecturas legacy). Las fuentes viven SOLO en el catalogo del
+    // plugin y se suben por el motor (op=alta, scope=fonts).
 
     function resolveFontFromPreset(font) {
         if (!font) return DEFAULT_FONT_FAMILY;
@@ -594,8 +572,8 @@
         return false;
     }
 
-    // Load custom fonts from localStorage on initialization
-    loadCustomFonts();
+    // (H-004) Sin carga legacy de fuentes personalizadas: el catalogo y la
+    // subida al servidor son la unica via (prohibido localStorage).
 
 
     /**
