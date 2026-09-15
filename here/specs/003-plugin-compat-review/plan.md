@@ -62,10 +62,12 @@ Artefacto de salida de la revisión (se crea al ejecutarla, no en el plan): `her
 
 ### Source Code (repository root)
 
+Rutas relativas a la raíz del plugin (`personalizador-pdf/`); el módulo integrado vive en `modules/textmuy/`.
+
 ```text
 modules/textmuy/            # Editor + render-core + js/ + tests/ (posible corrección contenida)
 ├── index.html              # Editor (iframe pestaña "Estilos de Texto")
-├── render-core.html        # Motor headless off-screen (paridad, API)
+├── render-core.html        # Motor sin interfaz (render-core) off-screen (paridad, API)
 ├── js/                     # catalog, editor, controls, galeria, fuentes-galeria,
 │   │                       # preset-manager, api, export, fonts, gradient-picker, effects/
 │   └── utils/              # vendors: NO EDITAR

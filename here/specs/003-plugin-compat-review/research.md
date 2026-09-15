@@ -43,3 +43,4 @@ cd modules/textmuy && node --check js/*.js && node tests/*.test.js   # 10 suites
 - **D3**: las correcciones de hallazgos no bloqueantes solo se ejecutan si caben en un archivo sin tocar contrato ni interfaz (Clarificación Q3); si un arreglo exige cambiar el contrato, se registra como hallazgo (FR-012) y no se cambia de facto.
 - **D4**: toda corrección de JS exige bump `?v=RCn` en ambos HTML y re-corrida de suites + verificación integrada.
 - **D5**: verificaciones dependientes de datos del administrador (PDF de muestra, recursos existentes) se registran CONDICIONADAS si el dato no está disponible, sin bloquear el cierre (SC-001).
+- **D6**: término canónico único en los artefactos: **"motor sin interfaz (render-core)"**. Equivale al "Motor de render headless" de los AGENTS.md del módulo y del plugin (esos documentos conservan su redacción; el vocabulario de la revisión es el canónico).

@@ -13,6 +13,8 @@ Guía para ejecutar la revisión de compatibilidad y funcionalidad. Formato del 
 ## 1. Verificaciones automáticas (abren la revisión y la cierran)
 
 ```bash
+# Directorio de trabajo: raiz del plugin (personalizador-pdf/); el modulo integrado esta en modules/textmuy/.
+
 # Sintaxis PHP del plugin
 php -l personalizador-pdf.php && php -l admin/*.php && php -l engine/*.php && php -l inc/*.php
 

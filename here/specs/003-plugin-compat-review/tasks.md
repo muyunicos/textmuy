@@ -10,7 +10,7 @@ description: "Task list for feature implementation"
 
 **Tests**: Verificación automática existente (10 suites Node + `php -l` + `motor_smoke` + `parity`); no se crean tests nuevos salvo que un hallazgo lo justifique.
 
-**Organization**: Tareas agrupadas por historia de usuario. Rutas relativas a la raíz del repo del módulo `modules/textmuy/` (el plugin vive en `../../`).
+**Organization**: Tareas agrupadas por historia de usuario. Rutas relativas a la raíz del repo del módulo `modules/textmuy/` (el plugin vive en `../../`). Los comandos de `quickstart.md` §1 se ejecutan desde la raíz del plugin (`../../`).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -51,11 +51,12 @@ description: "Task list for feature implementation"
 ### Implementation for User Story 1
 
 - [ ] T005 [US1] Verificar el puente (B1) en la pestaña "Estilos de Texto" con consola abierta: envío en los 3 momentos (load del iframe, aviso `textmuy-ready`, envío inmediato) y payload con claves `urls.{motor,miniaturas,presetsBase,fuentesBase,imagenesBase}` + `nonces.motor` + `presets/imagenes/fuentes`; contrastar `../../admin/estilos-texto.php` contra `modules/textmuy/js/preset-manager.js` y registrar los PC de B1 en `matriz.md`.
-- [ ] T006 [US1] Verificar galerías y bases de lectura (B3/B4): las tres galerías (`js/fuentes-galeria.js`, `js/galeria.js`, galería de presets de `index.html`) listan exactamente los recursos de `../../uploads/pmu/` con miniaturas del sprite, saltan huecos/tombstone con aviso visible y contador, y ninguna hardcodea rutas (grep de `'presets/'` y rutas relativas en `modules/textmuy/js/`); registrar PC de B3/B4.
+- [ ] T006 [US1] Verificar galerías y bases de lectura (B3/B4): las tres galerías (`js/fuentes-galeria.js`, `js/galeria.js`, galería de presets de `index.html`) listan exactamente los recursos de `../../uploads/pmu/` con miniaturas del sprite, saltan huecos/tombstone con aviso visible y contador, y ninguna hardcodea rutas (grep de `'presets/'` y rutas relativas en `modules/textmuy/js/`); registrar PC de B3/B4; depende de T005 (el puente debe llegar antes de validar los listados).
 - [ ] T007 [US1] Verificar el punto único de escritura (B2): subir imagen y tipografía, guardar/renombrar/borrar un estilo y regenerar miniatura desde el editor; confirmar en la pestaña Network que cada operación es POST a `urls.motor` (`admin-post.php?action=pmu_uploads`) con `_wpnonce` + `op=listar|alta|baja|editar|sprite|miniatura`, que persiste tras recargar y que el inventario queda coherente (secuencia de 20 operaciones según quickstart de la alineación 006); registrar PC de B2.
 - [ ] T008 [US1] Verificar recurso inválido (edge case de spec.md): quitar físicamente un archivo referenciado por el catálogo, abrir la galería (salto con aviso) y lanzar un render que lo use (rechazo con `ambito:id:motivo`, sin sustitución silenciosa); restaurar el archivo al terminar y registrar en `matriz.md`.
 - [ ] T009 [US1] Ejecutar el circuito de punta a punta (SC-002): guardar un estilo nuevo, asignarlo a un grupo de texto en la pestaña "PDFs" y procesar el PDF de muestra; el grupo sale con el estilo y los recursos elegidos, del tamaño definido por `settings.canvas` (CONDICIONADO si no hay PDF de muestra); registrar en `matriz.md`.
 - [ ] T027 [US1] Verificar concurrencia sobre el mismo ámbito (edge case de spec.md): con la pestaña "Estilos de Texto" abierta en dos ventanas, ejecutar altas/bajas simultáneas (subir la misma imagen en ambas; borrar un estilo en una mientras la otra guarda); tras refrescar, el inventario coincide con los archivos, sin duplicados ni identificadores repetidos; registrar el resultado en las PCs de B2/B4 y en las tablas de `matriz.md`.
+- [ ] T028 [US1] Verificar catálogo ausente o corrupto (edge case de spec.md, B4): renombrar temporalmente `../../uploads/pmu/img/img.json` (ausente) y luego dejarlo con JSON inválido; abrir la galería y lanzar un render → el sistema reporta la causa (`img:catalogo:ausente` / `:invalido`) sin inventar contenido; restaurar el archivo y registrar en `matriz.md`.
 
 - [X] T010 [US1] Corregir los hallazgos BLOQUEANTES de US1 detectados (FR-008): solo cambios justificados por el contrato, con bump `?v=RCn` en `modules/textmuy/index.html` y `modules/textmuy/render-core.html` si se toca JS; re-verificar los PC afectados hasta PASS y anotar cada corrección en la sección 2 de `matriz.md`.
 
@@ -75,6 +76,7 @@ description: "Task list for feature implementation"
 - [ ] T012 [US2] Verificar la paridad (B7) caso por caso: renderizar el mismo texto en el editor y vía el motor sin interfaz (`modules/textmuy/render-core.html`, procesando un grupo o lote de la API); anotar dimensiones, el veredicto de apariencia visible (comparación lado a lado a 100% y 200% de zoom, sin diferencias perceptibles) y la referencia de captura en la tabla §3 de `matriz.md` (SC-003).
 - [ ] T013 [US2] Verificar el contrato de render fail-fast (B6): lote con un recurso inválido se rechaza completo con causa `ambito:id:motivo` (0 resultados parciales, SC-004); salida del tamaño exacto de `settings.canvas` (`modules/textmuy/js/api.js` + `render-core.html`); tipografía no cargada → espera (`ensureFontReady` en `modules/textmuy/js/fonts.js`) o fallo con causa, nunca fuente sustituta; registrar PC de B6.
 - [X] T014 [US2] Corregir hallazgos de paridad/render según severidad (BLOQUEANTE obligatorio; MENOR solo si es contenido a un archivo, FR-009), con bump `?v=RCn` si se toca JS, y re-verificar los PC afectados hasta PASS.
+- [ ] T029 [US2] Verificar el render en los límites del texto (edge case de spec.md): texto vacío, más líneas de las soportadas (All/L1-L3) y tamaño de salida extremo definido por el estilo → el render falla con causa o se ajusta según las reglas vigentes (`settings.canvas` como fuente de verdad), nunca con un resultado silencioso incorrecto; registrar en `matriz.md`.
 
 ---
 
@@ -101,7 +103,7 @@ description: "Task list for feature implementation"
 ### Implementation for User Story 4
 
 - [ ] T018 [US4] Verificar el editor sin puente (B8): abrir `modules/textmuy/index.html` como `file://` → estado de error claro y accionable, cero fetches a rutas relativas del módulo y cero data-URL de guardado en consola/Network.
-- [ ] T019 [P] [US4] Verificar render sin aceleración gráfica: desactivar WebGL y lanzar render por la API → fallo con causa explícita, sin degradación silenciosa ni resultado incorrecto (Const. II).
+- [ ] T019 [P] [US4] Verificar render sin aceleración gráfica: desactivar WebGL con el flag del navegador (`chrome://flags` → WebGL deshabilitado) o forzando `HTMLCanvasElement.prototype.getContext` a devolver `null` para `webgl` y `experimental-webgl` antes de cargar el módulo; lanzar render por la API → fallo con causa `render:webgl:no_disponible` (H-006), sin degradación silenciosa ni resultado incorrecto (Const. II).
 - [ ] T020 [P] [US4] Verificar sin internet: con la pestaña abierta sin red, las tipografías remotas caen al fallback documentado (Google lazy) sin errores no controlados ni sustituciones silenciosas en render.
 - [ ] T021 [P] [US4] Verificar rechazo de referencia legacy: cargar un preset `.txm` con string en vez de id numérico (`font.src` o imagen) → rechazo con causa "re-guardar el preset", sin migración bajo demanda.
 - [ ] T022 [US4] Registrar los PC de B8 en `matriz.md` y corregir hallazgos según severidad (BLOQUEANTE obligatorio; MENOR solo contenido, FR-009); re-verificar hasta PASS.
@@ -112,8 +114,8 @@ description: "Task list for feature implementation"
 
 **Purpose**: Cierre verificable de la revisión.
 
-- [X] T023 Verificar prohibiciones transversales (B10): `grep -rn "localStorage" modules/textmuy/js/` (0 coincidencias para recursos), sin cambios en `modules/textmuy/js/utils/` y sin `.min` propios regenerados; registrar en `matriz.md`.
-- [ ] T024 Cerrar `matriz.md` (SC-001/SC-008): ningún PC "sin evaluar"; ningún BLOQUEANTE **de código** sin CORREGIDO_EN_REVISION (los BLOQUEANTE-DATOS quedan REGISTRADO con la acción del administrador anotada); resumen de conteos del encabezado coincidente con las tablas, hallazgos con severidad y punto.
+- [X] T023 Verificar prohibiciones transversales (B10 y FR-013): `grep -rn "localStorage" modules/textmuy/js/` (0 coincidencias para recursos), sin modo de uso fuera del plugin (0 lecturas a rutas relativas del módulo en `js/`), sin cambios en `modules/textmuy/js/utils/` y sin `.min` propios regenerados; registrar en `matriz.md`.
+- [ ] T024 Cerrar `matriz.md` (SC-001/SC-008): ningún PC "sin evaluar"; ningún BLOQUEANTE **de código** sin CORREGIDO_EN_REVISION (los BLOQUEANTE-DATOS quedan REGISTRADO con la acción del administrador anotada); resumen de conteos del encabezado coincidente con las tablas, hallazgos con severidad y punto; verificar además que el contrato quedó intacto (FR-012): payload del puente, operaciones del motor (`op=`), bases de lectura y formato `.txm` sin cambios.
 - [X] T025 Re-corrida final de `quickstart.md` §1 completa (PHP + Node) y re-verificación de los PC corregidos: todo en verde, condicionados anotados (SC-007); confirmar el circuito SC-002 una última vez si hubo correcciones.
 - [ ] T026 Revisar cumplimiento de `modules/textmuy/AGENTS.md` §10 y `checklists/requirements.md` del feature, y hacer commit de la revisión (matriz, hallazgos y correcciones) en la rama `003-plugin-compat-review`.
 
@@ -135,6 +137,7 @@ description: "Task list for feature implementation"
 - **US3 (P3)**: mejor al final de US1/US2/US4 (contrasta lo observado), pero técnicamente independiente.
 - **US4 (P3)**: independiente; los hallazgos alimentan el cierre de US3.
 - **T027 (concurrencia, US1)**: se ejecuta junto a T007 (mismo ámbito); misma dependencia de fase que el resto de US1.
+- **T028 (catálogo ausente o corrupto, US1)**: tras T006. **T029 (render al límite, US2)**: tras T013.
 
 ### Parallel Opportunities
 
