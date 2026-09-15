@@ -46,7 +46,7 @@ Lo que el administrador ve en el editor debe ser exactamente lo que aparece en e
 
 **Acceptance Scenarios**:
 
-1. **Given** un estilo con efectos (relleno, contorno, sombras, relieve, distorsión, icono, fondo), **When** se renderiza el mismo texto desde el editor y desde el motor sin interfaz, **Then** ambos resultados son visualmente equivalentes y tienen las mismas dimensiones.
+1. **Given** un estilo con efectos (relleno, contorno, sombras, relieve, distorsión, icono, fondo), **When** se renderiza el mismo texto desde el editor y desde el motor sin interfaz, **Then** ambos resultados son visualmente equivalentes (sin diferencias perceptibles en comparación lado a lado) y tienen las mismas dimensiones.
 2. **Given** un lote de varios textos con estilos válidos y uno inválido, **When** se procesa el lote, **Then** se rechaza ante el primer fallo indicando causa y no se entrega ningún resultado parcial.
 3. **Given** un estilo cuya tipografía aún no está cargada, **When** se lanza el render, **Then** el sistema espera a que la tipografía esté lista (o falla con causa si no puede cargarse) y nunca dibuja con una tipografía sustituta del sistema.
 
@@ -112,18 +112,18 @@ El sistema integrado debe fallar de forma predecible y accionable en los escenar
 - **FR-008**: Los hallazgos bloqueantes del circuito central (circuito de la historia P1) MUST corregirse dentro de esta revisión, respetando el contrato vigente y sin introducir funciones nuevas.
 - **FR-009**: Los hallazgos menores y documentales se corrigen dentro de esta revisión solo si el cambio es contenido (un solo archivo del módulo o del plugin, sin alterar el contrato vigente ni la interfaz); en caso contrario MUST quedar registrados con su severidad para decidirse fuera de esta revisión.
 - **FR-010**: Al cierre, las verificaciones automáticas del proyecto (suites de prueba del módulo y comprobaciones del plugin) MUST pasar en verde; los resultados condicionados a datos del administrador quedan anotados como tales.
-- **FR-013**: La matriz de compatibilidad y el registro de hallazgos MUST publicarse como artefacto de esta revisión (en la carpeta del feature), y toda corrección documental derivada MUST aplicarse además a la documentación vigente del contrato, dejando la documentación sin contradicciones.
+- **FR-011**: La matriz de compatibilidad y el registro de hallazgos MUST publicarse como artefacto de esta revisión (en la carpeta del feature), y toda corrección documental derivada MUST aplicarse además a la documentación vigente del contrato, dejando la documentación sin contradicciones.
 
 **Restricciones (cómo NO se cambia el sistema)**
 
-- **FR-011**: Ninguna corrección derivada de la revisión MAY alterar el contrato vigente entre plugin y módulo (formato de configuración, formato de estilos guardados, punto único de escritura, bases de lectura); si la revisión revela que el contrato debe cambiar, se registra como hallazgo para una revisión de contrato, no se cambia de facto.
-- **FR-012**: La revisión MAY NOT introducir funciones nuevas del editor, modos de uso fuera del plugin ni persistencia local de recursos.
+- **FR-012**: Ninguna corrección derivada de la revisión MAY alterar el contrato vigente entre plugin y módulo (formato de configuración, formato de estilos guardados, punto único de escritura, bases de lectura); si la revisión revela que el contrato debe cambiar, se registra como hallazgo para una revisión de contrato, no se cambia de facto.
+- **FR-013**: La revisión MAY NOT introducir funciones nuevas del editor, modos de uso fuera del plugin ni persistencia local de recursos.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Punto de contrato**: cada compromiso verificable entre plugin y módulo (entrega de configuración, bases de lectura, escritura única con credencial, inventarios, formato de estilos guardados, contrato de render, aviso de versión). Tiene identificador, descripción y estado de verificación (PASS / FAIL / condicionado).
 - **Hallazgo**: incompatibilidad o mal funcionamiento detectado; referencia al punto de contrato, severidad, comportamiento esperado vs observado, y resolución (corregido en esta revisión / registrado para después).
-- **Verificación de paridad**: comparación del mismo texto + estilo renderizado por el editor y por el motor sin interfaz; registra dimensiones y equivalencia visual.
+- **Verificación de paridad**: comparación del mismo texto + estilo renderizado por el editor y por el motor sin interfaz; registra dimensiones, apariencia visible (sin diferencias perceptibles) y captura.
 - **Matriz de compatibilidad**: conjunto ordenado de puntos de contrato y su estado; es el entregable central de la revisión.
 
 ## Success Criteria *(mandatory)*
@@ -132,7 +132,7 @@ El sistema integrado debe fallar de forma predecible y accionable en los escenar
 
 - **SC-001**: El 100% de los puntos de contrato identificados en la matriz de compatibilidad queda con estado PASS, FAIL corregido o condicionado (con su dependencia anotada); 0 puntos sin evaluar al cierre.
 - **SC-002**: El circuito completo (abrir pestaña → galerías correctas → guardar estilo → aplicar a grupo → procesar PDF) se completa sin errores en el 100% de las ejecuciones de prueba manuales de esta revisión.
-- **SC-003**: En todas las verificaciones de paridad, el resultado del motor sin interfaz coincide con el del editor en dimensiones (100%) y en equivalencia visual (100% de los casos del conjunto representativo).
+- **SC-003**: En las verificaciones de paridad del conjunto representativo, el resultado del motor sin interfaz coincide con el del editor en **dimensiones exactas (100% de los casos)** y en **apariencia visible**: comparación lado a lado a 100% y 200% de zoom sin diferencias perceptibles (0 casos con diferencia perceptible), con captura registrada por caso; toda diferencia perceptible se registra como hallazgo con severidad asignada.
 - **SC-004**: 0 lotes de render entregan resultados parciales: ante un elemento inválido, el 100% de los lotes falla completo con causa que identifica ámbito, identificador y motivo.
 - **SC-005**: 100% de los escenarios degradados provocados producen el comportamiento documentado (estado de error sin operación local, fallo con causa, comportamiento de tipografías remoto) con 0 degradaciones silenciosas detectadas.
 - **SC-006**: 0 contradicciones entre la documentación vigente del contrato y el comportamiento real; cada contradicción detectada durante la revisión queda corregida o registrada como hallazgo documental.

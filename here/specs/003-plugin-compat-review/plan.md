@@ -6,7 +6,7 @@
 
 ## Summary
 
-Verificación integral de compatibilidad y funcionalidad del módulo TextMuy integrado al plugin personalizador-pdf. Enfoque: construir una **matriz de compatibilidad** con todos los puntos de contrato documentados (puente en 3 momentos, bases de lectura, punto único de escritura, catálogos v5.0, formato `.txm` delta, contrato de render fail-fast, paridad editor↔render-core, versionado RC, estados degradados), verificar cada punto con evidencia (verificaciones automáticas + pruebas manuales integradas), corregir hallazgos bloqueantes y cambios contenidos, y publicar matriz + hallazgos como artefacto del feature aplicando además las correcciones documentales a la documentación vigente. La revisión **verifica el contrato vigente, no lo redefine** (FR-011).
+Verificación integral de compatibilidad y funcionalidad del módulo TextMuy integrado al plugin personalizador-pdf. Enfoque: construir una **matriz de compatibilidad** con todos los puntos de contrato documentados (puente en 3 momentos, bases de lectura, punto único de escritura, catálogos v5.0, formato `.txm` delta, contrato de render fail-fast, paridad editor↔render-core, versionado RC, estados degradados), verificar cada punto con evidencia (verificaciones automáticas + pruebas manuales integradas), corregir hallazgos bloqueantes y cambios contenidos, y publicar matriz + hallazgos como artefacto del feature aplicando además las correcciones documentales a la documentación vigente. La revisión **verifica el contrato vigente, no lo redefine** (FR-012).
 
 ## Technical Context
 
@@ -24,7 +24,7 @@ Verificación integral de compatibilidad y funcionalidad del módulo TextMuy int
 
 **Performance Goals**: N/A — fuera de alcance (Clarificación Q2): la revisión cubre solo compatibilidad y funcionalidad.
 
-**Constraints**: contrato vigente no renegociable (FR-011); correcciones de hallazgos no bloqueantes solo si son contenidas a un archivo sin tocar contrato ni interfaz (FR-009 / Clarificación Q3); sin localStorage, sin modo standalone, sin migraciones legacy; bump `?v=RCn` en `index.html` y `render-core.html` si se toca cualquier JS.
+**Constraints**: contrato vigente no renegociable (FR-012); correcciones de hallazgos no bloqueantes solo si son contenidas a un archivo sin tocar contrato ni interfaz (FR-009 / Clarificación Q3); sin localStorage, sin modo standalone, sin migraciones legacy; bump `?v=RCn` en `index.html` y `render-core.html` si se toca cualquier JS.
 
 **Scale/Scope**: 1 módulo (`index.html`, `render-core.html`, `js/`, `css/`, `tests/`) y su integración con el plugin (`admin/estilos-texto.php`, `inc/class-pmu-uploads.php`, documentación del contrato). Un solo entregable nuevo: la matriz + registro de hallazgos en esta carpeta.
 
@@ -34,11 +34,11 @@ Verificación integral de compatibilidad y funcionalidad del módulo TextMuy int
 
 | Principio (v3.1.0) | Gate de esta revisión | Estado |
 |---|---|---|
-| I. Editor como medio | No se agregan funciones ni modos de uso; FR-012 | PASS |
+| I. Editor como medio | No se agregan funciones ni modos de uso; FR-013 | PASS |
 | II. API de render (non-negotiable) | US2 verifica fail-fast con causa, tamaño exacto, `ensureFontReady`, sin lotes parciales; sin WebGL → fallo con causa | PASS |
 | III. Integrado único (non-negotiable) | US4: sin puente → error claro, cero fetches relativos, cero data-URL; escrituras solo `op=` por motor | PASS |
 | IV. Preset delta + catálogos únicos | Verificar `.txm` delta con refs numéricas y catálogos v5.0 (`ok/free/invalid`, tile `id-1`); rechazo legacy "re-guardar" | PASS |
-| V–VI. Versionado RC + cero legado documental | US3 + FR-013: RC sincronizado en ambos HTML, doc sin contradicciones, correcciones documentales aplicadas | PASS |
+| V–VI. Versionado RC + cero legado documental | US3 + FR-011: RC sincronizado en ambos HTML, doc sin contradicciones, correcciones documentales aplicadas | PASS |
 | Flujo de desarrollo | Tests Node + `node --check` de JS tocados; prueba integrada única vía pestaña del plugin | PASS |
 
 Sin violaciones: `Complexity Tracking` queda vacío.

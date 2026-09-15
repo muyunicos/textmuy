@@ -55,6 +55,8 @@ description: "Task list for feature implementation"
 - [ ] T007 [US1] Verificar el punto único de escritura (B2): subir imagen y tipografía, guardar/renombrar/borrar un estilo y regenerar miniatura desde el editor; confirmar en la pestaña Network que cada operación es POST a `urls.motor` (`admin-post.php?action=pmu_uploads`) con `_wpnonce` + `op=listar|alta|baja|editar|sprite|miniatura`, que persiste tras recargar y que el inventario queda coherente (secuencia de 20 operaciones según quickstart de la alineación 006); registrar PC de B2.
 - [ ] T008 [US1] Verificar recurso inválido (edge case de spec.md): quitar físicamente un archivo referenciado por el catálogo, abrir la galería (salto con aviso) y lanzar un render que lo use (rechazo con `ambito:id:motivo`, sin sustitución silenciosa); restaurar el archivo al terminar y registrar en `matriz.md`.
 - [ ] T009 [US1] Ejecutar el circuito de punta a punta (SC-002): guardar un estilo nuevo, asignarlo a un grupo de texto en la pestaña "PDFs" y procesar el PDF de muestra; el grupo sale con el estilo y los recursos elegidos, del tamaño definido por `settings.canvas` (CONDICIONADO si no hay PDF de muestra); registrar en `matriz.md`.
+- [ ] T027 [US1] Verificar concurrencia sobre el mismo ámbito (edge case de spec.md): con la pestaña "Estilos de Texto" abierta en dos ventanas, ejecutar altas/bajas simultáneas (subir la misma imagen en ambas; borrar un estilo en una mientras la otra guarda); tras refrescar, el inventario coincide con los archivos, sin duplicados ni identificadores repetidos; registrar el resultado en las PCs de B2/B4 y en las tablas de `matriz.md`.
+
 - [X] T010 [US1] Corregir los hallazgos BLOQUEANTES de US1 detectados (FR-008): solo cambios justificados por el contrato, con bump `?v=RCn` en `modules/textmuy/index.html` y `modules/textmuy/render-core.html` si se toca JS; re-verificar los PC afectados hasta PASS y anotar cada corrección en la sección 2 de `matriz.md`.
 
 **Checkpoint**: MVP — el circuito central verificado; US2/US3/US4 pueden ejecutarse después sin depender entre sí.
@@ -65,12 +67,12 @@ description: "Task list for feature implementation"
 
 **Goal**: Confirmar que el motor sin interfaz produce el mismo resultado que el editor y respeta el contrato de render (B6–B7).
 
-**Independent Test**: Con los mismos estilos y textos, comparar editor vs motor sin interfaz (dimensiones + equivalencia visual) y provocar un fallo de lote para confirmar el rechazo completo con causa.
+**Independent Test**: Con los mismos estilos y textos, comparar editor vs motor sin interfaz (dimensiones + apariencia visible lado a lado, con captura) y provocar un fallo de lote para confirmar el rechazo completo con causa.
 
 ### Implementation for User Story 2
 
 - [ ] T011 [US2] Preparar el conjunto representativo de estilos de prueba (FR-003): relleno simple, relleno con imagen, contorno, sombras, relieve, distorsión, icono, fondo y estilo por línea (All/L1/L2/L3), guardándolos como presets de prueba vía la galería de `modules/textmuy/index.html`.
-- [ ] T012 [US2] Verificar la paridad (B7) caso por caso: renderizar el mismo texto en el editor y vía el motor sin interfaz (`modules/textmuy/render-core.html`, procesando un grupo o lote de la API); anotar dimensiones y equivalencia visual en la tabla §3 de `matriz.md` (SC-003).
+- [ ] T012 [US2] Verificar la paridad (B7) caso por caso: renderizar el mismo texto en el editor y vía el motor sin interfaz (`modules/textmuy/render-core.html`, procesando un grupo o lote de la API); anotar dimensiones, el veredicto de apariencia visible (comparación lado a lado a 100% y 200% de zoom, sin diferencias perceptibles) y la referencia de captura en la tabla §3 de `matriz.md` (SC-003).
 - [ ] T013 [US2] Verificar el contrato de render fail-fast (B6): lote con un recurso inválido se rechaza completo con causa `ambito:id:motivo` (0 resultados parciales, SC-004); salida del tamaño exacto de `settings.canvas` (`modules/textmuy/js/api.js` + `render-core.html`); tipografía no cargada → espera (`ensureFontReady` en `modules/textmuy/js/fonts.js`) o fallo con causa, nunca fuente sustituta; registrar PC de B6.
 - [X] T014 [US2] Corregir hallazgos de paridad/render según severidad (BLOQUEANTE obligatorio; MENOR solo si es contenido a un archivo, FR-009), con bump `?v=RCn` si se toca JS, y re-verificar los PC afectados hasta PASS.
 
@@ -86,7 +88,7 @@ description: "Task list for feature implementation"
 
 - [ ] T015 [US3] Verificar el versionado de estáticos (B9): `grep -n "v=RC" modules/textmuy/index.html modules/textmuy/render-core.html` (número idéntico y actualizado en ambos) y probar con JS viejo en caché que el plugin detecta la desactualización y muestra el aviso con la acción de recuperación (Ctrl+F5).
 - [ ] T016 [US3] Contrastar la documentación del contrato (B11, FR-005): `modules/textmuy/AGENTS.md`, `../../AGENTS.md` §2.1, `../modules/LEEME.md` y la constitución v3.1.0 (`modules/textmuy/.specify/memory/constitution.md`) contra el comportamiento observado en US1/US2/US4; registrar cada contradicción como hallazgo DOCUMENTAL en `matriz.md`.
-- [ ] T017 [US3] Aplicar las correcciones documentales contenidas (FR-009/FR-013): editar solo los archivos de documentación afectados (un archivo por corrección), completar la sección 4 de `matriz.md` con cada contradicción cerrada, y dejar 0 contradicciones (SC-006).
+- [ ] T017 [US3] Aplicar las correcciones documentales contenidas (FR-009/FR-011): editar solo los archivos de documentación afectados (un archivo por corrección), completar la sección 4 de `matriz.md` con cada contradicción cerrada, y dejar 0 contradicciones (SC-006).
 
 ---
 
@@ -111,7 +113,7 @@ description: "Task list for feature implementation"
 **Purpose**: Cierre verificable de la revisión.
 
 - [X] T023 Verificar prohibiciones transversales (B10): `grep -rn "localStorage" modules/textmuy/js/` (0 coincidencias para recursos), sin cambios en `modules/textmuy/js/utils/` y sin `.min` propios regenerados; registrar en `matriz.md`.
-- [ ] T024 Cerrar `matriz.md` (SC-001/SC-008): ningún PC "sin evaluar", todo BLOQUEANTE en CORREGIDO_EN_REVISION, resumen de conteos del encabezado coincidente con las tablas, hallazgos REGISTRADO con severidad y punto.
+- [ ] T024 Cerrar `matriz.md` (SC-001/SC-008): ningún PC "sin evaluar"; ningún BLOQUEANTE **de código** sin CORREGIDO_EN_REVISION (los BLOQUEANTE-DATOS quedan REGISTRADO con la acción del administrador anotada); resumen de conteos del encabezado coincidente con las tablas, hallazgos con severidad y punto.
 - [X] T025 Re-corrida final de `quickstart.md` §1 completa (PHP + Node) y re-verificación de los PC corregidos: todo en verde, condicionados anotados (SC-007); confirmar el circuito SC-002 una última vez si hubo correcciones.
 - [ ] T026 Revisar cumplimiento de `modules/textmuy/AGENTS.md` §10 y `checklists/requirements.md` del feature, y hacer commit de la revisión (matriz, hallazgos y correcciones) en la rama `003-plugin-compat-review`.
 
@@ -132,6 +134,7 @@ description: "Task list for feature implementation"
 - **US2 (P2)**: independiente; usa presets de prueba propios (T011).
 - **US3 (P3)**: mejor al final de US1/US2/US4 (contrasta lo observado), pero técnicamente independiente.
 - **US4 (P3)**: independiente; los hallazgos alimentan el cierre de US3.
+- **T027 (concurrencia, US1)**: se ejecuta junto a T007 (mismo ámbito); misma dependencia de fase que el resto de US1.
 
 ### Parallel Opportunities
 
@@ -159,6 +162,7 @@ description: "Task list for feature implementation"
 
 - Toda corrección de JS exige bump `?v=RCn` en ambos HTML + suites Node + verificación integrada (D4 de research.md).
 - Verificaciones dependientes de datos del administrador se registran CONDICIONADAS, nunca como fallo (D5).
-- Si un arreglo exige cambiar el contrato → hallazgo REGISTRADO, no cambio de facto (FR-011).
+- Si un arreglo exige cambiar el contrato → hallazgo REGISTRADO, no cambio de facto (FR-012).
+- Los IDs se asignan por orden de creación; las tareas agregadas tras la generación inicial conservan su número y declaran explícitamente su fase y dependencia.
 
 

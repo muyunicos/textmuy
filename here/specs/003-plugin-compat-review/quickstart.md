@@ -43,7 +43,7 @@ Para cada estilo del conjunto representativo (relleno simple, relleno con imagen
 
 1. Renderizar en el editor y anotar dimensiones.
 2. Renderizar el mismo texto vía el motor sin interfaz (procesar grupo o lote de la API).
-3. Comparar dimensiones y equivalencia visual → tabla §3 de la matriz.
+3. Comparar dimensiones y apariencia visible (lado a lado a 100% y 200% de zoom, sin diferencias perceptibles) + captura → tabla §3 de la matriz.
 
 Fail-fast: con un lote que incluya un recurso inválido (borrar físicamente un archivo referenciado), el lote completo se rechaza con causa `ambito:id:motivo` y no hay resultados parciales.
 

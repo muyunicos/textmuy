@@ -39,7 +39,7 @@ cd modules/textmuy && node --check js/*.js && node tests/*.test.js   # 10 suites
 ## Decisiones de la revisión
 
 - **D1**: la matriz se deriva de los 11 bloques anteriores (contrato documentado), completada con lo descubierto durante la verificación (FR-001).
-- **D2**: el artefacto vive en esta carpeta del feature y las correcciones documentales se aplican a la doc vigente (Clarificación Q1, FR-013).
-- **D3**: las correcciones de hallazgos no bloqueantes solo se ejecutan si caben en un archivo sin tocar contrato ni interfaz (Clarificación Q3); si un arreglo exige cambiar el contrato, se registra como hallazgo (FR-011) y no se cambia de facto.
+- **D2**: el artefacto vive en esta carpeta del feature y las correcciones documentales se aplican a la doc vigente (Clarificación Q1, FR-011).
+- **D3**: las correcciones de hallazgos no bloqueantes solo se ejecutan si caben en un archivo sin tocar contrato ni interfaz (Clarificación Q3); si un arreglo exige cambiar el contrato, se registra como hallazgo (FR-012) y no se cambia de facto.
 - **D4**: toda corrección de JS exige bump `?v=RCn` en ambos HTML y re-corrida de suites + verificación integrada.
 - **D5**: verificaciones dependientes de datos del administrador (PDF de muestra, recursos existentes) se registran CONDICIONADAS si el dato no está disponible, sin bloquear el cierre (SC-001).

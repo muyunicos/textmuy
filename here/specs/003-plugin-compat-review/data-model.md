@@ -25,20 +25,21 @@ Reglas: ningún punto queda `sin evaluar` al cierre (SC-001); `CONDICIONADO` exi
 |---|---|
 | `id` | `H-nnn` |
 | `punto` | `PC-nnn` afectado |
-| `severidad` | `BLOQUEANTE` (rompe el circuito P1) \| `MENOR` \| `DOCUMENTAL` |
+| `severidad` | `BLOQUEANTE` (código; rompe el circuito P1) \| `BLOQUEANTE-DATOS` (rompe el circuito para el administrador; la corrección es una acción suya) \| `MENOR` \| `DOCUMENTAL` |
 | `esperado` / `observado` | Comportamiento según contrato vs real |
 | `resolucion` | `CORREGIDO_EN_REVISION` \| `REGISTRADO` |
 | `correccion` | Archivo(s) tocados y en qué consistió (si aplica) |
 
-Reglas: `BLOQUEANTE` MUST quedar `CORREGIDO_EN_REVISION` (FR-008); `MENOR`/`DOCUMENTAL` solo se corrigen si el cambio es contenido a un archivo sin tocar contrato ni interfaz (FR-009 / Q3); si el arreglo exige cambiar el contrato → `REGISTRADO` (FR-011).
+Reglas: `BLOQUEANTE` (código) MUST quedar `CORREGIDO_EN_REVISION` (FR-008); `BLOQUEANTE-DATOS` MUST quedar `REGISTRADO` con la acción del administrador y su punto de contrato; `MENOR`/`DOCUMENTAL` solo se corrigen si el cambio es contenido a un archivo sin tocar contrato ni interfaz (FR-009 / Q3); si el arreglo exige cambiar el contrato → `REGISTRADO` (FR-012).
 
 ## VerificacionDeParidad
 
 | Atributo | Descripción |
 |---|---|
 | `caso` | Estilo + texto del conjunto representativo (relleno simple, relleno imagen, contorno, sombras, relieve, distorsión, icono, fondo, líneas L1-L3) |
-| `dimensiones_iguales` | bool (editor vs render sin interfaz) |
-| `equivalencia_visual` | bool |
+| `dimensiones_iguales` | bool (editor vs motor sin interfaz) |
+| `apariencia_visible` | bool (comparación lado a lado a 100% y 200% de zoom: sin diferencias perceptibles) |
+| `captura` | Referencia de la captura registrada por caso (obligatoria para sostener el veredicto) |
 | `nota` | Diferencias observadas, si las hay |
 
 Regla: 100% de casos con ambas propiedades verdaderas (SC-003).

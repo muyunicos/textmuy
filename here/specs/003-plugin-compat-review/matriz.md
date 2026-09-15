@@ -111,16 +111,16 @@
 | H-004 | PC-021 | BLOQUEANTE (prohibición de contrato) | Sin `localStorage` para fuentes, sin lecturas legacy (AGENTS.md §4.7 / Const. III) | `js/fonts.js` persistía y leía fuentes en `localStorage` (`saveCustomFonts`/`loadCustomFonts`, llamada en el init) | CORREGIDO_EN_REVISION | `js/fonts.js`: eliminadas ambas funciones y sus llamadas; las fuentes van solo por el catálogo y `op=alta`. Re-verificado: grep = 0 usos reales; 10/10 suites OK |
 | H-006 | PC-014 | BLOQUEANTE (Const. II, non-negotiable) | Sin WebGL la API falla con causa; nunca degrada en silencio | No existía compuerta: `render-core` comparte `editor.js`, que cae al fallback 2D con solo un `console.warn` | CORREGIDO_EN_REVISION | `js/api.js`: `assertWebGLDisponible()` invocada al inicio de `renderTextToPNG` (causa `render:webgl:no_disponible`). El editor conserva su fallback documentado |
 | H-005 | PC-023 | DOCUMENTAL | La documentación vigente describe el estado real | `modules/textmuy/AGENTS.md` declaraba "hoy **RC27**" con RC28 real en ambos HTML | CORREGIDO_EN_REVISION | `AGENTS.md:141` → RC29 (tras el bump de esta revisión) |
-| H-003 | PC-010 | BLOQUEANTE para el administrador (datos) | Estilos guardados con refs numéricas (`font.src` por id) | **10/10 `.txm` del administrador usan refs legacy** (`"src": "Bebas Neue"`, `"Montserrat"`, `"Cinzel"`, y refs de imagen en data-URL) → el módulo los rechaza con causa "volver a guardar el preset desde el editor" | REGISTRADO | Acción del administrador (no es corrección de código): re-guardar cada estilo desde la pestaña "Estilos de Texto" para convertirlos al formato con refs numéricas. El comportamiento del módulo es el documentado y no se migra bajo demanda |
+| H-003 | PC-010 | BLOQUEANTE-DATOS | Estilos guardados con refs numéricas (`font.src` por id) | **10/10 `.txm` del administrador usan refs legacy** (`"src": "Bebas Neue"`, `"Montserrat"`, `"Cinzel"`, y refs de imagen en data-URL) → el módulo los rechaza con causa "volver a guardar el preset desde el editor" | REGISTRADO | Acción del administrador (no es corrección de código): re-guardar cada estilo desde la pestaña "Estilos de Texto" para convertirlos al formato con refs numéricas. El comportamiento del módulo es el documentado y no se migra bajo demanda |
 | H-002 | PC-008 | — (descartado) | Sprites persistidos por ámbito | No hay `thumbs.webp` en disco | NO ES HALLAZGO | Generación perezosa por el motor (`op=sprite`) con fallback en galerías; verificado en `assets/miniaturas.js` |
 
 ## 3. Verificaciones de paridad
 
 **CONDICIONADO**: requiere la sesión integrada en navegador (T011-T012). Los casos del conjunto representativo (relleno simple, relleno con imagen, contorno, sombras, relieve, distorsión, icono, fondo, líneas L1-L3) están definidos en `quickstart.md` §3; la tabla se completa en esa sesión.
 
-| Caso | Dimensiones iguales | Equivalencia visual | Nota |
-|------|---------------------|---------------------|------|
-| (pendiente de ejecución integrada) | — | — | Base estática: editor y `render-core` cargan los mismos `js/` (paridad por construcción, pendiente de confirmación visual) |
+| Caso | Dimensiones iguales | Apariencia visible (sin diferencias perceptibles) | Captura | Nota |
+|------|---------------------|---------------------------------------------------|---------|------|
+| (pendiente de ejecución integrada) | — | — | — | Base estática: editor y `render-core` cargan los mismos `js/` (paridad por construcción, pendiente de confirmación visual a 100% y 200% de zoom) |
 
 ## 4. Correcciones documentales aplicadas
 
@@ -129,6 +129,8 @@
 | `modules/textmuy/AGENTS.md` (§4.6) | Número de cache-bust declarado (RC27) ≠ valor real (RC28→RC29) |
 
 ## 5. Pendientes registrados
+
+*Espejo de §1/§2: derivan de los PC CONDICIONADO y del hallazgo H-003 (resolución REGISTRADO).*
 
 | Pendiente | Tipo | Dependency / acción |
 |-----------|------|---------------------|
