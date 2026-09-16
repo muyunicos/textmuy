@@ -86,6 +86,19 @@ assert.ok(CAT && API && API.prepareImgRefs, 'TextMuyCatalog y TextMuyAPI.prepare
     const libre = { icon: { active: true, src: 3 } };
     await assert.rejects(API.prepareImgRefs(libre), /img:3:ausente o invalido/);
 
+
+    // RC32: refs numerico-string (p.ej. '2' desde bordes que escriben
+    // strings): se normalizan al id y resuelven igual que el number.
+    const str = { fill: { texture: { active: true, src: '1' } }, icon: { active: true, src: '2' } };
+    assert.equal(CAT.hasNumericImgRefs(str), true, 'string numerico detectado');
+    await API.prepareImgRefs(str);
+    assert.equal(str.fill.texture.src, 'img/a.webp');
+    assert.equal(str.icon.src, 'img/b.svg');
+
+    // RC32: urlDeImgRef normaliza numerico-string sin fetch extra.
+    assert.equal(API.urlDeImgRef('1'), 'img/a.webp');
+    assert.equal(API.urlDeImgRef('img/x.png'), 'img/x.png');
+
     // 6. walker puro: hasNumericImgRefs detecta (base + overrides + layers).
     assert.equal(CAT.hasNumericImgRefs({ fill: { texture: { src: 5 } } }), true);
     assert.equal(CAT.hasNumericImgRefs({ lines: { overrides: { L2: { icon: { src: 7 } } } } }), true);

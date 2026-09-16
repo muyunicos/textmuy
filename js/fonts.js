@@ -390,7 +390,13 @@
         });
     }
 
+    // RC32: defensa de borde - si llega el objeto font entero ({src,...})
+    // (pasaba desde loadPreset), se resuelve a su clave antes de cargar.
     function loadFont(fontKey) {
+        if (fontKey && typeof fontKey === 'object') {
+            try { fontKey = resolveFontFromPreset(fontKey); }
+            catch (e) { return Promise.reject(e); }
+        }
         // Clave numerica (id de catalogo): se resuelve a su spec/file
         // antes de cargar. El resto del flujo no cambia.
         if (typeof fontKey === 'number' && Math.floor(fontKey) === fontKey && fontKey >= 1) {
@@ -659,17 +665,25 @@
         if (!window.ThumbEngine) {
             return Promise.resolve(null);
         }
+        // RC32: esperar el catalogo (bridge-ready + 1200ms max) y las fisicas
+        // ANTES de armar los items. Sin esto, abrir la galeria rapido armaba
+        // el sprite con catalogFonts vacio (solo registry) -> tiles ausentes y
+        // reconstrucciones pesadas en cada apertura.
+        return Promise.resolve()
+            .then(function () { return loadCatalog(); })
+            .then(function () { return loadUserFonts().catch(function () { return []; }); })
+            .then(function () {
         // Items = catalogo (fonts.json: online Google + fisicas del json) +
         // fisicas del puente registradas. Las online se dibujan con fuente del
         // sistema (cero red/cero FontFace: el preview real es lazy al elegir).
         var items = [];
         Object.keys(catalogFonts).forEach(function (id) {
             var e = catalogFonts[id];
-            items.push({ nombre: id, name: e.titulo || id, key: id, online: !!e.online });
+            items.push({ nombre: String(id), name: e.titulo || id, key: String(id), online: !!e.online });
         });
         getAvailableFonts().forEach(function (f) {
             if (catalogFonts[f.key]) return;
-            items.push({ nombre: f.key, name: f.name, key: f.key, online: false });
+            items.push({ nombre: String(f.key), name: f.name, key: String(f.key), online: false });
         });
 
         var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
@@ -682,13 +696,29 @@
             render: renderFontPreview,
             baseUrl: (bF && bF.urls && bF.urls.fuentesBase) ? bF.urls.fuentesBase : ''
         });
+            });
     }
 
     // Cambia la fuente generica inicial (p.ej. al elegir una real en la
     // galeria o al cargar el template predeterminado).
+    // RC32: NUNCA aceptar una clave del registry como familia por defecto.
+    // El picker enviaba 'user-70' y contaminaba DEFAULT_FONT_FAMILY -> todas
+    // las Google caian en fallback y ninguna se aplicaba.
+    function familiaDeClave(key) {
+        if (fontRegistry[key] && fontRegistry[key].name) return fontRegistry[key].name;
+        if (catalogFonts[key]) return catalogFonts[key].titulo || catalogFonts[key].file || key;
+        if (typeof key === 'string' && /^[0-9]+$/.test(key) && catalogFonts[+key]) {
+            return catalogFonts[+key].titulo || catalogFonts[+key].file || key;
+        }
+        var porTitulo = (typeof key === 'string') ? resolverIdPorTitulo(key) : null;
+        if (porTitulo !== null && catalogFonts[porTitulo]) {
+            return catalogFonts[porTitulo].titulo || catalogFonts[porTitulo].file || key;
+        }
+        return key;
+    }
     function setDefaultFont(family) {
         if (typeof family === 'string' && family.trim()) {
-            DEFAULT_FONT_FAMILY = family.trim();
+            DEFAULT_FONT_FAMILY = familiaDeClave(family.trim());
         }
         return DEFAULT_FONT_FAMILY;
     }

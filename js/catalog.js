@@ -207,12 +207,21 @@
         });
         return settings;
     }
+    /* Id numerico entero >= 1 en forma number o string numerico ("47"). */
+    /* RC32: los ids escritos como string llegaban al render como URL
+     * relativas (-> GET modules/textmuy/47 404) y hasNumericImgRefs no los
+     * veia, asi prepareImgRefs jamas los resolvia. */
+    function esIdNumerico(v) {
+        if (typeof v === 'number') return isFinite(v) && Math.floor(v) === v && v >= 1;
+        if (typeof v === 'string' && /^[0-9]+$/.test(v.trim())) { var n = +v.trim(); return n >= 1; }
+        return false;
+    }
     /* true si el settings trae al menos una ref de imagen numerica. */
     function hasNumericImgRefs(settings) {
         var found = false;
         try {
             mapImgRefs(settings, function (v) {
-                if (typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 1) found = true;
+                if (esIdNumerico(v)) found = true;
                 return v;
             });
         } catch (_) { /* fn no lanza aqui */ }
@@ -223,6 +232,7 @@
         parseCats: parseCats,
         classifyEntry: classifyEntry,
         parseCatalog: parseCatalog,
+        esIdNumerico: esIdNumerico,
         requireId: requireId,
         tileDeId: tileDeId,
         huecoParaAlta: huecoParaAlta,

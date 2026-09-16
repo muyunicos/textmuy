@@ -763,17 +763,25 @@
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
 
+        // RC32: refs numericas de imagen (number o string "47") se resuelven
+        // via prepareImgRefs; hasta entonces se omiten (cero 404 de ruido).
+        function esRefImgNumerica(v) {
+            if (typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 1) return true;
+            if (typeof v === 'string' && window.TextMuyCatalog && window.TextMuyCatalog.esIdNumerico
+                && window.TextMuyCatalog.esIdNumerico(v)) return true;
+            return false;
+        }
         // Load icon image if needed (refs numericas se resuelven via
         // prepareImgRefs; hasta entonces se omiten, cero 404 de ruido)
-        if (isActive(s, 'icon') && safeGet(s, 'icon.src') && typeof safeGet(s, 'icon.src') !== 'number') {
+        if (isActive(s, 'icon') && safeGet(s, 'icon.src') && !esRefImgNumerica(safeGet(s, 'icon.src'))) {
             loadIconImage(s.icon.src);
         }
 
         // Load texture images if needed
-        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src') && typeof safeGet(s, 'fill.texture.src') !== 'number') {
+        if (isActive(s, 'fill.texture') && safeGet(s, 'fill.texture.src') && !esRefImgNumerica(safeGet(s, 'fill.texture.src'))) {
             loadTextureImage(s.fill.texture.src);
         }
-        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src') && typeof safeGet(s, 'outline.texture.src') !== 'number') {
+        if (isActive(s, 'outline.texture') && safeGet(s, 'outline.texture.src') && !esRefImgNumerica(safeGet(s, 'outline.texture.src'))) {
             loadTextureImage(s.outline.texture.src);
         }
 
@@ -2932,7 +2940,19 @@
                 el.checked = Boolean(value);
             } else if ((el.value !== undefined) &&
                 (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
-                el.value = (value !== undefined && value !== null) ? value : '';
+                // RC32: el sync por linea entregaba objetos {r,g,b} crudos a los
+                // <input type=color> (-> warning "[object Object]" del log).
+                // colorToHex vive en este modulo; si no es input de color y el
+                // valor no es primitivo, no se escribe (era '' que limpiaba selects).
+                var esColor = (el.type === 'color') || (el.getAttribute && el.getAttribute('type') === 'color');
+                if (esColor && value !== undefined && value !== null && typeof value === 'object') {
+                    try { el.value = (typeof colorToHex === 'function') ? colorToHex(value) : ''; }
+                    catch (_) { el.value = ''; }
+                } else if (value !== undefined && value !== null && typeof value === 'object') {
+                    /* objeto en input no-color: se deja el valor actual del control */
+                } else {
+                    el.value = (value !== undefined && value !== null) ? value : '';
+                }
             }
             // Marcar override propio vs heredado (syncControlsFromTarget, paso 4):
             // data-line-override="1" si la linea define el path, "0" si hereda.
@@ -3553,9 +3573,16 @@
             // Update UI elements
             updateUIFromSettings();
 
-            // Trigger font load and render
-            if (window.FontLoader && FontLoader.isCustomFont(s.font.src || s.font)) {
-                FontLoader.loadFont(s.font).then(function() {
+            // Trigger font load and render (RC32: loadFont recibe la CLAVE
+            // resuelta por resolveFontFromPreset, nunca el objeto s.font: el
+            // objeto caia en la rama de fallback del registry con 404 ruidoso).
+            if (window.FontLoader && FontLoader.resolveFontFromPreset){
+                Promise.resolve().then(function(){ return FontLoader.resolveFontFromPreset(s.font); })
+                    .then(function(key){ return FontLoader.loadFont(key); })
+                    .catch(function(e){ console.warn((e && e.message) || e); })
+                    .then(function(){ render(); });
+            } else if (window.FontLoader && FontLoader.isCustomFont(s.font.src || s.font)) {
+                FontLoader.loadFont(s.font.src || s.font).then(function() {
                     render();
                 });
             } else {

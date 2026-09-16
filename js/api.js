@@ -120,6 +120,10 @@
     // Para ids usa el catalogo sincrono; si aun no cargo, '' (el re-render
     // tras prepareImgRefs pinta la preview). Strings se devuelven tal cual.
     function urlDeImgRef(ref) {
+        // RC32: id escrito como string ("47") -> id numerico. Sin esto la
+        // ref se devolvia como URL relativa y generaba GET .../textmuy/47 404.
+        if (typeof ref === 'string' && window.TextMuyCatalog && window.TextMuyCatalog.esIdNumerico
+            && window.TextMuyCatalog.esIdNumerico(ref)) ref = +String(ref).trim();
         if (typeof ref === 'number' && isFinite(ref) && Math.floor(ref) === ref && ref >= 1) {
             var cat = catalogSync.img;
             if (cat && cat.items && cat.items[ref] && cat.items[ref].file) {
@@ -146,6 +150,10 @@
         var base = (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : '';
         if (!base) throw new Error('img:sin_puente');
         window.TextMuyCatalog.mapImgRefs(settings, function (v) {
+            // RC32: refs numerico-string (p.ej. de .txm viejos o bordes que
+            // escriben strings) se normalizan al id numerico ANTES de resolver;
+            // asi se resuelven a URL en vez de fallar o pedir URL relativas.
+            if (typeof v === 'string' && window.TextMuyCatalog.esIdNumerico && window.TextMuyCatalog.esIdNumerico(v)) v = +v.trim();
             if (typeof v !== 'number' || !isFinite(v) || Math.floor(v) !== v || v < 1) return v;
             var e = parsed.items[v];
             if (!e || !e.file) throw new Error('img:' + v + ':ausente o invalido');
