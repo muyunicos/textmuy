@@ -9,32 +9,25 @@
 const CATS=['fondos','iconos','varios'];
 const ALL_TABS=CATS;
 let panel=null;
-let galeriaSpriteInfo = null; // { spriteImage, manifest, spriteUrl }
-function cargarSpriteGlobal() {
- if (!window.ThumbEngine || !PM() || !PM().listImages) return Promise.resolve(null);
- const todas = PM().listImages(); // todas las imagenes de todas las categorias
- if (!todas || !todas.length) return Promise.resolve(null);
- const items = todas.map(function(i){ return { nombre: i.nombre, url: i.url }; });
- var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
- return window.ThumbEngine.ensureSprite({
-  scope: 'img',
-  items: items,
-  ancho: 100,
-  alto: 100,
-  pad: true,
-  baseUrl: (b && b.urls && b.urls.imagenesBase) ? b.urls.imagenesBase : ''
- }).then(function(res) {
-  if (!res) return null;
-  return new Promise(function(resolve) {
-   const img = new Image();
-   img.onload = function() {
-    galeriaSpriteInfo = { spriteImage: img, manifest: res.manifest, spriteUrl: res.spriteUrl };
-    resolve(galeriaSpriteInfo);
-   };
-   img.onerror = function() { resolve(null); };
-   img.src = res.spriteUrl;
-  });
- }).catch(function() { return null; });
+// Sprite canonico 'img' (RC33): lectura directa del thumbs.webp del ambito con
+// celdas derivadas del id (tile = id-1, huecos estables). La hoja debe estar
+// CERTIFICADA por su catalogo (thumbs.sprite_firma); si no, se regenera UNA
+// sola vez (layout canonico + op=sprite con firma). Sin reconstrucciones en
+// cada apertura y sin N descargas de originales.
+let spriteEstadoImg='pendiente';   // pendiente | lista | ausente
+let spriteTrabajoImg=null;         // reconstruccion unica (anti re-entrada)
+function asegurarSpriteImg(){
+ if (spriteEstadoImg!=='pendiente') return Promise.resolve();
+ if (!window.TextMuyAPI || !window.TextMuyAPI.ensureSpriteCanonico){ spriteEstadoImg='ausente'; return Promise.resolve(); }
+ if (!spriteTrabajoImg){
+  spriteTrabajoImg = window.TextMuyAPI.ensureSpriteCanonico('img').then(function(s){
+    if (s){ spriteEstadoImg='lista'; return; }
+    return window.TextMuyAPI.reconstruirSpriteCanonico('img').then(function(){
+      return window.TextMuyAPI.ensureSpriteCanonico('img');
+    }).then(function(s2){ spriteEstadoImg = s2 ? 'lista' : 'ausente'; });
+  }).catch(function(){ spriteEstadoImg='ausente'; });
+ }
+ return spriteTrabajoImg;
 }
 
 function PM(){return window.PresetManager;}
@@ -180,6 +173,7 @@ function crearPanel(){
   async function cargar(){
   list.innerHTML='';status.textContent='';items=[];
   const q=(search.value||'').toLowerCase();
+  const vistosImg={}; // ids ya provistos por el catalogo (dedupe vs puente)
   if(fuenteActual==='presets'){
    // Formato unico (US3): presets.json numerico + sprite 200x100; si el
    // catalogo no existe (mirror sin migrar) cae al listado por nombre.
@@ -236,6 +230,7 @@ function crearPanel(){
     if(fuenteActual!=='misc'&&CATS.indexOf(fuenteActual)===-1){/* tab custom: no filtra */}
     if(CATS.indexOf(fuenteActual)!==-1&&cat!==fuenteActual&&fuenteActual!=='misc')return;
     if(q&&(('#'+id+' '+e.titulo+' '+e.file).toLowerCase().indexOf(q)<0))return;
+    vistosImg[id]=true;
     items.push({slug:id,titulo:e.titulo||('#'+id),src:imgUrl(e.file),thumb:imgUrl(e.file),categoria:cat,enUso:false,tipo:'catalogo',imgId:id,imgFile:e.file});
    });
    if(nInv||nLib)status.textContent=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
@@ -244,10 +239,16 @@ function crearPanel(){
   if(!bridgeOK()){if(!items.length)status.textContent=status.textContent||'Requiere el plugin (iframe).';montarTabs();ocultarUpload(false);render();return;}
   let imgs=PM().listImages(fuenteActual);
   if(q)imgs=imgs.filter(function(i){return (i.nombre+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
+  // Dedupe (RC33): el catalogo ya trae TODOS los recursos con id; el puente
+  // es solo fallback para entradas sin id. Sin esto cada imagen salia doble.
+  imgs=imgs.filter(function(i){return !(i.id&&vistosImg[i.id]);});
   for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server',imgId:(typeof i.id==='number'&&i.id>=1)?i.id:null});}
   montarTabs();ocultarUpload(false);
-  if (!galeriaSpriteInfo) {
-   cargarSpriteGlobal().then(function(){ render(); });
+  // Sprite canonico: render inmediato con placeholders y repintado al llegar
+  // (evita las N descargas de originales mientras la hoja viaja).
+  if (spriteEstadoImg === 'pendiente') {
+   render();
+   asegurarSpriteImg().then(function(){ if(spriteEstadoImg!=='pendiente') render(); });
   } else {
    render();
   }
@@ -280,14 +281,17 @@ function crearPanel(){
    t.type='button';t.dataset.slug=it.slug;t.title=it.titulo;
    const img=document.createElement('img');
    img.loading='lazy';img.alt=it.titulo;
-   // Render con tile del sprite global o fallback
-   if (it.tipo === 'server' && galeriaSpriteInfo && window.ThumbEngine && window.ThumbEngine.tile(galeriaSpriteInfo.manifest, it.slug)) {
-    const cv = document.createElement('canvas');
-    cv.width = 100;
-    cv.height = 100;
-    const ctx = cv.getContext('2d');
-    window.ThumbEngine.drawTile(ctx, galeriaSpriteInfo.spriteImage, galeriaSpriteInfo.manifest, it.slug, 0, 0, 100, 100);
-    t.appendChild(cv);
+   // RC33: tile canonico por id (thumbs.webp del ambito). Si la hoja aun
+   // viaja -> placeholder (NO se descargan los originales); si no hay hoja
+   // posible -> <img> del original como ultimo recurso.
+   let tileListo=null;
+   if (typeof it.imgId === 'number' && it.imgId >= 1 && spriteEstadoImg === 'lista' && window.TextMuyAPI) {
+    tileListo = window.TextMuyAPI.drawTileCanonico('img', it.imgId);
+   }
+   if (tileListo) {
+    t.appendChild(tileListo);
+   } else if (typeof it.imgId === 'number' && it.imgId >= 1 && it.tipo !== 'preset' && spriteEstadoImg === 'pendiente') {
+    t.appendChild(el('tt-galpanel-ph','span',it.titulo));
    } else {
     img.src = (it.tipo === 'server' && it.thumb) ? it.thumb : srcVista(it);
     t.appendChild(img);

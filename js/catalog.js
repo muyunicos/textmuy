@@ -140,6 +140,60 @@
         return { x: col * w, y: row * h, w: w, h: h, col: col, row: row };
     }
 
+    /* Manifiesto canonico del sprite de un ambito: tile = id-1 con huecos
+     * estables. No depende del orden del catalogo: la posicion de cada id es
+     * determinista via tileDeId. Los tombstones quedan como huecos (null),
+     * asi un alta/baja nunca reordena los tiles existentes.
+     * Retorna {scope, tile:{ancho,alto}, columnas, filas, tiles:[{id,x,y,..}|null]}.
+     * thumbs invalido -> lanza (el llamador usa fallback controlado). */
+    function manifestDeSprite(parsed, ambito) {
+        if (!parsed || !parsed.thumbs) throw new Error((ambito || 'sprite') + ':thumbs:ausente');
+        var thumbs = parsed.thumbs;
+        var w = thumbs.w | 0, h = thumbs.h | 0, c = thumbs.c | 0;
+        if (!(w > 0) || !(h > 0) || !(c > 0)) {
+            throw new Error((ambito || 'sprite') + ':thumbs:invalido');
+        }
+        var max = parsed.maxId | 0;
+        var filas = Math.max(1, Math.ceil(Math.max(1, max) / c));
+        var tiles = [];
+        for (var id = 1; id <= Math.max(1, max); id++) {
+            var entry = parsed.items ? parsed.items[id] : null;
+            if (entry && entry.file) {
+                var t = tileDeId(id, thumbs);
+                tiles.push({ id: id, nombre: String(id), x: t.x, y: t.y, w: w, h: h });
+            } else {
+                tiles.push(null); // hueco estable (tombstone o id sin uso)
+            }
+        }
+        return { scope: ambito || '', tile: { ancho: w, alto: h }, columnas: c, filas: filas, tiles: tiles };
+    }
+
+    /* Posicion esperada del tile del id dentro de un sprite canonico ya
+     * cargado. null si el sprite no es canonico para ese id. */
+    function celdaDeSprite(spriteImage, canon, id) {
+        if (!spriteImage || !canon || !(id >= 1)) return null;
+        var esperado = null;
+        try { esperado = tileDeId(id, { w: canon.tile.ancho, h: canon.tile.alto, c: canon.columnas }); }
+        catch (_) { return null; }
+        if (esperado.x + esperado.w > (spriteImage.naturalWidth || spriteImage.width || 0)) return null;
+        if (esperado.y + esperado.h > (spriteImage.naturalHeight || spriteImage.height || 0)) return null;
+        return esperado;
+    }
+
+    /* Firma canonica del catalogo: dims de reticula + tuplas crudas.
+     * DEBE coincidir con PMU_Uploads::sprite ([w,h,c,items]) o el motor
+     * rechaza la hoja con 'motor:sprite:catalogo:desactualizado'. Certifica
+     * que un thumbs.webp pertenece al catalogo vigente (una hoja vieja con
+     * las mismas dimensiones NO se reutiliza). */
+    function firmaCatalogo(thumbs, items) {
+        return JSON.stringify([
+            (thumbs && thumbs.w) | 0,
+            (thumbs && thumbs.h) | 0,
+            (thumbs && thumbs.c) | 0,
+            Array.isArray(items) ? items : []
+        ]);
+    }
+
     /* Hueco para un alta: tombstone mas bajo, o maxId+1. */
     function huecoParaAlta(parsed) {
         if (parsed.libres.length) return parsed.libres[0];
@@ -233,6 +287,9 @@
         classifyEntry: classifyEntry,
         parseCatalog: parseCatalog,
         esIdNumerico: esIdNumerico,
+        firmaCatalogo: firmaCatalogo,
+        manifestDeSprite: manifestDeSprite,
+        celdaDeSprite: celdaDeSprite,
         requireId: requireId,
         tileDeId: tileDeId,
         huecoParaAlta: huecoParaAlta,

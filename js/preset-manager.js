@@ -74,7 +74,21 @@
         return [];
     }
 
-    /** POST al endpoint unico del motor con la credencial nonces.motor. */
+    /** Invalida la cache del sprite del ambito: ThumbEngine (memoria) y el
+     *  lector canonico (TextMuyAPI). Toda mutacion (alta/baja/edicion) la
+     *  llama para que la proxima galeria no reutilice una hoja vieja. */
+    function invalidarSprite(ambito) {
+        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
+            try { window.ThumbEngine.invalidate(ambito); } catch (_) {}
+        }
+        if (window.TextMuyAPI && window.TextMuyAPI.invalidarSpriteCanonico) {
+            try { window.TextMuyAPI.invalidarSpriteCanonico(ambito); } catch (_) {}
+        }
+    }
+    /** Detalle del listado de presets (con id de catalogo). */
+    function listPresetsDetalle() {
+        return (bridge && Array.isArray(bridge.presets)) ? bridge.presets.slice() : [];
+    }
     async function motorPost(op, fd) {
         fd.append('op', op);
         fd.append('_wpnonce', bridge.nonces.motor);
@@ -294,9 +308,7 @@
             }
         }
         thumbnailCache.delete(safe);
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('tm-presets'); } catch (_) {}
-        }
+        invalidarSprite('tm-presets');
         return { name: safe, mode: 'server' };
     }
 
@@ -315,9 +327,7 @@
             });
         }
         thumbnailCache.delete(safe);
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('tm-presets'); } catch (_) {}
-        }
+        invalidarSprite('tm-presets');
         return true;
     }
 
@@ -361,9 +371,7 @@
             });
             bridge.imagenes.push(salida);
         }
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
-        }
+        invalidarSprite('img');
         return salida;
     }
 
@@ -381,9 +389,7 @@
                 return im.nombre !== (item.nombre || item.slug);
             });
         }
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
-        }
+        invalidarSprite('img');
         return true;
     }
 
@@ -415,9 +421,7 @@
             });
             bridge.imagenes.push(itemNuevo);
         }
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('img'); } catch (_) {}
-        }
+        invalidarSprite('img');
         return itemNuevo;
     }
 
@@ -465,9 +469,7 @@
             // Re-registrar: quitar la vieja y dar de alta la nueva via sync.
             try { window.FontLoader.deleteCustomFont(item.fontKey || item.slug); } catch (_) {}
         }
-        if (window.ThumbEngine && window.ThumbEngine.invalidate) {
-            try { window.ThumbEngine.invalidate('fonts'); } catch (_) {}
-        }
+        invalidarSprite('fonts');
         return itemNuevo;
     }
 
@@ -563,6 +565,7 @@
     window.PresetManager = {
         // Listado y carga (archivos .txm de uploads/pmu/tm-presets/)
         listPresets,
+        listPresetsDetalle,
         listImages,
         loadPreset,
         fetchPreset,

@@ -181,7 +181,8 @@ textmuy/
 - **`controls.js`**: binding de la UI al settings (inputs, sub-menús STYLES, anti-drag,
   bindCanvasDimension, gradient colors).
 - **`galeria.js`**: componente único de galería de imágenes (tabs, búsqueda, subida,
-  preview en vivo con rollback).
+  preview en vivo con rollback); lee el sprite `img` canónico (`tile = id-1`) y deduplica
+  el inventario del puente contra el catálogo (identidad = `id`).
 - **`fuentes-galeria.js`**: galería de fuentes (mismo patrón visual `tt-galpanel-*`:
   buscador, tabs por categoría dinámica, tiles con preview o sprite `fonts`, upload
   TTF/OTF/WOFF/WOFF2, footer nombre+categoría+Save/Delete/Select, botón "+ Categoría").
@@ -221,6 +222,15 @@ textmuy/
   salto + warn + contador visible; en render = rechazo con causa. Los `.txm` referencian
   la fuente por TÍTULO (`font.src` string = título del catálogo o spec Google, o su `id`
   numérico) y las imágenes por id numérico.
+- ✅ **Sprite canónico por ámbito (RC33)**: las galerías LEEN el `thumbs.webp` del
+  servidor y derivan la celda del `id` (`tile = id-1`, huecos estables por tombstone);
+  NO reconstruyen la hoja al abrir. La hoja se acepta solo si está **certificada**:
+  el catálogo guarda `thumbs.sprite_firma` (`[w,h,c,items]`, ver
+  `catalog.js::firmaCatalogo` = `PMU_Uploads::sprite`) y debe coincidir con el catálogo
+  leído (una hoja vieja con las mismas dimensiones NO se reutiliza). Sin certificar o
+  con retícula distinta: `ensureSpriteCanonico` devuelve `null` y el llamador
+  **regenera una sola vez** (`reconstruirSpriteCanonico`, layout canónico + `op=sprite`
+  con `firma`); toda mutación invalida la firma (`invalidarSpriteCanonico`).
 - ✅ **Fuentes**: catálogo con Google lazy por familia (sin extensión) y físicas subidas
   por el administrador (ámbito `fonts`), con preview desde el sprite del ámbito.
 - ✅ **Efectos WebGL con fallback a Canvas 2D en el editor**; en la ruta de la API, sin

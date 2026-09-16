@@ -86,6 +86,8 @@
             var parsed;
             if (window.TextMuyCatalog) parsed = window.TextMuyCatalog.parseCatalog(data, ambito);
             else parsed = { items: {}, libres: [], invalidas: [], categorias: {}, maxId: 0, thumbs: { w: 0, h: 0, c: 1 } };
+            parsed.spriteFirma = data.thumbs && data.thumbs.sprite_firma;
+            parsed.firma = window.TextMuyCatalog.firmaCatalogo(data.thumbs, data.items);
             catalogSync[ambito] = parsed;
             return parsed;
         });
@@ -278,6 +280,154 @@
         return true;
     }
 
+    // Sprite canonico por ambito (Fase 1): el thumbs.webp se lee directo del
+    // servidor y la celda de cada id se deriva de catalogo.thumbs
+    // (tile = id-1, huecos estables). Sin N fetches de originales ni rebuild
+    // en el camino de lectura. El sprite lleva cache-bust por filemtime
+    // (ver PMU_Uploads::url_de): al mutar el ambito, el filemtime cambia y
+    // el navegador invalida solo. Cache en memoria por URL (sesion).
+    var spriteCache = {};   // spriteUrl -> Promise<Image>
+    var canonCache = {};    // ambito -> {canon, spriteUrl, spriteImage}
+    function spriteBaseDe(ambito) {
+        var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        var baseKey = CATALOGO_BASE[ambito];
+        var base = (b && b.urls && baseKey && b.urls[baseKey]) ? b.urls[baseKey] : '';
+        return base || '';
+    }
+    function spriteUrlDeAmbito(ambito) {
+        var base = spriteBaseDe(ambito);
+        if (!base) throw new Error(ambito + ':sprite:sin_puente');
+        return base.replace(/\/$/, '') + '/thumbs.webp';
+    }
+    function cargarImagenSprite(url) {
+        if (spriteCache[url]) return spriteCache[url];
+        // Revalidacion condicional (fetch cache:no-cache): 304 reutiliza la
+        // copia del navegador (cero descarga si la hoja no cambio) y 200 trae
+        // la hoja nueva. Sin ?v inventado y sin HEAD (el hosting lo bloquea).
+        var p = fetch(url, { cache: 'no-cache', credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.blob() : null; })
+            .then(function (blob) {
+                if (!blob) return null;
+                return new Promise(function (res) {
+                    var img = new Image();
+                    img.onload = function () { res(img); };
+                    img.onerror = function () { res(null); };
+                    img.src = URL.createObjectURL(blob);
+                });
+            });
+        spriteCache[url] = p;
+        p.then(function (img) { if (!img) delete spriteCache[url]; });
+        return p;
+    }
+    // Asegura el sprite canonico del ambito: {canon, spriteUrl, spriteImage}.
+    // Solo se acepta una hoja CERTIFICADA para el catalogo vigente: el
+    // catalogo guarda `thumbs.sprite_firma` (dims + tuplas) y debe coincidir
+    // con la firma del catalogo leido. Una hoja vieja (mismas dimensiones,
+    // otro contenido) NO se reutiliza: se devuelve null para que el llamador
+    // regenere. Cache en memoria por ambito (invalidada tras mutaciones).
+    async function ensureSpriteCanonico(ambito) {
+        if (!window.TextMuyCatalog || !window.TextMuyCatalog.manifestDeSprite) return null;
+        var parsed = null;
+        try { parsed = await loadCatalogo(ambito); } catch (_) { return null; }
+        if (!parsed || !parsed.items) return null;
+        if (parsed.spriteFirma === undefined || parsed.spriteFirma !== parsed.firma) {
+            return null; // sin certificar o catalogo cambio: regenerar
+        }
+        var canon = null;
+        try { canon = window.TextMuyCatalog.manifestDeSprite(parsed, ambito); }
+        catch (e) { console.warn((e && e.message) || e); return null; }
+        var url = '';
+        try { url = spriteUrlDeAmbito(ambito); } catch (e) { console.warn((e && e.message) || e); return null; }
+        var prev = canonCache[ambito];
+        if (prev && prev.spriteUrl === url && prev.canon && prev.firma === parsed.firma) return prev;
+        var img = await cargarImagenSprite(url);
+        if (!img) return null; // sprite ausente en servidor -> fallback controlado
+        // Dimensiones del archivo: deben ser exactamente las de la retícula.
+        if ((img.naturalWidth || img.width) !== canon.columnas * canon.tile.ancho
+            || (img.naturalHeight || img.height) !== canon.filas * canon.tile.alto) {
+            return null;
+        }
+        var out = { canon: canon, spriteUrl: url, spriteImage: img, firma: parsed.firma };
+        canonCache[ambito] = out;
+        return out;
+    }
+    // Dibuja el tile canonico del id en un canvas del tamano del tile.
+    // null si el sprite no cubre ese id (hoja vieja: el llamador regenera).
+    function drawTileCanonico(ambito, id) {
+        var memo = canonCache[ambito];
+        if (!memo || !memo.spriteImage || !memo.canon) return null;
+        var c = null;
+        try { c = window.TextMuyCatalog.celdaDeSprite(memo.spriteImage, memo.canon, id); }
+        catch (_) { c = null; }
+        if (!c) return null;
+        try {
+            var cv = document.createElement('canvas');
+            cv.width = c.w; cv.height = c.h;
+            cv.getContext('2d').drawImage(memo.spriteImage, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
+            return cv;
+        } catch (_) { return null; }
+    }
+
+    // Reconstruccion canonica UNA sola vez (sprite ausente en servidor o
+    // invalidado): dibuja los tiles en layout tile = id-1 (huecos incluidos,
+    // orden por id) y persiste via el motor (op=sprite, ThumbEngine). Con
+    // opciones.render (p.ej. fuentes) el callback provee el canvas/Image del
+    // tile; sin render, los items con url se descargan y encajan (pad en img).
+    // Devuelve el resultado de ThumbEngine (o null sin motor/catalogo).
+    async function reconstruirSpriteCanonico(ambito, opciones) {
+        opciones = opciones || {};
+        if (!window.ThumbEngine || !window.ThumbEngine.ensureSprite) return null;
+        var parsed = null;
+        try { parsed = await loadCatalogo(ambito); } catch (_) { return null; }
+        if (!parsed || !parsed.items || !parsed.thumbs) return null;
+        var base = spriteBaseDe(ambito);
+        if (!base) return null;
+        var items = [];
+        for (var id = 1; id <= parsed.maxId; id++) {
+            var e = parsed.items[id];
+            if (e && e.file) {
+                var it = { nombre: String(id), id: id, titulo: e.titulo, file: e.file, online: !!e.online };
+                it.url = (!e.online && !/^(https?:)?\/\//i.test(e.file)) ? base + e.file : '';
+                items.push(it);
+            } else {
+                items.push({ nombre: String(id), id: id }); // hueco estable
+            }
+        }
+        var res = null;
+        try {
+            res = await window.ThumbEngine.ensureSprite({
+                scope: ambito,
+                items: items,
+                ancho: parsed.thumbs.w | 0,
+                alto: parsed.thumbs.h | 0,
+                columnas: parsed.thumbs.c | 0,
+                pad: ambito === 'img',
+                baseUrl: base,
+                firma: parsed.firma,
+                render: opciones.render || null
+            });
+        } catch (_) { res = null; }
+        // El motor certifica el catalogo (thumbs.sprite_firma) al persistir la
+        // hoja: hay que releer el catalogo para que la lectura canonica valide.
+        if (res) invalidarCatalogo(ambito);
+        return res;
+    }
+    // Descarta la copia en memoria del catalogo del ambito: obliga a releerlo.
+    // Necesario tras reconstruir el sprite, porque el motor certifica el
+    // catalogo (thumbs.sprite_firma) recien al persistir la hoja.
+    function invalidarCatalogo(ambito) {
+        var base = spriteBaseDe(ambito);
+        if (base) delete catalogCache[base + CATALOGO_FILE[ambito]];
+        delete catalogSync[ambito];
+    }
+    // Invalida la cache canonica del ambito (tras alta/baja/edicion). El
+    // proximo ensureSpriteCanonico revalida y trae la hoja nueva (no-cache).
+    function invalidarSpriteCanonico(ambito) {
+        var prev = canonCache[ambito];
+        if (prev && prev.spriteUrl) delete spriteCache[prev.spriteUrl];
+        delete canonCache[ambito];
+    }
+
     window.TextMuyAPI = {
         renderTextToPNG: renderTextToPNG,
         renderBatch: renderBatch,
@@ -289,6 +439,10 @@
         loadCatalogoSync: loadCatalogoSync,
         urlDeImgRef: urlDeImgRef,
         prepareImgRefs: prepareImgRefs,
+        ensureSpriteCanonico: ensureSpriteCanonico,
+        reconstruirSpriteCanonico: reconstruirSpriteCanonico,
+        invalidarSpriteCanonico: invalidarSpriteCanonico,
+        drawTileCanonico: drawTileCanonico,
         clearPresetCache: clearPresetCache
     };
 })();

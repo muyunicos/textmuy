@@ -73,3 +73,36 @@ r = C.classifyEntry([7, 'Sola', '', 'Sola'], { ambito: 'fonts', pos: 0 });
 assert.deepEqual(r.entry.categorias, ['custom']);
 
 console.log('OK: catalog-unified.test.js');
+
+/* ===== RC33 (Fase 1): sprite canonico tile = id-1 ===== */
+// manifestDeSprite: layout determinista con huecos estables (tombstones ->
+// null; un alta/baja nunca reordena los tiles existentes).
+const cat2 = C.parseCatalog({ thumbs: { w: 100, h: 100, c: 2 }, items: [
+    [1, 'A', 'fondos', 'a.webp'],
+    [2, '', '', ''],
+    [4, 'D', 'iconos', 'd.webp']
+] }, 'img');
+assert.equal(cat2.maxId, 4);
+const man = C.manifestDeSprite(cat2, 'img');
+assert.equal(man.columnas, 2);
+assert.equal(man.filas, 2);
+assert.equal(man.tiles.length, 4);
+assert.deepEqual(man.tiles[0], { id: 1, nombre: '1', x: 0, y: 0, w: 100, h: 100 });
+assert.equal(man.tiles[1], null, 'tombstone -> hueco estable');
+assert.equal(man.tiles[2], null, 'id sin uso -> hueco estable');
+assert.deepEqual(man.tiles[3], { id: 4, nombre: '4', x: 100, y: 100, w: 100, h: 100 });
+// thumbs invalido -> lanza (el llamador usa fallback controlado).
+assert.throws(() => C.manifestDeSprite({ thumbs: { w: 0, h: 100, c: 2 }, items: [], maxId: 0 }, 'img'), /thumbs/);
+
+// celdaDeSprite: celda del id si entra en el lienzo; null si excede.
+const fake = { naturalWidth: 200, naturalHeight: 200, width: 200, height: 200 };
+assert.deepEqual(C.celdaDeSprite(fake, man, 4), { x: 100, y: 100, w: 100, h: 100, col: 1, row: 1 });
+assert.deepEqual(C.celdaDeSprite(fake, man, 1), { x: 0, y: 0, w: 100, h: 100, col: 0, row: 0 });
+assert.equal(C.celdaDeSprite(fake, man, 5), null, 'id 5 excede la hoja (hoja vieja)');
+assert.equal(C.celdaDeSprite(null, man, 1), null);
+
+// firmaCatalogo: contrato compartido con PMU_Uploads::sprite ([w,h,c,items]).
+assert.equal(C.firmaCatalogo({ w: 100, h: 100, c: 2 }, [['a']]), JSON.stringify([100, 100, 2, [['a']]]));
+assert.equal(C.firmaCatalogo(null, null), JSON.stringify([0, 0, 0, []]));
+assert.notEqual(C.firmaCatalogo({ w: 100, h: 100, c: 2 }, cat2.items.length ? [[1]] : []),
+    C.firmaCatalogo({ w: 100, h: 100, c: 2 }, [[2]]), 'catalogo distinto -> firma distinta');

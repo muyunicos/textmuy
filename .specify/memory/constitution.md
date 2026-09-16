@@ -148,6 +148,17 @@ sin tildes. `localStorage` PROHIBIDO para recursos (sin lecturas
 legacy). Sin lectores de formatos superados en los parsers: un
 formato o un error con causa.
 
+La lectura de un sprite MUST ser canonica y certificada: la celda de
+un recurso se DERIVA de su `id` (tile `id-1`, huecos estables) y la
+hoja MUST coincidir con su catalogo via `thumbs.sprite_firma`
+(`[w,h,c,items]`); una hoja sin certificar, con reticula distinta o
+con catalogo cambiado MUST NOT usarse. Regenerarla es una operacion
+EXCEPCIONAL (una vez por cambio real) y MUST pasar por `op=sprite`
+del motor, que valida firma y dimensiones, rechaza con causa y
+certifica el catalogo al persistir. Mutar un ambito MUST invalidar
+esa certificacion. Las galerias MUST NOT reconstruir la hoja al
+abrirse.
+
 ## Flujo de Desarrollo y Puertas de Calidad
 
 AGENTS.md MUST leerse completo antes de editar; si algo no esta
@@ -173,7 +184,23 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 3.1.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-14
+**Version**: 3.1.1 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-16
+
+## Sync Impact Report (v3.1.1, 2026-09-16)
+
+- **Bump**: PATCH — clarificacion de restricciones tecnicas (lectura de
+  sprites) sin cambio de contrato del puente.
+- **Modificado**: seccion de restricciones tecnicas — la lectura de
+  `thumbs.webp` MUST ser canonica y certificada (`thumbs.sprite_firma`),
+  la regeneracion es excepcional via `op=sprite` (valida firma y
+  dimensiones, rechaza con causa y certifica el catalogo) y mutar un
+  ambito invalida la certificacion. Corrige la afirmacion previa de que
+  el modulo nunca escribe sprites (el motor ya los persistia por
+  `op=sprite`).
+- **Impacto en el plugin**: `PMU_Uploads::sprite` gana `firma` +
+  validacion de dimensiones; `guardar_catalogo` invalida la firma del
+  ambito `img`. Requiere desplegar plugin y modulo en el mismo paso.
+
 
 ## Sync Impact Report (v3.1.0, 2026-09-14)
 
