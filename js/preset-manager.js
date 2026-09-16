@@ -186,12 +186,16 @@
     function settingsFromDelta(delta) {
         const settings = JSON.parse(JSON.stringify(getDefaults()));
         applyDelta(settings, delta);
-        // Formato unico (Q4, ruptura total): font.src MUST ser id
-        // numerico. String legacy -> rechazo con causa y accion.
+        // `font.src` canonico: STRING (titulo del catalogo o spec Google) o id
+        // numerico entero >= 1. El editor escribe strings (picker) y
+        // FontLoader los resuelve por titulo; cualquier otro tipo (objeto,
+        // vacio) es un formato invalido y se rechaza con causa.
         var src = settings && settings.font && settings.font.src;
         if (src !== undefined && src !== null && src !== '') {
-            if (typeof src !== 'number' || Math.floor(src) !== src || src < 1) {
-                throw new Error('presets:' + ((delta && delta.name) || '?') + ':font.src string (legacy "' + src + '"): re-guardar el preset desde el editor');
+            var esId = (typeof src === 'number' && Math.floor(src) === src && src >= 1);
+            var esTitulo = (typeof src === 'string' && src.trim() !== '');
+            if (!esId && !esTitulo) {
+                throw new Error('presets:' + ((delta && delta.name) || '?') + ':font.src invalido (' + (typeof src) + '): volver a elegir la fuente en el editor');
             }
         }
         return settings;
@@ -520,19 +524,6 @@
     function isFileProtocol() {
         try { return typeof location !== 'undefined' && location.protocol === 'file:'; }
         catch (_) { return false; }
-    }
-
-    async function imagenExiste(url) {
-        try {
-            // GET en vez de HEAD: el hosting rechaza HEAD sobre estaticos de
-            // uploads aunque GET responde 200. Se cancela el body apenas
-            // llegan las cabeceras (no se baja el archivo).
-            const resp = await fetch(url, { cache: 'no-store' });
-            if (resp.body && typeof resp.body.cancel === 'function') {
-                try { await resp.body.cancel(); } catch (_) { /* ya cerrado */ }
-            }
-            return resp.ok;
-        } catch (_) { return false; }
     }
 
     /**

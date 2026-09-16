@@ -18,7 +18,7 @@ global.fetch = function() {
     return Promise.resolve({
         ok: true,
         json: function() {
-            // Delta numerico (formato unico): font.src id, sin strings.
+            // Delta valido: font.src canonico (id del catalogo o string).
             return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { n: fetchCalls, font: { src: 1 } } });
         }
     });
@@ -53,10 +53,9 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
     assert.equal(v1.n, 1, 'the .txm delta must be applied via settingsFromDelta');
     assert.equal(fetchCalls, 1, 'only one fetch for repeated loads');
 
-    // 1b. Delta legacy con font.src string -> rechazo con causa (Q4).
-    // El rechazo NO queda cacheado (igual que un fallo de red): el
-    // retry con delta numerico debe resolverse.
-    const fetchNumerico = global.fetch;
+    // 1b. font.src string (titulo del catalogo / spec Google) -> canonico:
+    // se acepta y se aplica tal cual.
+    const fetchBase = global.fetch;
     global.fetch = function() {
         return Promise.resolve({
             ok: true,
@@ -65,10 +64,23 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
             }
         });
     };
-    await assert.rejects(API.loadPresetByName('legacy-str'), /legacy/);
-    global.fetch = fetchNumerico;
-    const relegado = await API.loadPresetByName('legacy-str');
-    assert.equal(relegado.font.src, 1, 'tras el rechazo legacy, el retry numerico resuelve');
+    const conTitulo = await API.loadPresetByName('titulo-str');
+    assert.equal(conTitulo.font.src, 'Nintender Regular', 'font.src string (titulo) debe aplicarse');
+
+    // 1c. font.src de tipo invalido -> rechazo con causa. El rechazo NO queda
+    // cacheado (igual que un fallo de red): el retry valido debe resolverse.
+    global.fetch = function() {
+        return Promise.resolve({
+            ok: true,
+            json: function() {
+                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { font: { src: {} } } });
+            }
+        });
+    };
+    await assert.rejects(API.loadPresetByName('invalido-str'), /font\.src invalido/);
+    global.fetch = fetchBase;
+    const relegado = await API.loadPresetByName('invalido-str');
+    assert.equal(relegado.font.src, 1, 'tras el rechazo, el retry valido resuelve');
     API.clearPresetCache();
     fetchCalls = 0;
 
@@ -81,15 +93,15 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
     await API.loadPresetByName('neon-glow');
     assert.equal(fetchCalls, 2, 'cleared cache must refetch');
 
-    // 4. Un fallo NO queda cacheado: el retry reevalua (el .txm y el .json
-    //    legacy fallan -> rechaza; luego el .txm responde y aplica el delta).
+    // 4. Un fallo NO queda cacheado: el retry reevalua (el .json legacy
+    //    falla -> rechaza; luego el .txm responde y aplica el delta).
     let existe = false;
     global.fetch = function() {
         if (!existe) return Promise.resolve({ ok: false, json: function() { return Promise.resolve({}); } });
         return Promise.resolve({
             ok: true,
             json: function() {
-                // Delta numerico (formato unico): sin strings legacy.
+                // Delta valido (font.src canonico: id numerico del catalogo).
                 return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { retry: true, font: { src: 2 } } });
             }
         });

@@ -156,7 +156,6 @@
     }
     var loadedFonts = {};
     var loadingPromises = {};
-    var customFonts = {};
 
     // Soporte para puente de servidor (WordPress Personalizador PDF)
     var bridgeFontsLoaded = false;
@@ -195,9 +194,9 @@
     // ===== FUENTES DE USUARIO: fisicas del puente + url del catalogo =====
     // Las fisicas viven en uploads/pmu/fonts/ y las lista el motor
     // (bridge.fuentes). Tambien se aceptan entradas con url dentro del
-    // fonts.json del catalogo (fisicas declaradas a mano). En ambos casos se
-    // verifica con GET (body cancelado) antes de registrar: las que fallan no
-    // entran al registry (cero 404 de FontFace, cero spam en consola).
+    // fonts.json del catalogo (fisicas declaradas a mano). El catalogo lo
+    // escribe el servidor escaneando el disco, asi que no se hace ninguna
+    // comprobacion de red: registrar es solo memoria.
     var userFontsLoaded = false;
     var userFontsPromise = null;
     function fontUrlBase() {
@@ -206,55 +205,42 @@
         var base = (bridge && bridge.urls && bridge.urls.fuentesBase) ? bridge.urls.fuentesBase : '';
         return base && base.slice(-1) !== '/' ? base + '/' : base;
     }
-    function fontFileExists(url, esFisica) {
-        try {
-            if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve(true);
-        } catch (_) { /* sin location en Node */ }
-        // Fisicas del catalogo: file es relativo a uploads/pmu/fonts/.
-        var full = (esFisica && url && !/^(https?:)?\/\//i.test(url)) ? fontUrlBase() + url : url;
-        if (!full) return Promise.resolve(false);
-        // GET en vez de HEAD: el hosting rechaza HEAD sobre estaticos de
-        // uploads (verificado en produccion) aunque GET responde 200. Se
-        // cancela el body apenas llegan las cabeceras (no se baja el archivo).
-        return fetch(full, { cache: 'no-store' }).then(function (r) {
-            if (r.body && typeof r.body.cancel === 'function') {
-                try { r.body.cancel(); } catch (_) { /* ya cerrado */ }
-            }
-            return !!r.ok;
-        }).catch(function () { return false; });
+    // URL ABSOLUTA de un archivo de fuente del catalogo (el path relativo se
+    // resolveria contra el documento del iframe y daria 404).
+    function urlFuenteAbsoluta(file) {
+        if (!file) return '';
+        return /^(https?:)?\/\//i.test(file) ? file : fontUrlBase() + file;
     }
     function sanitizeFontKey(nombre) {
         return 'user-' + String(nombre || 'fuente').replace(/[^a-zA-Z0-9_-]/g, '_');
     }
     function loadUserFonts() {
         if (userFontsPromise) return userFontsPromise;
-        // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS (con
-        // extension real en file) se registran aqui con GET previo (body
-        // cancelado): si el archivo no existe en uploads/pmu/fonts/ se omiten
-        // en silencio (cero 404 de FontFace, cero spam en consola). Las ONLINE
-        // son lazy: se cargan via link Google al elegir/renderizar (loadFont).
+        // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS se
+        // registran DIRECTO del catalogo: el catalogo lo escribe el servidor
+        // escaneando uploads/pmu/fonts/, asi que la existencia ya esta
+        // validada en origen. Cero peticiones extra al arrancar; si un archivo
+        // falta de verdad, el FontFace de loadFont falla y cae al fallback.
+        // Las ONLINE son lazy: se cargan via link Google al elegir/renderizar.
         userFontsPromise = loadCatalog().then(function () {
             var jobs = Object.keys(catalogFonts).map(function (id) {
                 var entry = catalogFonts[id];
                 if (!entry || entry.online) return Promise.resolve(null);
                 var key = sanitizeFontKey(id);
                 if (fontRegistry[key]) return Promise.resolve(key);
-                return fontFileExists(entry.file, true).then(function (ok) {
-                    if (!ok) return null;
-                    fontRegistry[key] = {
-                        id: id,
-                        name: entry.titulo || id,
-                        // URL ABSOLUTA: el path relativo se resolveria contra el
-                        // documento del iframe (modules/textmuy/) y daria 404.
-                        path: /^(https?:)?\/\//i.test(entry.file) ? entry.file : fontUrlBase() + entry.file,
-                        isCustom: true,
-                        isUserFile: true,
-                        categoria: (entry.categorias || ['custom'])[0]
-                    };
-                    nameToKeyMap[entry.titulo || id] = key;
-                    nameToKeyMap[id] = key;
-                    return key;
-                });
+                fontRegistry[key] = {
+                    id: id,
+                    name: entry.titulo || id,
+                    // URL ABSOLUTA: el path relativo se resolveria contra el
+                    // documento del iframe (modules/textmuy/) y daria 404.
+                    path: urlFuenteAbsoluta(entry.file),
+                    isCustom: true,
+                    isUserFile: true,
+                    categoria: (entry.categorias || ['custom'])[0]
+                };
+                nameToKeyMap[entry.titulo || id] = key;
+                nameToKeyMap[id] = key;
+                return Promise.resolve(key);
             });
             return Promise.all(jobs).then(function (keys) {
                 userFontsLoaded = true;
@@ -280,21 +266,6 @@
                 path: 'https://textstudio.com/fonts/' + src
             };
         }
-        return key;
-    }
-
-    /**
-     * Registra una fuente personalizada de forma SINCRONA devolviendo su key.
-     * Mantiene retrocompatibilidad total con callers síncronos (controls.js, etc.).
-     */
-    function registerCustomFont(name, dataUrl) {
-        var key = 'custom-' + Date.now();
-        fontRegistry[key] = {
-            name: name,
-            path: dataUrl,
-            isCustom: true
-        };
-        customFonts[key] = { name: name, dataUrl: dataUrl };
         return key;
     }
 
@@ -345,33 +316,56 @@
     // sin lecturas legacy). Las fuentes viven SOLO en el catalogo del
     // plugin y se suben por el motor (op=alta, scope=fonts).
 
+    // Fuente dentro de un preset. `font.src` canonico es STRING (titulo del
+    // catalogo, p.ej. "Bangers" o "MUY-Alegria", o spec Google
+    // "Oswald:wght@400;700"); tambien se acepta el id numerico del catalogo.
+    // Un string se resuelve a la entrada del catalogo (por titulo) para que
+    // loadFont aplique Google-lazy o FontFace fisico sin ambiguedad.
+    function resolverIdPorTitulo(titulo) {
+        var found = null;
+        Object.keys(catalogFonts).some(function (cid) {
+            if (catalogFonts[cid] && catalogFonts[cid].titulo === titulo) {
+                found = +cid; // id numerico (Object.keys devuelve strings)
+                return true;
+            }
+        });
+        return found;
+    }
     function resolveFontFromPreset(font) {
         if (!font) return DEFAULT_FONT_FAMILY;
-        // ID numerico (formato unico): exige entrada ok en el catalogo.
-        // String legacy (slug "Bangers", "Nintender Regular", spec Google)
-        // -> se rechaza con causa para re-guardar el preset (ruptura
-        // total Q4; sin fallback silencioso). Solo el flujo interno
-        // (registry/puente) puede resolver claves no numericas.
+        // ID numerico: exige entrada ok en el catalogo.
         if (typeof font === 'number' && Math.floor(font) === font && font >= 1) {
             if (catalogFonts[font]) return font;
-            throw new Error('fonts:' + font + ':ausente o invalido (re-guardar el preset desde el editor)');
+            throw new Error('fonts:' + font + ':ausente o invalido (elegir la fuente de nuevo en el editor)');
         }
         if (typeof font === 'string') {
             if (fontRegistry[font]) return font;
             if (textStudioFontMap[font]) return textStudioFontMap[font];
+            if (nameToKeyMap[font]) return nameToKeyMap[font];
+            // Id del catalogo escrito como string (lo que produce el picker
+            // del editor: <option value="15">) -> id numerico.
+            if (/^\d+$/.test(font)) {
+                var nId = +font;
+                if (catalogFonts[nId]) return nId;
+            }
             if (/^\d+\.ttf$/i.test(font)) return registerTextStudioFont(font) || font;
-            throw new Error('presets:?:font.src string (legacy "' + font + '"): re-guardar el preset desde el editor');
+            // Titulo del catalogo -> id (Google o fisica, loadFont decide).
+            var porTitulo = resolverIdPorTitulo(font);
+            if (porTitulo !== null) return porTitulo;
+            // Spec Google sin entrada en el catalogo ("Familia:wght@..."):
+            // loadFont lo resuelve via ensureGoogleFontBySpec.
+            if (/^[^:]+(:[^:]*)?$/.test(font) && /^[A-Za-z0-9 +\-]+(:\w+@[\d;,]+)?$/.test(font)) return font;
+            throw new Error('presets:?:font.src (\"' + font + '\"): fuente desconocida; elegila desde el picker');
         }
         if (typeof font.src === 'number' && Math.floor(font.src) === font.src && font.src >= 1) {
             if (catalogFonts[font.src]) return font.src;
             if (textStudioFontMap[font.src]) return textStudioFontMap[font.src];
-            throw new Error('fonts:' + font.src + ':ausente o invalido (re-guardar el preset desde el editor)');
+            throw new Error('fonts:' + font.src + ':ausente o invalido (elegir la fuente de nuevo en el editor)');
         }
         if (font.src) {
-            if (fontRegistry[font.src]) return font.src;
-            var tsKey = registerTextStudioFont(font.src, font.name);
-            if (tsKey) return tsKey;
-            throw new Error('presets:?:font.src string (legacy "' + font.src + '"): re-guardar el preset desde el editor');
+            // Mismo criterio que un string suelto (registry, mapas TextStudio,
+            // titulo del catalogo o spec Google).
+            return resolveFontFromPreset(font.src);
         }
         if (font.name) {
             if (nameToKeyMap[font.name]) return nameToKeyMap[font.name];
@@ -380,13 +374,29 @@
         return DEFAULT_FONT_FAMILY;
     }
 
+    // Carga una fuente fisica (TTF/OTF/WOFF) por URL ABSOLUTA. Sin
+    // pre-chequeo de existencia: el catalogo lo escribio el servidor sobre
+    // archivos reales; si el archivo falta, FontFace falla y se cae al
+    // default (un solo 404 en un caso excepcional, sin peticiones de sondeo).
+    function cargarFisica(fontKey, familia, url) {
+        var font = new FontFace(familia, 'url(' + url + ')');
+        return font.load().then(function (loaded) {
+            document.fonts.add(loaded);
+            loadedFonts[fontKey] = familia;
+            return familia;
+        }).catch(function () {
+            delete loadingPromises[fontKey];
+            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
+        });
+    }
+
     function loadFont(fontKey) {
         // Clave numerica (id de catalogo): se resuelve a su spec/file
         // antes de cargar. El resto del flujo no cambia.
         if (typeof fontKey === 'number' && Math.floor(fontKey) === fontKey && fontKey >= 1) {
             var cent = catalogFonts[fontKey];
             if (!cent) {
-                return Promise.reject(new Error('fonts:' + fontKey + ':ausente o invalido (re-guardar el preset desde el editor)'));
+                return Promise.reject(new Error('fonts:' + fontKey + ':ausente o invalido (elegir la fuente de nuevo en el editor)'));
             }
             fontKey = cent.online ? cent.file : cent.titulo;
         }
@@ -405,63 +415,24 @@
                 // Spec Google: file guarda "Familia:wght@..." (o la familia a secas).
                 return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
             }
-            // Fisica: file es relativo a uploads/pmu/fonts/.
-            const fullUrl = /^(https?:)?\/\//i.test(entry.file) ? entry.file : fontUrlBase() + entry.file;
-            const p = fontFileExists(fullUrl).then(function (ok) {
-                if (!ok) {
-                    delete loadingPromises[fontKey];
-                    // Fisica ausente: fallback al default. NUNCA inyectar el
-                    // titulo como spec Google (no existe en Google Fonts).
-                    return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
-                }
-                const font = new FontFace(entry.titulo || fontKey, 'url(' + fullUrl + ')');
-                return font.load().then(function (loaded) {
-                    document.fonts.add(loaded);
-                    loadedFonts[fontKey] = entry.titulo || fontKey;
-                    return entry.titulo || fontKey;
-                }).catch(function () {
-                    delete loadingPromises[fontKey];
-                    return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
-                });
-            });
+            // Fisica del catalogo: archivo en uploads/pmu/fonts/ (URL absoluta).
+            const fullUrl = urlFuenteAbsoluta(entry.file);
+            const p = cargarFisica(fontKey, entry.titulo || fontKey, fullUrl);
             loadingPromises[fontKey] = p;
             return p;
         }
         if (!fontInfo) {
-            // Clave desconocida: si esta en el catalogo, resolver GOOGLE por su name.
-            if (catalogFonts[fontKey]) {
-                const entry = catalogFonts[fontKey];
-                return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
-            }
-            // Resolucion por TITULO (la galeria usa el titulo como clave y las
-            // fisicas se registran con key 'user-N'): buscar la entrada fisica
-            // del catalogo cuyo titulo coincida y cargar su archivo absoluto.
-            var porTitulo = null;
-            Object.keys(catalogFonts).some(function (cid) {
-                if (catalogFonts[cid] && catalogFonts[cid].titulo === fontKey) {
-                    porTitulo = catalogFonts[cid];
-                    return true;
+            // Clave desconocida: entrada del catalogo por TITULO (valores del
+            // picker y titulos guardados en los presets). Online -> Google
+            // lazy por spec; fisica -> FontFace con URL absoluta.
+            var idTitulo = resolverIdPorTitulo(fontKey);
+            var porTitulo = (idTitulo !== null) ? catalogFonts[idTitulo] : null;
+            if (porTitulo) {
+                if (porTitulo.online) {
+                    return ensureGoogleFontBySpec(porTitulo.file || porTitulo.titulo || fontKey);
                 }
-                return false;
-            });
-            if (porTitulo && !porTitulo.online) {
-                const absUrl = /^(https?:)?\/\//i.test(porTitulo.file) ? porTitulo.file : fontUrlBase() + porTitulo.file;
-                const pt = fontFileExists(absUrl).then(function (ok) {
-                    if (!ok) {
-                        delete loadingPromises[fontKey];
-                        return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
-                    }
-                    const fam = porTitulo.titulo || fontKey;
-                    const f = new FontFace(fam, 'url(' + absUrl + ')');
-                    return f.load().then(function (loaded) {
-                        document.fonts.add(loaded);
-                        loadedFonts[fontKey] = fam;
-                        return fam;
-                    }).catch(function () {
-                        delete loadingPromises[fontKey];
-                        return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
-                    });
-                });
+                const absUrl = urlFuenteAbsoluta(porTitulo.file);
+                const pt = cargarFisica(fontKey, porTitulo.titulo || fontKey, absUrl);
                 loadingPromises[fontKey] = pt;
                 return pt;
             }
@@ -605,14 +576,6 @@
             }
             return true;
         }
-
-        if (customFonts[key]) {
-            delete customFonts[key];
-            delete fontRegistry[key];
-            delete loadedFonts[key];
-            saveCustomFonts();
-            return true;
-        }
         return false;
     }
 
@@ -745,7 +708,6 @@
         preloadAll: preloadAll,
         resolveFontFromPreset: resolveFontFromPreset,
         registerTextStudioFont: registerTextStudioFont,
-        registerCustomFont: registerCustomFont,
         uploadCustomFont: uploadCustomFont,
         deleteCustomFont: deleteCustomFont,
         renderFontPreview: renderFontPreview,
@@ -755,7 +717,6 @@
         getCatalogFonts: function() { return catalogFonts; },
         getCatalogLibres: function() { return catalogLibres.slice(); },
         getCatalogInvalidas: function() { return catalogInvalidas.slice(); },
-        getCatalogParsed: function() { return catalogParsed; },
         registry: fontRegistry
     };
 

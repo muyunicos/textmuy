@@ -37,15 +37,14 @@ assert.ok(files.length >= 1, 'se esperaba al menos un preset .txm en uploads');
 files.forEach(function(file) {
     const payload = JSON.parse(fs.readFileSync(path.join(presetsDir, file), 'utf8'));
     assert.equal(payload.format, 'textmuy-project', file + ' must use the .txm format');
-    // Formato unico (Q4): los .txm legacy con font.src string se
-    // reportan y se saltan (ruptura total; re-guardar desde el editor).
-    let settings = null;
-    try {
-        settings = PM.settingsFromDelta(payload.settings);
-    } catch (e) {
-        console.log('SKIP legacy ' + file + ': ' + (e && e.message));
-        return;
-    }
+    // font.src canonico = string (titulo del catalogo / spec Google) o id
+    // numerico: el delta debe aplicarse sin lanzar.
+    const settings = PM.settingsFromDelta(payload.settings);
+    assert.ok(settings && settings.font, file + ' should carry font settings');
+    const src = settings.font.src;
+    const srcOk = (typeof src === 'number' && Math.floor(src) === src && src >= 1)
+        || (typeof src === 'string' && src.trim() !== '');
+    assert.ok(srcOk, file + ' must carry a valid font.src (titulo o id)');
     const target = TextEditor.createDefaultSettings();
     const result = TextEditor.loadPreset(JSON.parse(JSON.stringify(settings)), target);
     assert.ok(result, file + ' should load into a target settings object');

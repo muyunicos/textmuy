@@ -63,7 +63,10 @@ estricto contra los defaults (`diffSettings` / `settingsFromDelta`).
 Formato unico `.txm`: `{format:'textmuy-project', version:1, name,
 settings}`. Nombres sanitizados `[a-z0-9_-]`. `settings.lines`
 (All/L1/L2/L3) MUST respetar `isGlobalOnlyPath`: rutas globales
-nunca entran a overrides. Referencias a recursos por id numerico.
+nunca entran a overrides. Referencias a recursos: las imagenes por `id`
+numerico del catalogo; la fuente (`settings.font.src`) como STRING (titulo
+del catalogo o spec Google) o su `id` numerico (el editor escribe el valor
+del picker y `FontLoader` lo resuelve por titulo).
 
 Cada ambito expone UN unico catalogo `{thumbs:{w,h,c},
 items:[[id,title,cats,file],...]}` (SIN lista `free[]` separada) que el

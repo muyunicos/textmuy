@@ -148,10 +148,13 @@ textmuy/
    salto + `console.warn` + contador visible; en RENDER = rechazo `ambito:id:motivo`.
    Sprite fusionado por ámbito (fonts 180x30, img 100x100, presets 200x100), tile
    derivado `id-1`, cero manifiestos por tile.
-9. **Refs numéricas en `.txm`**: `settings.font.src` e imágenes de settings referencian
-   recursos por id del catálogo; cualquier string legacy = rechazo "re-guardar el preset
-   desde el editor" (sin migración bajo demanda). `api.js::prepareImgRefs` resuelve los
-   ids de imagen → URL (fail-fast en render; base `urls.imagenesBase`).
+9. **Refs de recursos en `.txm`**: `settings.font.src` es STRING canónico (título del
+   catálogo de fuentes, p.ej. `"Bangers"`/`"MUY-Alegría"`, o spec Google
+   `"Oswald:wght@400;700"`); también se acepta el `id` numérico del catálogo. El editor
+   (picker) escribe strings y `FontLoader.resolveFontFromPreset`/`loadFont` los resuelven
+   por título contra el catálogo (Google lazy o FontFace físico). Las **imágenes** de
+   settings sí referencian por `id` numérico; `api.js::prepareImgRefs` las resuelve a URL
+   (fail-fast en render; base `urls.imagenesBase`).
 
 ## 5. Formatos y convenciones de nombres (NO CAMBIAR)
 
@@ -216,8 +219,8 @@ textmuy/
   extensión = físico, sin extensión = Google SOLO en `fonts` (lazy `<link>`). Parser
   compartido `js/catalog.js` con 3 clases `ok`/`free`/`invalid`: `invalid` en galería =
   salto + warn + contador visible; en render = rechazo con causa. Los `.txm` referencian
-  por id numérico (`font.src`, imágenes de settings): string legacy = rechazo
-  "re-guardar el preset" (sin migración bajo demanda).
+  la fuente por TÍTULO (`font.src` string = título del catálogo o spec Google, o su `id`
+  numérico) y las imágenes por id numérico.
 - ✅ **Fuentes**: catálogo con Google lazy por familia (sin extensión) y físicas subidas
   por el administrador (ámbito `fonts`), con preview desde el sprite del ámbito.
 - ✅ **Efectos WebGL con fallback a Canvas 2D en el editor**; en la ruta de la API, sin

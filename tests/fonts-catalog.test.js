@@ -2,8 +2,9 @@
  * Formato canonico (constitucion IV v2.1): {thumbs:{w,h,c},
  * items:[[id,title,cats,file],...]} con id numerico >= 1; libre =
  * tombstone [id,"","",""]; clases ok/free/invalid con causa.
- * Legacy (tuplas string, objetos, font.src string) -> rechazo con
- * causa y accion "re-guardar el preset" (ruptura total Q4).
+ * Las tuplas string/objetos siguen siendo legacy -> invalid con causa.
+ * `font.src` de preset es canonico como STRING (titulo del catalogo o spec
+ * Google); resolveFontFromPreset lo resuelve por titulo o lo pasa tal cual.
  */
 const assert = require('node:assert/strict');
 
@@ -40,9 +41,12 @@ assert.match(CAT.classifyEntry([1, 'A', 'c', 'AlgoSinExt'], { ambito: 'img', pos
 
 // 3. resolveFontFromPreset: id sin catalogo cargado -> lanza fonts:<id>.
 assert.throws(() => FL.resolveFontFromPreset({ src: 99 }), /fonts:99:/);
-// 4. resolveFontFromPreset: string legacy -> lanza pidiendo re-guardar.
-assert.throws(() => FL.resolveFontFromPreset({ src: 'Nintender Regular' }), /legacy/);
-assert.throws(() => FL.resolveFontFromPreset('Bangers'), /legacy/);
+// 4. resolveFontFromPreset: font.src string canonico -> se resuelve (mapa
+//    TextStudio, titulo del catalogo o spec Google tal cual).
+assert.equal(FL.resolveFontFromPreset({ src: 'Nintender Regular' }), 'Press Start 2P');
+assert.equal(FL.resolveFontFromPreset('Bangers'), 'Bangers');
+//    Un string que no es titulo/mapa/spec Google si se rechaza con causa.
+assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocida/);
 
 // 5. loadFont con id inexistente -> Promise rechazada con causa.
 (async function() {
