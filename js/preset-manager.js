@@ -524,7 +524,13 @@
 
     async function imagenExiste(url) {
         try {
-            const resp = await fetch(url, { method: 'HEAD' });
+            // GET en vez de HEAD: el hosting rechaza HEAD sobre estaticos de
+            // uploads aunque GET responde 200. Se cancela el body apenas
+            // llegan las cabeceras (no se baja el archivo).
+            const resp = await fetch(url, { cache: 'no-store' });
+            if (resp.body && typeof resp.body.cancel === 'function') {
+                try { await resp.body.cancel(); } catch (_) { /* ya cerrado */ }
+            }
             return resp.ok;
         } catch (_) { return false; }
     }

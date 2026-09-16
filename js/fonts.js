@@ -196,8 +196,8 @@
     // Las fisicas viven en uploads/pmu/fonts/ y las lista el motor
     // (bridge.fuentes). Tambien se aceptan entradas con url dentro del
     // fonts.json del catalogo (fisicas declaradas a mano). En ambos casos se
-    // verifica con HEAD antes de registrar: las que fallan no entran al
-    // registry (cero 404 de FontFace, cero spam en consola).
+    // verifica con GET (body cancelado) antes de registrar: las que fallan no
+    // entran al registry (cero 404 de FontFace, cero spam en consola).
     var userFontsLoaded = false;
     var userFontsPromise = null;
     function fontUrlBase() {
@@ -213,7 +213,15 @@
         // Fisicas del catalogo: file es relativo a uploads/pmu/fonts/.
         var full = (esFisica && url && !/^(https?:)?\/\//i.test(url)) ? fontUrlBase() + url : url;
         if (!full) return Promise.resolve(false);
-        return fetch(full, { method: 'HEAD' }).then(function (r) { return !!r.ok; }).catch(function () { return false; });
+        // GET en vez de HEAD: el hosting rechaza HEAD sobre estaticos de
+        // uploads (verificado en produccion) aunque GET responde 200. Se
+        // cancela el body apenas llegan las cabeceras (no se baja el archivo).
+        return fetch(full, { cache: 'no-store' }).then(function (r) {
+            if (r.body && typeof r.body.cancel === 'function') {
+                try { r.body.cancel(); } catch (_) { /* ya cerrado */ }
+            }
+            return !!r.ok;
+        }).catch(function () { return false; });
     }
     function sanitizeFontKey(nombre) {
         return 'user-' + String(nombre || 'fuente').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -221,10 +229,10 @@
     function loadUserFonts() {
         if (userFontsPromise) return userFontsPromise;
         // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS (con
-        // extension real en file) se registran aqui con HEAD previo: si el
-        // archivo no existe en uploads/pmu/fonts/ se omiten en silencio
-        // (cero 404 de FontFace, cero spam en consola). Las ONLINE son lazy:
-        // se cargan via link Google al elegir/renderizar (loadFont).
+        // extension real en file) se registran aqui con GET previo (body
+        // cancelado): si el archivo no existe en uploads/pmu/fonts/ se omiten
+        // en silencio (cero 404 de FontFace, cero spam en consola). Las ONLINE
+        // son lazy: se cargan via link Google al elegir/renderizar (loadFont).
         userFontsPromise = loadCatalog().then(function () {
             var jobs = Object.keys(catalogFonts).map(function (id) {
                 var entry = catalogFonts[id];
@@ -236,7 +244,9 @@
                     fontRegistry[key] = {
                         id: id,
                         name: entry.titulo || id,
-                        path: entry.file,
+                        // URL ABSOLUTA: el path relativo se resolveria contra el
+                        // documento del iframe (modules/textmuy/) y daria 404.
+                        path: /^(https?:)?\/\//i.test(entry.file) ? entry.file : fontUrlBase() + entry.file,
                         isCustom: true,
                         isUserFile: true,
                         categoria: (entry.categorias || ['custom'])[0]
@@ -400,7 +410,9 @@
             const p = fontFileExists(fullUrl).then(function (ok) {
                 if (!ok) {
                     delete loadingPromises[fontKey];
-                    return ensureGoogleFontBySpec(entry.titulo || fontKey);
+                    // Fisica ausente: fallback al default. NUNCA inyectar el
+                    // titulo como spec Google (no existe en Google Fonts).
+                    return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
                 }
                 const font = new FontFace(entry.titulo || fontKey, 'url(' + fullUrl + ')');
                 return font.load().then(function (loaded) {
@@ -409,7 +421,7 @@
                     return entry.titulo || fontKey;
                 }).catch(function () {
                     delete loadingPromises[fontKey];
-                    return ensureGoogleFontBySpec(entry.titulo || fontKey);
+                    return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
                 });
             });
             loadingPromises[fontKey] = p;
@@ -420,6 +432,38 @@
             if (catalogFonts[fontKey]) {
                 const entry = catalogFonts[fontKey];
                 return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
+            }
+            // Resolucion por TITULO (la galeria usa el titulo como clave y las
+            // fisicas se registran con key 'user-N'): buscar la entrada fisica
+            // del catalogo cuyo titulo coincida y cargar su archivo absoluto.
+            var porTitulo = null;
+            Object.keys(catalogFonts).some(function (cid) {
+                if (catalogFonts[cid] && catalogFonts[cid].titulo === fontKey) {
+                    porTitulo = catalogFonts[cid];
+                    return true;
+                }
+                return false;
+            });
+            if (porTitulo && !porTitulo.online) {
+                const absUrl = /^(https?:)?\/\//i.test(porTitulo.file) ? porTitulo.file : fontUrlBase() + porTitulo.file;
+                const pt = fontFileExists(absUrl).then(function (ok) {
+                    if (!ok) {
+                        delete loadingPromises[fontKey];
+                        return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
+                    }
+                    const fam = porTitulo.titulo || fontKey;
+                    const f = new FontFace(fam, 'url(' + absUrl + ')');
+                    return f.load().then(function (loaded) {
+                        document.fonts.add(loaded);
+                        loadedFonts[fontKey] = fam;
+                        return fam;
+                    }).catch(function () {
+                        delete loadingPromises[fontKey];
+                        return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
+                    });
+                });
+                loadingPromises[fontKey] = pt;
+                return pt;
             }
             console.warn('Font not found in registry, using fallback:', fontKey, '->', DEFAULT_FONT_FAMILY);
             return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
