@@ -84,6 +84,14 @@
         if (window.TextMuyAPI && window.TextMuyAPI.invalidarSpriteCanonico) {
             try { window.TextMuyAPI.invalidarSpriteCanonico(ambito); } catch (_) {}
         }
+        // El catalogo del ambito cambio en el motor (alta/baja/editar): la copia
+        // en memoria quedo vieja (file/id/titulo). Sin descartarla, la galeria y
+        // el canvas seguian resolviendo la ref por el nombre ANTERIOR (404 tras
+        // renombrar) y la regeneracion de la hoja se rechazaba con
+        // 'motor:sprite:catalogo:desactualizado' hasta recargar con F5.
+        if (window.TextMuyAPI && window.TextMuyAPI.invalidarCatalogo) {
+            try { window.TextMuyAPI.invalidarCatalogo(ambito); } catch (_) {}
+        }
     }
     /** Detalle del listado de presets (con id de catalogo). */
     function listPresetsDetalle() {

@@ -3,6 +3,8 @@
  * TextMuyAPI.prepareImgRefs: sin refs numericas NO hay fetch (carga
  * modular); con refs -> img.json resuelve a URLs (base imagenesBase o
  * 'img/'); id ausente -> rechazo 'img:<id>:ausente o invalido' (Const. II).
+ * RC34: invalidarCatalogo (mutacion alta/baja/editar) descarta la copia en
+ * memoria del catalogo para que la galeria/canvas resuelvan el nombre nuevo.
  */
 const assert = require('node:assert/strict');
 
@@ -16,8 +18,19 @@ global.window = {
 };
 global.localStorage = { getItem: function() { return null; }, setItem: function() {}, removeItem: function() {} };
 global.document = { fonts: null };
-global.fetch = function() {
+global.fetch = function(url, opts) {
     fetchCalls++;
+    // POST = motor unico (op=alta/baja/editar/sprite): sobre del motor.
+    if (opts && opts.method === 'POST') {
+        return Promise.resolve({
+            ok: true,
+            json: function() {
+                return Promise.resolve({ success: true, data: {
+                    nombre: 'c.webp', categoria: 'fondos', url: 'img/c.webp', id: 4
+                } });
+            }
+        });
+    }
     return Promise.resolve({
         ok: true,
         json: function() {
@@ -44,7 +57,9 @@ bridgeHandler({ source: global.window, data: { type: 'textmuy-bridge', bridge: {
 } } });
 const CAT = global.window.TextMuyCatalog;
 const API = global.window.TextMuyAPI;
+const PM = global.window.PresetManager;
 assert.ok(CAT && API && API.prepareImgRefs, 'TextMuyCatalog y TextMuyAPI.prepareImgRefs expuestos');
+assert.ok(PM && PM.uploadImage, 'PresetManager.uploadImage expuesto (mutaciones del ambito img)');
 
 (async function() {
     // 1. Sin refs numericas: NO hay fetch (carga modular) y no muta.
@@ -103,6 +118,26 @@ assert.ok(CAT && API && API.prepareImgRefs, 'TextMuyCatalog y TextMuyAPI.prepare
     assert.equal(CAT.hasNumericImgRefs({ fill: { texture: { src: 5 } } }), true);
     assert.equal(CAT.hasNumericImgRefs({ lines: { overrides: { L2: { icon: { src: 7 } } } } }), true);
     assert.equal(CAT.hasNumericImgRefs({ fill: { texture: { src: 'img/a.webp' } } }), false);
+
+    // 7. RC34: invalidarCatalogo descarta la copia en memoria del ambito; la
+    // proxima ref numerica refetchea (el file puede tener otro nombre).
+    assert.equal(typeof API.invalidarCatalogo, 'function', 'invalidarCatalogo exportado');
+    const antesInv = fetchCalls;
+    API.invalidarCatalogo('img');
+    assert.equal(API.urlDeImgRef(1), '', 'sin catalogo sincrono el id no resuelve URL');
+    await API.prepareImgRefs({ icon: { active: true, src: 2 } });
+    assert.equal(fetchCalls, antesInv + 1, 'catalogo invalidado -> refetch de img.json');
+    assert.equal(API.urlDeImgRef(2), 'img/b.svg');
+
+    // 8. RC34: la mutacion del motor (op=alta) invalida el catalogo via
+    // PresetManager.invalidarSprite -> 1 POST + refetch (nada de F5).
+    const antesAlta = fetchCalls;
+    const subida = await PM.uploadImage(new Blob(['x'], { type: 'image/webp' }), { categoria: 'fondos' });
+    assert.equal(subida.id, 4, 'el motor devuelve el id del recurso');
+    assert.equal(API.urlDeImgRef(1), '', 'alta -> catalogo en memoria descartado');
+    await API.prepareImgRefs({ icon: { active: true, src: 1 } });
+    assert.equal(fetchCalls, antesAlta + 2, 'alta: 1 POST + 1 refetch del catalogo');
+    assert.equal(API.urlDeImgRef(1), 'img/a.webp', 'ref resuelta con el catalogo fresco');
 
     console.log('img-refs tests passed');
 })().catch(function(e) { console.error(e.message); process.exit(1); });

@@ -94,9 +94,10 @@ textmuy/
 2. **Galería de presets** (única UI de presets): buscar, guardar como preset, borrar.
 3. **Galería de imágenes** (`js/galeria.js`): un solo "Galería" en los importadores
    (rellenos, fondos, texturas, iconos), con tabs (fondos/iconos/varios), buscador,
-   subida (botón + drag&drop + pegar) y **preview en vivo** que se revierte si se
-   cierra sin "Aplicar". Lee el catálogo `img.json` (tuplas numéricas) + el sprite del
-   ámbito.
+   subida (botón de archivo; SIN drag&drop ni pegado) y **preview en vivo** que se
+   revierte si se cierra sin "Aplicar". Lee el catálogo `img.json` (tuplas numéricas)
+   + el sprite del ámbito, y deduplica el inventario del puente contra el catálogo
+   (identidad = `id`).
 3.1. **Galería de fuentes** (`js/fuentes-galeria.js`): tabs dinámicas desde el catálogo
    (`fonts.json`) + sprite `fonts`, upload TTF/OTF/WOFF/WOFF2, footer
    nombre+categoría+Save/Delete/Select.
@@ -138,7 +139,8 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC33**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC34**); el `css/style.css`
+   de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
    ni lecturas legacy).
@@ -222,7 +224,7 @@ textmuy/
   salto + warn + contador visible; en render = rechazo con causa. Los `.txm` referencian
   la fuente por TÍTULO (`font.src` string = título del catálogo o spec Google, o su `id`
   numérico) y las imágenes por id numérico.
-- ✅ **Sprite canónico por ámbito (RC33)**: las galerías LEEN el `thumbs.webp` del
+- ✅ **Sprite canónico por ámbito (RC33/RC34)**: las galerías LEEN el `thumbs.webp` del
   servidor y derivan la celda del `id` (`tile = id-1`, huecos estables por tombstone);
   NO reconstruyen la hoja al abrir. La hoja se acepta solo si está **certificada**:
   el catálogo guarda `thumbs.sprite_firma` (`[w,h,c,items]`, ver
@@ -231,6 +233,10 @@ textmuy/
   con retícula distinta: `ensureSpriteCanonico` devuelve `null` y el llamador
   **regenera una sola vez** (`reconstruirSpriteCanonico`, layout canónico + `op=sprite`
   con `firma`); toda mutación invalida la firma (`invalidarSpriteCanonico`).
+  (RC34: la galería además descarta el catálogo en memoria
+  (`TextMuyAPI.invalidarCatalogo`, vía `PresetManager.invalidarSprite`) y devuelve la
+  hoja a `'pendiente'` (`invalidarSpriteVista`), así que la sesión en curso regenera
+  la hoja con el catálogo nuevo sin Ctrl+F5.)
 - ✅ **Fuentes**: catálogo con Google lazy por familia (sin extensión) y físicas subidas
   por el administrador (ámbito `fonts`), con preview desde el sprite del ámbito.
 - ✅ **Efectos WebGL con fallback a Canvas 2D en el editor**; en la ruta de la API, sin

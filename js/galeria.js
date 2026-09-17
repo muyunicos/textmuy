@@ -1,8 +1,15 @@
 ﻿/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
- * API: window.TextMuyGaleria.abrir(fuente, aplicar)
- *   fuente: 'bgs'|'icons'|'misc' (server) | 'presets' | 'catalogo:iconos'|'catalogo:fondos'
+ * API: window.TextMuyGaleria.abrir(fuente, aplicar, seccion, opciones)
+ *   fuente: 'fondos'|'iconos'|'varios' (catalogo img.json + inventario del puente)
+ *           | 'presets' (presets.json + sprite del ambito)
+ *   seccion: legacy, sin uso (compatibilidad con los callers de controls.js).
  * aplicar(src, item): item trae {slug,titulo,src,categoria,imgId} — imgId es el
  * id numerico del catalogo img.json (R2: en el .txm se guarda SOLO el id).
+ * opciones: {preview, controls, applyLabel, onCancel}: preview en vivo que se
+ * revierte con onCancel si se cierra sin "Aplicar".
+ * Toda mutacion (subida/renombrado/borrado) devuelve la hoja del ambito a
+ * 'pendiente' (invalidarSpriteVista): la proxima carga regenera el sprite UNA
+ * vez (RC34) en vez de caer a descargar los originales toda la sesion.
  */
 (function(){
 'use strict';
@@ -13,7 +20,8 @@ let panel=null;
 // celdas derivadas del id (tile = id-1, huecos estables). La hoja debe estar
 // CERTIFICADA por su catalogo (thumbs.sprite_firma); si no, se regenera UNA
 // sola vez (layout canonico + op=sprite con firma). Sin reconstrucciones en
-// cada apertura y sin N descargas de originales.
+// cada apertura y sin N descargas de originales. RC34: tras una mutacion la
+// hoja vuelve a 'pendiente' (invalidarSpriteVista) y se regenera igual UNA vez.
 let spriteEstadoImg='pendiente';   // pendiente | lista | ausente
 let spriteTrabajoImg=null;         // reconstruccion unica (anti re-entrada)
 function asegurarSpriteImg(){
@@ -29,6 +37,12 @@ function asegurarSpriteImg(){
  }
  return spriteTrabajoImg;
 }
+// Una mutacion (subida/renombrado/borrado) invalida la hoja del ambito: volver
+// a 'pendiente' para que la proxima carga la regenere UNA vez. Sin esto el
+// estado quedaba en 'lista' y las fichas caian a descargar los ORIGINALES el
+// resto de la sesion (la hoja no se re-certificaba hasta un F5). Con mutaciones
+// encadenadas cada carga relanza el trabajo: gana la ultima (estado final).
+function invalidarSpriteVista(){ spriteEstadoImg='pendiente'; spriteTrabajoImg=null; }
 
 function PM(){return window.PresetManager;}
 function bridgeOK(){return !!(PM()&&PM().bridgeAvailable&&PM().bridgeAvailable());}
@@ -227,7 +241,6 @@ function crearPanel(){
    ids.forEach(function(id){
     const e=catImg.items[id];
     const cat=(e.categorias&&e.categorias[0])||'varios';
-    if(fuenteActual!=='misc'&&CATS.indexOf(fuenteActual)===-1){/* tab custom: no filtra */}
     if(CATS.indexOf(fuenteActual)!==-1&&cat!==fuenteActual&&fuenteActual!=='misc')return;
     if(q&&(('#'+id+' '+e.titulo+' '+e.file).toLowerCase().indexOf(q)<0))return;
     vistosImg[id]=true;
@@ -360,7 +373,7 @@ function crearPanel(){
    PM().moverImagen(it,nn.replace(/\.[^.]+$/,''),nc).then(function(it2){
     it.slug=it2.nombre;it.src=it2.url;it.categoria=it2.categoria;
     it.imgId=(typeof it2.id==='number'&&it2.id>=1)?it2.id:null;
-    status.textContent='Guardado.';saveBtn.hidden=true;fuenteActual=it2.categoria;cargar();
+    status.textContent='Guardado.';saveBtn.hidden=true;fuenteActual=it2.categoria;invalidarSpriteVista();cargar();
    }).catch(function(e){status.textContent=e.message;});
   }else if(it.tipo==='catalogo'){
    // Copia el asset del catalogo al server con el nombre elegido.
@@ -370,7 +383,7 @@ function crearPanel(){
     const f=new File([blob],nn+'.'+ext,{type:blob.type||'image/svg+xml'});
     return PM().uploadImage(f,{categoria:fuenteActual,nombre:nn});
    }).then(function(){
-    status.textContent='Copiado al servidor.';saveBtn.hidden=true;cargar();
+    status.textContent='Copiado al servidor.';saveBtn.hidden=true;invalidarSpriteVista();cargar();
    }).catch(function(e){status.textContent=e.message;});
   }
  });
@@ -380,7 +393,7 @@ function crearPanel(){
   if(!it||it.tipo!=='server'||!PM())return;
   const msg=it.enUso?'En uso por presets. Borrar los rompera. Continuar?':'Borrar "'+it.titulo+'"?';
   if(!confirm(msg))return;
-  PM().deleteImage(it).then(function(){status.textContent='Borrado.';seleccionado=null;cargar();})
+  PM().deleteImage(it).then(function(){status.textContent='Borrado.';seleccionado=null;invalidarSpriteVista();cargar();})
    .catch(function(e){status.textContent=e.message;});
  });
 
@@ -389,7 +402,7 @@ function crearPanel(){
   const f=this.files&&this.files[0];this.value='';
   if(!f||!PM())return;
   status.textContent='Subiendo...';
-  PM().uploadImage(f,{categoria:fuenteActual}).then(function(){cargar();})
+  PM().uploadImage(f,{categoria:fuenteActual}).then(function(){invalidarSpriteVista();cargar();})
    .catch(function(e){status.textContent=e.message;});
  });
 

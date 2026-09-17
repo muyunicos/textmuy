@@ -439,6 +439,7 @@
         loadCatalogoSync: loadCatalogoSync,
         urlDeImgRef: urlDeImgRef,
         prepareImgRefs: prepareImgRefs,
+        invalidarCatalogo: invalidarCatalogo,
         ensureSpriteCanonico: ensureSpriteCanonico,
         reconstruirSpriteCanonico: reconstruirSpriteCanonico,
         invalidarSpriteCanonico: invalidarSpriteCanonico,
