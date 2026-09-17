@@ -77,8 +77,8 @@ textmuy/
 │   ├── fonts.js           <- Carga de fuentes (Google Fonts + catalogo) y ensureFontReady
 │   ├── gradient-picker.js <- Picker de gradientes de N colores
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
-│   └── utils/             <- Vendors minificados (pickr, grapick, potrace, pica, gif-
-│                             encoder, stackblur, sortable, toastify, svgo...). NO editar
+│   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
+│                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
 └── tests/                 <- 10 tests Node (catalog-unified, fonts-catalog, img-refs,
                               preset-cache, preset-delta, preset-load, distort-engine,
                               flag-wave, pattern-block-box, controls-init)
@@ -138,7 +138,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC29**). El plugin detecta
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC33**). El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
    ni lecturas legacy).
@@ -292,7 +292,7 @@ node tests/distort-engine.test.js
 node tests/flag-wave.test.js
 node tests/pattern-block-box.test.js
 node tests/controls-init.test.js      # smoke: Controls.init() corre sin lanzar (atrapa ReferenceError de scope)
-node --check js/catalog.js js/fonts.js js/preset-manager.js js/api.js js/editor.js js/galeria.js js/fuentes-galeria.js
+node --check js/catalog.js js/fonts.js js/preset-manager.js js/api.js js/editor.js js/galeria.js js/fuentes-galeria.js js/main.js js/controls.js js/export.js js/gradient-picker.js js/effects/bevel-webgl.js js/effects/specular-webgl.js js/effects/distort-engine.js
 ```
 
 - **Único modo de prueba: integrado.** Pestaña "Estilos de Texto" del plugin
