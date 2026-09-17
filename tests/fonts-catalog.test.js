@@ -62,5 +62,60 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
     assert.throws(() => CAT.requireId(p, 'fonts', 40), /fonts:40:/);
     assert.equal(CAT.requireId(p, 'fonts', 1).file, 'Bangers');
 
+    // 7. RC35: un fallo de fonts.json NO queda cacheado (el proximo load
+    //    reintenta; sin esto un 404/red transitorio dejaba el catalogo muerto).
+    const fallo1 = FL.loadCatalog();
+    await fallo1; // fetchCatalog traga el error y resuelve con lo que haya
+    assert.notEqual(FL.loadCatalog(), fallo1, 'fallo de catalogo -> el proximo load crea una promesa nueva');
+
+    // 8. RC35: ensureFontsSprite arma los items del manifiesto con nombre
+    //    STRING (los ids del catalogo son numeros: el lookup de tile es ===
+    //    estricto) y deduplica el registry contra el catalogo (identidad =
+    //    archivo fisico / id), para no llevar la misma fuente DOS veces.
+    global.window.ThumbEngine = {
+        ensureSprite: function (opts) {
+            itemsSprite = opts.items;
+            return Promise.resolve({ spriteUrl: 'fonts/thumbs.webp', manifest: { tiles: [] } });
+        },
+        tile: function () { return null; },
+        drawTile: function () { return false; },
+        invalidate: function () { invalidaciones++; }
+    };
+    global.fetch = function (url) {
+        if (/fonts\.json/.test(String(url))) {
+            return Promise.resolve({
+                ok: true,
+                json: function () {
+                    return Promise.resolve({ thumbs: { w: 180, h: 30, c: 4 }, items: [
+                        [1, 'Bangers', 'display', 'Bangers'],
+                        [2, 'Mi Fisica', 'display', 'MiFisica.woff2']
+                    ] });
+                }
+            });
+        }
+        return Promise.reject(new Error('no net'));
+    };
+    let itemsSprite = null;
+    let invalidaciones = 0;
+    await FL.invalidateCatalog();       // relee fonts.json con el stub
+    await FL.ensureFontsSprite();
+    assert.ok(itemsSprite && itemsSprite.length >= 2, 'ensureFontsSprite produjo items');
+    assert.deepEqual(itemsSprite.map(function (i) { return i.nombre; }), ['1', '2'],
+        'items con nombre STRING y sin duplicar el registry (user-2 ya esta como id 2)');
+    assert.ok(invalidaciones === 0, 'ensureFontsSprite no debe invalidar la hoja (solo leerla)');
+
+    // 9. RC35: unregisterCustomFont quita la fuente SOLO en memoria (sin op=baja:
+    //    el renombre/movimiento ya resolvio el fisico en el motor).
+    FL.registry['server-test'] = { name: 'Test', serverFile: 'test.ttf', isServer: true };
+    assert.equal(FL.unregisterCustomFont('server-test'), true, 'registry tiene la entrada');
+    assert.ok(!FL.registry['server-test'], 'unregisterCustomFont la quito del registry');
+    assert.equal(FL.unregisterCustomFont('server-test'), false, 'reintentar sobre una entrada ausente -> false');
+
+    // 10. RC35: deleteCustomFont devuelve Promise<boolean> y NUNCA rechaza
+    //     (sin puente -> false; sin baja local ni POST).
+    const resBaja = await FL.deleteCustomFont('no-existe');
+    assert.equal(resBaja, false, 'sin puente/entrada -> false');
+    assert.ok(FL.deleteCustomFont('no-existe') instanceof Promise, 'siempre Promise');
+
     console.log('OK: fonts-catalog.test.js');
 })().catch(function(e) { console.error(e.message); process.exit(1); });

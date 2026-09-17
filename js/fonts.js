@@ -270,6 +270,19 @@
     }
 
     /**
+     * Invalida la hoja 'fonts' cacheada en ThumbEngine. Toda mutacion del
+     * ambito (alta/baja/renombre) debe llamarla: sin esto el sheet seguia
+     * sirviendose desde la cache con la fuente vieja (o con el tile de una
+     * fuente ya borrada) y el proximo ensureFontsSprite no regeneraba.
+     */
+    function invalidarSpriteFuentes() {
+        if (!window.PresetManager || !window.PresetManager.invalidarSprite) {
+            return Promise.reject(new Error('fonts:invalidacion:sin_puente'));
+        }
+        return window.PresetManager.invalidarSprite('fonts');
+    }
+
+    /**
      * Sube un archivo de fuente al servidor via el motor unico
      * (op=alta, scope=fonts) y registra la entrada con URL remota.
      * Devuelve una Promise<string> con el key final.
@@ -303,7 +316,7 @@
                         if (Array.isArray(bridge.fuentes)) {
                             bridge.fuentes.push({ nombre: f.nombre, titulo: fontName, url: f.url, id: f.id });
                         }
-                        return key;
+                        return invalidarSpriteFuentes().then(function () { return key; });
                     }
                     throw new Error((res && res.data) || 'Fallo la subida al servidor');
                 });
@@ -564,25 +577,55 @@
         });
     }
 
+    /** Quita una fuente del registry SOLO en memoria (sin op=baja). La usa el
+     *  renombre/movimiento: ahi el motor YA resolvio el fisico con op=editar y
+     *  una baja extra borraria el archivo recien conservado (op=baja hace
+     *  unlink + tombstone). */
+    function unregisterCustomFont(key) {
+        var reg = fontRegistry[key];
+        if (!reg) return false;
+        delete fontRegistry[key];
+        delete loadedFonts[key];
+        delete loadingPromises[key];
+        Object.keys(nameToKeyMap).forEach(function (name) {
+            if (nameToKeyMap[name] === key) delete nameToKeyMap[name];
+        });
+        return true;
+    }
+
+    /**
+     * Baja REAL de una fuente del servidor (op=baja, scope=fonts: el motor hace
+     * unlink del fisico + tombstone en el catalogo). Devuelve Promise<boolean>:
+     * conserva la entrada local si el motor rechaza la baja y resuelve despues
+     * de confirmar e invalidar las caches. NUNCA rechaza: false ante fallos,
+     * true cuando el motor confirma la baja.
+     */
     function deleteCustomFont(key) {
         var font = fontRegistry[key];
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
 
-        if (font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor) {
-            var fd = new FormData();
-            fd.append('op', 'baja');
-            fd.append('_wpnonce', bridge.nonces.motor);
-            fd.append('scope', 'fonts');
-            fd.append('file', font.serverFile);
-            fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' });
-            delete fontRegistry[key];
-            delete loadedFonts[key];
-            if (Array.isArray(bridge.fuentes)) {
-                bridge.fuentes = bridge.fuentes.filter(function (f) { return f.nombre !== font.serverFile; });
-            }
-            return true;
+        if (!(font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.motor
+            && bridge.nonces && bridge.nonces.motor)) {
+            return Promise.resolve(false);
         }
-        return false;
+        var archivo = font.serverFile;
+        var fd = new FormData();
+        fd.append('op', 'baja');
+        fd.append('_wpnonce', bridge.nonces.motor);
+        fd.append('scope', 'fonts');
+        fd.append('file', archivo);
+        return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(async function (r) {
+                var res = await r.json();
+                if (!r.ok || !res || !res.success) return false;
+                unregisterCustomFont(key);
+                if (Array.isArray(bridge.fuentes)) {
+                    bridge.fuentes = bridge.fuentes.filter(function (f) { return f.nombre !== archivo; });
+                }
+                await invalidarSpriteFuentes();
+                return true;
+            })
+            .catch(function () { return false; });
     }
 
     // (H-004) Sin carga legacy de fuentes personalizadas: el catalogo y la
@@ -677,17 +720,27 @@
         // fisicas del puente registradas. Las online se dibujan con fuente del
         // sistema (cero red/cero FontFace: el preview real es lazy al elegir).
         var items = [];
+        // Identidad real de una fuente = su ARCHIVO fisico (y, si esta
+        // registrada, su id de catalogo). El registry y el catalogo describen
+        // la misma fuente con claves distintas ('user-3'/'server-x' vs id): sin
+        // dedupe la hoja llevaba DOS tiles de la misma fuente (y la cargaba dos
+        // veces al reconstruir).
+        var archivosCatalogo = {}; // file fisico -> true
         Object.keys(catalogFonts).forEach(function (id) {
             var e = catalogFonts[id];
+            if (e.file) archivosCatalogo[e.file] = true;
             items.push({ nombre: String(id), name: e.titulo || id, key: String(id), online: !!e.online });
         });
         getAvailableFonts().forEach(function (f) {
             if (catalogFonts[f.key]) return;
+            var reg = fontRegistry[f.key] || null;
+            if (reg && reg.id !== undefined && catalogFonts[reg.id]) return;   // registrada desde el catalogo
+            if (reg && reg.serverFile && archivosCatalogo[reg.serverFile]) return; // fisica ya presente por id
             items.push({ nombre: String(f.key), name: f.name, key: String(f.key), online: false });
         });
 
         var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
-        return ThumbEngine.ensureSprite({
+        return window.ThumbEngine.ensureSprite({
             scope: 'fonts',
             items: items,
             ancho: 180,
@@ -740,6 +793,7 @@
         registerTextStudioFont: registerTextStudioFont,
         uploadCustomFont: uploadCustomFont,
         deleteCustomFont: deleteCustomFont,
+        unregisterCustomFont: unregisterCustomFont,
         renderFontPreview: renderFontPreview,
         ensureFontsSprite: ensureFontsSprite,
         getAvailableFonts: getAvailableFonts,

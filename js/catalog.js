@@ -282,10 +282,63 @@
         return found;
     }
 
+    /* ===== Items de la galeria de imagenes (PURO, sin DOM) =====
+     * Fusiona el catalogo parseado (fuente primaria) con el inventario del
+     * puente (fallback), deduplicando por identidad = id. Las entradas
+     * invalidas se cuentan y se avisan por consola (Const. VI) pero no cortan
+     * el listado. galeria.js::cargar consume esto y mapea src/thumb con
+     * imgUrl(); aca quedan crudos para poder testearlo en Node.
+     * opciones: { tab: 'fondos'|'iconos'|'varios'|'misc'|otra,
+     *             q: texto de busqueda,
+     *             puente: inventario CRUDO del puente (listImages() sin filtrar) }.
+     * Replica el filtro del puente de PresetManager.listImages(categoria):
+     * tab truthy -> (categoria||'varios') === tab (incluye el caso 'misc'). */
+    function itemsGaleriaImg(parsed, opciones) {
+        parsed = parsed || {};
+        opciones = opciones || {};
+        var tab = opciones.tab || 'misc';
+        var q = String(opciones.q || '').toLowerCase();
+        var puente = Array.isArray(opciones.puente) ? opciones.puente : [];
+        var TABS = ['fondos', 'iconos', 'varios'];
+        var vistos = {};
+        var items = [];
+        (parsed.invalidas || []).forEach(function (iv) {
+            try { console.warn('img:' + (iv && iv.reason) + ' (entrada saltada)'); } catch (_) {}
+        });
+        Object.keys(parsed.items || {}).map(Number).sort(function (a, b) { return a - b; }).forEach(function (id) {
+            var e = parsed.items[id];
+            var cat = (e.categorias && e.categorias[0]) || 'varios';
+            if (TABS.indexOf(tab) !== -1 && cat !== tab && tab !== 'misc') return;
+            if (q && (('#' + id + ' ' + (e.titulo || '') + ' ' + (e.file || '')).toLowerCase().indexOf(q) < 0)) return;
+            vistos[id] = true;
+            items.push({
+                slug: id, titulo: e.titulo || ('#' + id), src: e.file, thumb: e.file,
+                categoria: cat, enUso: false, tipo: 'catalogo', imgId: id, imgFile: e.file
+            });
+        });
+        puente.forEach(function (i) {
+            if (!i) return;
+            if (q && ((String(i.nombre || '') + ' ' + String(i.titulo || '')).toLowerCase().indexOf(q) < 0)) return;
+            if (tab && (i.categoria || 'varios') !== tab) return;
+            if (i.id && vistos[i.id]) return; // dedupe: el catalogo ya lo trajo (identidad = id)
+            items.push({
+                slug: i.nombre, titulo: i.titulo || i.nombre, src: i.url || '', thumb: i.thumb || '',
+                categoria: i.categoria, enUso: !!i.enUso, tipo: 'server',
+                imgId: (typeof i.id === 'number' && i.id >= 1) ? i.id : null
+            });
+        });
+        return {
+            items: items,
+            libres: (parsed.libres || []).length,
+            invalidas: (parsed.invalidas || []).length
+        };
+    }
+
     var api = {
         parseCats: parseCats,
         classifyEntry: classifyEntry,
         parseCatalog: parseCatalog,
+        itemsGaleriaImg: itemsGaleriaImg,
         esIdNumerico: esIdNumerico,
         firmaCatalogo: firmaCatalogo,
         manifestDeSprite: manifestDeSprite,

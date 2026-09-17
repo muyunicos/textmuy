@@ -77,7 +77,7 @@
     /** Invalida la cache del sprite del ambito: ThumbEngine (memoria) y el
      *  lector canonico (TextMuyAPI). Toda mutacion (alta/baja/edicion) la
      *  llama para que la proxima galeria no reutilice una hoja vieja. */
-    function invalidarSprite(ambito) {
+    async function invalidarSprite(ambito) {
         if (window.ThumbEngine && window.ThumbEngine.invalidate) {
             try { window.ThumbEngine.invalidate(ambito); } catch (_) {}
         }
@@ -90,7 +90,15 @@
         // renombrar) y la regeneracion de la hoja se rechazaba con
         // 'motor:sprite:catalogo:desactualizado' hasta recargar con F5.
         if (window.TextMuyAPI && window.TextMuyAPI.invalidarCatalogo) {
-            try { window.TextMuyAPI.invalidarCatalogo(ambito); } catch (_) {}
+            window.TextMuyAPI.invalidarCatalogo(ambito);
+        }
+        // Primero descartar las vistas, luego releer. El llamador espera esta
+        // promesa antes de volver a listar; el evento no dispara otro fetch.
+        if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('textmuy:sprite-invalidado', { detail: { ambito: ambito } }));
+        }
+        if (ambito === 'fonts' && window.FontLoader && window.FontLoader.invalidateCatalog) {
+            await window.FontLoader.invalidateCatalog();
         }
     }
     /** Detalle del listado de presets (con id de catalogo). */
@@ -316,7 +324,7 @@
             }
         }
         thumbnailCache.delete(safe);
-        invalidarSprite('tm-presets');
+        await invalidarSprite('tm-presets');
         return { name: safe, mode: 'server' };
     }
 
@@ -335,7 +343,7 @@
             });
         }
         thumbnailCache.delete(safe);
-        invalidarSprite('tm-presets');
+        await invalidarSprite('tm-presets');
         return true;
     }
 
@@ -379,7 +387,7 @@
             });
             bridge.imagenes.push(salida);
         }
-        invalidarSprite('img');
+        await invalidarSprite('img');
         return salida;
     }
 
@@ -397,7 +405,7 @@
                 return im.nombre !== (item.nombre || item.slug);
             });
         }
-        invalidarSprite('img');
+        await invalidarSprite('img');
         return true;
     }
 
@@ -429,7 +437,7 @@
             });
             bridge.imagenes.push(itemNuevo);
         }
-        invalidarSprite('img');
+        await invalidarSprite('img');
         return itemNuevo;
     }
 
@@ -473,11 +481,14 @@
             });
             bridge.fuentes.push(itemNuevo);
         }
-        if (window.FontLoader && window.FontLoader.listServerFonts) {
-            // Re-registrar: quitar la vieja y dar de alta la nueva via sync.
-            try { window.FontLoader.deleteCustomFont(item.fontKey || item.slug); } catch (_) {}
+        if (window.FontLoader && window.FontLoader.unregisterCustomFont) {
+            // Quitar SOLO la entrada vieja del registry (el motor ya resolvio el
+            // fisico con op=editar). NUNCA op=baja aqui: borra el archivo y la
+            // tupla, y con un cambio de categoria el nombre no cambia -> se
+            // borraba la fuente recien conservada.
+            try { window.FontLoader.unregisterCustomFont(item.fontKey || item.slug); } catch (_) {}
         }
-        invalidarSprite('fonts');
+        await invalidarSprite('fonts');
         return itemNuevo;
     }
 
@@ -585,6 +596,7 @@
         savePreset,
         deletePreset,
         bridgeAvailable,
+        invalidarSprite,
         getBridge: function () { return bridge; },
         // Imagenes subidas (uploads/pmu/img/, fisicos + catalogo img.json)
         CATEGORIAS_IMAGENES,

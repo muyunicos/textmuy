@@ -100,7 +100,13 @@ textmuy/
    (identidad = `id`).
 3.1. **Galería de fuentes** (`js/fuentes-galeria.js`): tabs dinámicas desde el catálogo
    (`fonts.json`) + sprite `fonts`, upload TTF/OTF/WOFF/WOFF2, footer
-   nombre+categoría+Save/Delete/Select.
+   nombre+categoría+Save/Delete/Select. RC35: el manifiesto del sprite se indexa por
+   nombre STRING (los ids del catálogo son números: sin `String(slug)` el lookup de
+   tile fallaba siempre); toda mutación invalida la hoja ANTES de listar y ESPERA la
+   relectura de `fonts.json`; `deleteCustomFont` (op=baja real) es Promise<boolean>,
+   mientras `unregisterCustomFont` quita SOLO en memoria (el renombre/movimiento no
+   debe mandar una baja extra: el motor ya resolvió el físico con op=editar); dedupe
+   registry vs catálogo por archivo físico.
 3.2. **Catálogos únicos** (`js/catalog.js` + `TextMuyAPI.loadCatalogo`): un JSON por
    ámbito (`fonts.json`, `img.json`, `presets.json`) con ítems tupla
    `[id,title,cats,file]` e id numérico = tile `id-1` del sprite del ámbito. Son datos
@@ -139,7 +145,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC34**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC36**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -239,6 +245,11 @@ textmuy/
   la hoja con el catálogo nuevo sin Ctrl+F5.)
 - ✅ **Fuentes**: catálogo con Google lazy por familia (sin extensión) y físicas subidas
   por el administrador (ámbito `fonts`), con preview desde el sprite del ámbito.
+  RC35: la hoja `fonts` se sirve por manifest EN MEMORIA indexado por nombre STRING
+  (no por el lector canónico id-based); `drawTile` con resultado false degrada al
+  preview renderizado (nunca dibuja una celda vieja). El renombre/movimiento usa
+  `unregisterCustomFont` (solo memoria); SOLO el botón Delete manda `op=baja`, que en
+  el motor hace unlink + tombstone.
 - ✅ **Efectos WebGL con fallback a Canvas 2D en el editor**; en la ruta de la API, sin
   WebGL el render falla con causa (Const. II, sin degradación silenciosa).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
@@ -287,6 +298,20 @@ textmuy/
 
 ## 9. Cómo probar
 
+RC36: `PresetManager.invalidarSprite(ambito)` es el coordinador asincrono de
+invalidacion tras mutaciones confirmadas: ThumbEngine + API (sprite/catalogo),
+evento `textmuy:sprite-invalidado` para descartar vistas locales y, para `fonts`,
+relectura del catalogo antes de resolver. Las galerias no invalidan por su cuenta.
+Los tokens de version descartan respuestas antiguas en las vistas; esto NO
+serializa las escrituras `op=sprite` en el servidor.
+
+`catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
+No cambia las tres tabs ni el criterio actual de primera categoria.
+Hay 14 suites Node. La prueba opcional `tests/galerias.browser.js` usa Chrome y
+Playwright instalados externamente (variable `TEXTMUY_CHROME` para el ejecutable);
+valida DOM con motor/miniaturas simulados, no sustituye la prueba en WordPress.
+
+
 ```bash
 node tests/catalog-unified.test.js    # parser unico: ok/free/invalid + tile=id-1 + tombstone
 node tests/fonts-catalog.test.js      # wiring fonts.js al parser + rechazo legacy (tuplas string)
@@ -298,7 +323,12 @@ node tests/distort-engine.test.js
 node tests/flag-wave.test.js
 node tests/pattern-block-box.test.js
 node tests/controls-init.test.js      # smoke: Controls.init() corre sin lanzar (atrapa ReferenceError de scope)
-node --check js/catalog.js js/fonts.js js/preset-manager.js js/api.js js/editor.js js/galeria.js js/fuentes-galeria.js js/main.js js/controls.js js/export.js js/gradient-picker.js js/effects/bevel-webgl.js js/effects/specular-webgl.js js/effects/distort-engine.js
+node tests/galeria-items.test.js
+node tests/invalidacion.test.js
+node tests/sprite-canonico.test.js
+node tests/rc-bump.test.js
+# Git Bash: node --check acepta UN archivo por invocacion.
+for archivo in js/*.js js/effects/*.js; do node --check "$archivo" || exit 1; done
 ```
 
 - **Único modo de prueba: integrado.** Pestaña "Estilos de Texto" del plugin

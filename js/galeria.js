@@ -23,26 +23,31 @@ let panel=null;
 // cada apertura y sin N descargas de originales. RC34: tras una mutacion la
 // hoja vuelve a 'pendiente' (invalidarSpriteVista) y se regenera igual UNA vez.
 let spriteEstadoImg='pendiente';   // pendiente | lista | ausente
-let spriteTrabajoImg=null;         // reconstruccion unica (anti re-entrada)
+let spriteTrabajoImg=null;
+let spriteVersionImg=0;
 function asegurarSpriteImg(){
- if (spriteEstadoImg!=='pendiente') return Promise.resolve();
- if (!window.TextMuyAPI || !window.TextMuyAPI.ensureSpriteCanonico){ spriteEstadoImg='ausente'; return Promise.resolve(); }
- if (!spriteTrabajoImg){
-  spriteTrabajoImg = window.TextMuyAPI.ensureSpriteCanonico('img').then(function(s){
-    if (s){ spriteEstadoImg='lista'; return; }
-    return window.TextMuyAPI.reconstruirSpriteCanonico('img').then(function(){
-      return window.TextMuyAPI.ensureSpriteCanonico('img');
-    }).then(function(s2){ spriteEstadoImg = s2 ? 'lista' : 'ausente'; });
-  }).catch(function(){ spriteEstadoImg='ausente'; });
+ if(spriteEstadoImg!=='pendiente')return Promise.resolve();
+ if(!window.TextMuyAPI||!window.TextMuyAPI.ensureSpriteCanonico){spriteEstadoImg='ausente';return Promise.resolve();}
+ if(!spriteTrabajoImg){
+  const version=spriteVersionImg;
+  spriteTrabajoImg=window.TextMuyAPI.ensureSpriteCanonico('img').then(async function(s){
+   if(version!==spriteVersionImg)return;
+   if(!s){
+    await window.TextMuyAPI.reconstruirSpriteCanonico('img');
+    if(version!==spriteVersionImg)return;
+    s=await window.TextMuyAPI.ensureSpriteCanonico('img');
+   }
+   if(version===spriteVersionImg)spriteEstadoImg=s?'lista':'ausente';
+  }).catch(function(){if(version===spriteVersionImg)spriteEstadoImg='ausente';});
  }
  return spriteTrabajoImg;
 }
-// Una mutacion (subida/renombrado/borrado) invalida la hoja del ambito: volver
-// a 'pendiente' para que la proxima carga la regenere UNA vez. Sin esto el
-// estado quedaba en 'lista' y las fichas caian a descargar los ORIGINALES el
-// resto de la sesion (la hoja no se re-certificaba hasta un F5). Con mutaciones
-// encadenadas cada carga relanza el trabajo: gana la ultima (estado final).
-function invalidarSpriteVista(){ spriteEstadoImg='pendiente'; spriteTrabajoImg=null; }
+function invalidarSpriteVista(){spriteVersionImg++;spriteEstadoImg='pendiente';spriteTrabajoImg=null;}
+if(typeof window.addEventListener==='function'){
+ window.addEventListener('textmuy:sprite-invalidado',function(ev){
+  if(ev.detail&&ev.detail.ambito==='img')invalidarSpriteVista();
+ });
+}
 
 function PM(){return window.PresetManager;}
 function bridgeOK(){return !!(PM()&&PM().bridgeAvailable&&PM().bridgeAvailable());}
@@ -62,7 +67,7 @@ function crearPanel(){
   '<input type="text" class="tt-galpanel-search" placeholder="Buscar...">'+
   '<button type="button" class="tt-galpanel-close">\u00d7</button></div>'+
   '<div class="tt-galpanel-tabs"></div>'+
-  '<label class="tt-galpanel-upload">Upload<input type="file" accept="image/*" hidden></label>'+
+  '<label class="tt-galpanel-upload">Upload<input type="file" accept=".png,.jpg,.jpeg,.webp,.svg" hidden></label>'+
   '<div class="tt-galpanel-list"></div>'+
   '<div class="tt-galpanel-ctrls" hidden></div>'+
   '<div class="tt-galpanel-foot">'+
@@ -90,6 +95,7 @@ function crearPanel(){
  tabs.appendChild(uploadLabel); // Upload comparte fila con los tabs
  let fuenteActual='misc',aplicarActual=null,items=[],seleccionado=null;
  let previewOpts=null;
+ let avisoEstado='';
  const ctrlsArea=ov.querySelector('.tt-galpanel-ctrls');
 
  function montarControles(ctr){
@@ -167,7 +173,8 @@ function crearPanel(){
   }
   // R2: lo que se GUARDA en el settings/.txm es el id numerico (o la URL
   // legacy/data-URL si el item no tiene id); lo que se MUESTRA (preview,
-  // <img>, canvas) es siempre la URL resuelta.
+  // <img>, canvas) es siempre la URL resuelta. La resolucion id->URL delega
+  // en TextMuyAPI.urlDeImgRef (fuente unica; usa loadCatalogoSync + puente).
   function idVista(it){
    if(!it)return null;
    if(typeof it.imgId==='number'&&isFinite(it.imgId)&&Math.floor(it.imgId)===it.imgId&&it.imgId>=1)return it.imgId;
@@ -175,19 +182,17 @@ function crearPanel(){
   }
   function srcVista(it){
    if(!it)return '';
-   if(typeof it.imgId==='number'&&isFinite(it.imgId)&&Math.floor(it.imgId)===it.imgId&&it.imgId>=1){
-    var cat=null;
+   if(window.TextMuyAPI&&window.TextMuyAPI.urlDeImgRef){
     try{
-     if(window.TextMuyAPI&&window.TextMuyAPI.loadCatalogoSync)cat=window.TextMuyAPI.loadCatalogoSync('img');
-    }catch(_){cat=null;}
-    if(cat&&cat.items&&cat.items[it.imgId]&&cat.items[it.imgId].file)return imgUrl(cat.items[it.imgId].file);
+     var viaAPI=window.TextMuyAPI.urlDeImgRef(it.imgId!==undefined&&it.imgId!==null?it.imgId:it.src);
+     if(viaAPI)return viaAPI;
+    }catch(_){/* sin puente: cae al src del item */}
    }
    return it.src||'';
   }
   async function cargar(){
-  list.innerHTML='';status.textContent='';items=[];
+  list.innerHTML='';status.textContent='';avisoEstado='';items=[];
   const q=(search.value||'').toLowerCase();
-  const vistosImg={}; // ids ya provistos por el catalogo (dedupe vs puente)
   if(fuenteActual==='presets'){
    // Formato unico (US3): presets.json numerico + sprite 200x100; si el
    // catalogo no existe (mirror sin migrar) cae al listado por nombre.
@@ -206,7 +211,7 @@ function crearPanel(){
      if(q&&(('#'+id+' '+(e.titulo||'')+' '+(e.file||'')).toLowerCase().indexOf(q)<0))return;
      items.push({slug:e.file?e.file.replace(/\.txm$/i,''):('#'+id),titulo:e.titulo||('#'+id),src:e.file||'',tipo:'preset',presetId:id});
     });
-    if(nInv||nLib)status.textContent=status.textContent||((nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':''));
+    avisoEstado=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
     montarTabs();ocultarUpload(true);render();
     return;
    }
@@ -234,28 +239,16 @@ function crearPanel(){
     catImg=await window.TextMuyAPI.loadCatalogo('img').catch(function(){return null;});
    }
   }catch(_){catImg=null;}
-  if(catImg&&catImg.items){
-   const ids=Object.keys(catImg.items).map(Number).sort(function(a,b){return a-b;});
-   let nInv=(catImg.invalidas||[]).length, nLib=(catImg.libres||[]).length;
-   (catImg.invalidas||[]).forEach(function(iv){try{console.warn('img:'+iv.reason+' (entrada saltada)');}catch(_){}});
-   ids.forEach(function(id){
-    const e=catImg.items[id];
-    const cat=(e.categorias&&e.categorias[0])||'varios';
-    if(CATS.indexOf(fuenteActual)!==-1&&cat!==fuenteActual&&fuenteActual!=='misc')return;
-    if(q&&(('#'+id+' '+e.titulo+' '+e.file).toLowerCase().indexOf(q)<0))return;
-    vistosImg[id]=true;
-    items.push({slug:id,titulo:e.titulo||('#'+id),src:imgUrl(e.file),thumb:imgUrl(e.file),categoria:cat,enUso:false,tipo:'catalogo',imgId:id,imgFile:e.file});
-   });
-   if(nInv||nLib)status.textContent=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
-  }
-  if(!PM()||!PM().listImages){if(!items.length)status.textContent=status.textContent||'Galeria no disponible.';montarTabs();ocultarUpload(false);render();return;}
-  if(!bridgeOK()){if(!items.length)status.textContent=status.textContent||'Requiere el plugin (iframe).';montarTabs();ocultarUpload(false);render();return;}
-  let imgs=PM().listImages(fuenteActual);
-  if(q)imgs=imgs.filter(function(i){return (i.nombre+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
-  // Dedupe (RC33): el catalogo ya trae TODOS los recursos con id; el puente
-  // es solo fallback para entradas sin id. Sin esto cada imagen salia doble.
-  imgs=imgs.filter(function(i){return !(i.id&&vistosImg[i.id]);});
-  for(const i of imgs){items.push({slug:i.nombre,titulo:i.titulo||i.nombre,src:i.url,thumb:i.thumb||'',categoria:i.categoria,enUso:i.enUso,tipo:'server',imgId:(typeof i.id==='number'&&i.id>=1)?i.id:null});}
+  const construida=window.TextMuyCatalog.itemsGaleriaImg(catImg,{tab:fuenteActual,q:q,
+   puente:bridgeOK()&&PM().listImages?PM().listImages():[]});
+  avisoEstado=(construida.libres?construida.libres+' libres':'')+
+   ((construida.libres&&construida.invalidas)?', ':'')+
+   (construida.invalidas?construida.invalidas+' invalidas':'');
+  items=construida.items.map(function(it){
+   if(it.tipo==='catalogo'){it.src=imgUrl(it.imgFile);it.thumb=it.src;}
+   return it;
+  });
+  if(!bridgeOK())avisoEstado='Requiere el plugin (iframe).';
   montarTabs();ocultarUpload(false);
   // Sprite canonico: render inmediato con placeholders y repintado al llegar
   // (evita las N descargas de originales mientras la hoja viaja).
@@ -349,7 +342,7 @@ function crearPanel(){
   nameIn.disabled=!(esSv||esCat);
   saveBtn.hidden=true;
   delBtn.hidden=!esSv;
-  status.textContent=it?(it.enUso?'En uso por presets':''):'Selecciona un elemento';
+  status.textContent=avisoEstado|| (it?(it.enUso?'En uso por presets':''):'Selecciona un elemento');
  }
 
  function hayCambios(){
@@ -373,7 +366,7 @@ function crearPanel(){
    PM().moverImagen(it,nn.replace(/\.[^.]+$/,''),nc).then(function(it2){
     it.slug=it2.nombre;it.src=it2.url;it.categoria=it2.categoria;
     it.imgId=(typeof it2.id==='number'&&it2.id>=1)?it2.id:null;
-    status.textContent='Guardado.';saveBtn.hidden=true;fuenteActual=it2.categoria;invalidarSpriteVista();cargar();
+    status.textContent='Guardado.';saveBtn.hidden=true;fuenteActual=it2.categoria;cargar();
    }).catch(function(e){status.textContent=e.message;});
   }else if(it.tipo==='catalogo'){
    // Copia el asset del catalogo al server con el nombre elegido.
@@ -383,7 +376,7 @@ function crearPanel(){
     const f=new File([blob],nn+'.'+ext,{type:blob.type||'image/svg+xml'});
     return PM().uploadImage(f,{categoria:fuenteActual,nombre:nn});
    }).then(function(){
-    status.textContent='Copiado al servidor.';saveBtn.hidden=true;invalidarSpriteVista();cargar();
+    status.textContent='Copiado al servidor.';saveBtn.hidden=true;cargar();
    }).catch(function(e){status.textContent=e.message;});
   }
  });
@@ -393,7 +386,7 @@ function crearPanel(){
   if(!it||it.tipo!=='server'||!PM())return;
   const msg=it.enUso?'En uso por presets. Borrar los rompera. Continuar?':'Borrar "'+it.titulo+'"?';
   if(!confirm(msg))return;
-  PM().deleteImage(it).then(function(){status.textContent='Borrado.';seleccionado=null;invalidarSpriteVista();cargar();})
+  PM().deleteImage(it).then(function(){status.textContent='Borrado.';seleccionado=null;cargar();})
    .catch(function(e){status.textContent=e.message;});
  });
 
@@ -402,7 +395,7 @@ function crearPanel(){
   const f=this.files&&this.files[0];this.value='';
   if(!f||!PM())return;
   status.textContent='Subiendo...';
-  PM().uploadImage(f,{categoria:fuenteActual}).then(function(){invalidarSpriteVista();cargar();})
+  PM().uploadImage(f,{categoria:fuenteActual}).then(function(){cargar();})
    .catch(function(e){status.textContent=e.message;});
  });
 

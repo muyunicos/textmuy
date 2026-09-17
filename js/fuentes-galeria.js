@@ -1,11 +1,19 @@
 /* ===== TEXTMUY GALERIA DE FUENTES — panel acoplado izquierda =====
  * API: window.TextMuyGaleriaFuentes.abrir(aplicar)
  * Replica el patron visual de galeria.js (tt-galpanel-*): buscador, tabs por
- * categoria (dinamicas: catalogo + puente), tiles con preview renderizada
- * (FontLoader.renderFontPreview) o sprite global scope 'fuentes', upload de
- * .ttf/.otf/.woff/.woff2, footer con nombre+categoria+Save/Delete/Select.
- * CRUD fisico SOLO con puente (handlers del plugin: subirFuente/borrarFuente
- * + moverFuente para renombrar/cambiar categoria; standalone = lectura).
+ * categoria (dinamicas: catalogo + puente), tiles desde la hoja del motor
+ * (scope 'fonts': manifest en memoria, clave = String(slug)) o con preview
+ * renderizada (FontLoader.renderFontPreview) si la hoja no cubre esa clave;
+ * upload .ttf/.otf/.woff/.woff2; footer nombre+categoria+Save/Delete/Select.
+ * CRUD fisico SOLO con puente (op=alta|baja|editar del motor via
+ * uploadCustomFont / deleteCustomFont / moverFuente).
+ * Invariantes (RC35): (1) el manifiesto se indexa por nombre STRING y los ids
+ * del catalogo son numeros: sin String() la busqueda del tile fallaba SIEMPRE y
+ * toda ficha del catalogo caia al preview; (2) toda mutacion invalida la hoja
+ * ANTES de listar y ESPERA la relectura de fonts.json (invalidateCatalog vacia
+ * fontCategories de forma sincrona: listar antes dejaba la galeria solo con las
+ * fisicas del registry y con la hoja vieja dibujada); (3) drawTile devuelve
+ * false si la hoja no cubre la clave -> siempre hay fallback al preview.
  */
 (function() {
 'use strict';
@@ -16,13 +24,24 @@ function el(c,t,txt){const n=document.createElement(t||'div');n.className=c;if(t
 let panel=null;
 let fuentesSpriteInfo=null;
 let avisoCatalogo='';
+let fuentesSpriteVersion=0;
+if(typeof window.addEventListener==='function'){
+ window.addEventListener('textmuy:sprite-invalidado',function(ev){
+  if(ev.detail&&ev.detail.ambito==='fonts'){fuentesSpriteVersion++;fuentesSpriteInfo=null;}
+ });
+}
+// La mutacion ya espero la invalidacion central y la relectura del catalogo.
+function recargarTrasMutacion(cargar){return Promise.resolve().then(cargar);}
 function cargarSpriteFuentes(){
  if(!window.ThumbEngine||!FL()||!FL().ensureFontsSprite)return Promise.resolve(null);
+ // Sin hoja fresca no se reutiliza la anterior: el render cae al preview.
+ fuentesSpriteInfo=null;
+ const version=++fuentesSpriteVersion;
  return FL().ensureFontsSprite().then(function(res){
-  if(!res)return null;
+  if(!res||version!==fuentesSpriteVersion)return null;
   return new Promise(function(resolve){
    const img=new Image();
-   img.onload=function(){fuentesSpriteInfo={spriteImage:img,manifest:res.manifest,spriteUrl:res.spriteUrl};resolve(fuentesSpriteInfo);};
+   img.onload=function(){if(version!==fuentesSpriteVersion){resolve(null);return;}fuentesSpriteInfo={spriteImage:img,manifest:res.manifest,spriteUrl:res.spriteUrl};resolve(fuentesSpriteInfo);};
    img.onerror=function(){resolve(null);};
    img.src=res.spriteUrl;
   });
@@ -98,11 +117,13 @@ function crearPanel(){
     avisoCatalogo=(libres&&libres.length?libres.length+' libres':'')+((libres&&libres.length&&(idsInv.length))?', ':'')+(idsInv.length?idsInv.length+' invalidas: ids '+idsInv.join(', '):'');
    }
   }catch(_){}
+  const archivosCat={}; // file fisico del catalogo: identidad para el dedupe
   Object.keys(cats).forEach(function(c){
    (cats[c]||[]).forEach(function(id){
     let ent=null;
     try{ent=(FL().getCatalogFonts()||{})[id];}catch(_){}
     if(!ent||!ent.file)return; // tombstone/invalid nunca llegan aqui
+    archivosCat[ent.file]=true;
     const tit=ent&&ent.titulo?ent.titulo:('#'+id);
     const online=!!ent.online;
     items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online,fontId:id});
@@ -110,6 +131,10 @@ function crearPanel(){
   });
   if(FL()&&FL().listServerFonts){
    FL().listServerFonts().forEach(function(f){
+    // Dedupe por identidad real (archivo fisico): una fuente subida en esta
+    // sesion vive en el registry (serverFile) Y en el catalogo (id); sin esto
+    // salia DOS veces en la lista (una como catalogo y otra como server).
+    if(f.nombre&&archivosCat[f.nombre])return;
     items.push({slug:f.key,titulo:f.titulo||f.nombre,src:f.url||'',categoria:f.categoria||'custom',enUso:false,tipo:'server',serverFile:f.nombre,fontKey:f.key});
    });
   }
@@ -130,15 +155,20 @@ function crearPanel(){
   if(!items.length){list.appendChild(el('tt-galpanel-empty','p','Sin resultados.'));rfFooter();return;}
   items.forEach(function(it){
    const t=el('tt-galpanel-tile','button');
-   t.type='button';t.dataset.slug=it.slug;t.title=it.titulo;
-   const tile=(window.ThumbEngine&&fuentesSpriteInfo&&fuentesSpriteInfo.manifest)
-    ? window.ThumbEngine.tile(fuentesSpriteInfo.manifest,it.slug):null;
-   if(tile){
+   const clave=String(it.slug); // el manifiesto se indexa por nombre string
+   t.type='button';t.dataset.slug=clave;t.title=it.titulo;
+   // Hoja del motor (manifest en memoria). drawTile devuelve false si la hoja
+   // no cubre esa clave o ya no esta cargada -> fallback al preview en vivo
+   // (nunca se dibuja una celda vieja al azar).
+   const info=(window.ThumbEngine&&fuentesSpriteInfo&&fuentesSpriteInfo.manifest&&fuentesSpriteInfo.spriteImage)?fuentesSpriteInfo:null;
+   let dibujado=false;
+   if(info){
     const cv=document.createElement('canvas');
     cv.width=180;cv.height=30;
-    window.ThumbEngine.drawTile(cv.getContext('2d'),fuentesSpriteInfo.spriteImage,fuentesSpriteInfo.manifest,it.slug,0,0,180,30);
-    t.appendChild(cv);
-   }else if(FL()&&FL().renderFontPreview){
+    dibujado=window.ThumbEngine.drawTile(cv.getContext('2d'),info.spriteImage,info.manifest,clave,0,0,180,30);
+    if(dibujado)t.appendChild(cv);
+   }
+   if(!dibujado&&FL()&&FL().renderFontPreview){
     t.appendChild(el('tt-galpanel-ph','span',it.titulo));
     FL().renderFontPreview({key:it.slug,name:it.titulo},180,30).then(function(cv){
      if(!t.isConnected)return;
@@ -177,7 +207,7 @@ function crearPanel(){
   seleccionado=it;
   list.querySelectorAll('.tt-galpanel-tile').forEach(function(t){t.classList.remove('sel');});
   try{
-   const tile=list.querySelector('[data-slug="'+CSS.escape(it.slug)+'"]');
+   const tile=list.querySelector('[data-slug="'+CSS.escape(String(it.slug))+'"]');
    if(tile)tile.classList.add('sel');
   }catch(_){}
   rfFooter();
@@ -206,7 +236,12 @@ function crearPanel(){
   if(nn===it.titulo&&nc===it.categoria){status.textContent='Sin cambios.';return;}
   status.textContent='Guardando...';
   if(PM().moverFuente){
-   PM().moverFuente(it,nn,nc).then(function(){status.textContent='Guardado.';saveBtn.hidden=true;cargar();}).catch(function(e){status.textContent=e.message;});
+   PM().moverFuente(it,nn,nc).then(function(){
+    status.textContent='Guardado.';saveBtn.hidden=true;
+    // moverFuente ya invalido la hoja (op=editar); falta releer el catalogo
+    // del modulo (titulo/categoria viejos) ANTES de listar.
+    return recargarTrasMutacion(cargar);
+   }).catch(function(e){status.textContent=e.message;});
   }else{
    status.textContent='El plugin no expone moverFuente (actualiza manualmente).';
   }
@@ -215,11 +250,15 @@ function crearPanel(){
   const it=seleccionado;
   if(!it||it.tipo!=='server')return;
   if(!confirm('Borrar "'+it.titulo+'"?'))return;
-  if(FL()&&FL().deleteCustomFont){
-   const ok=FL().deleteCustomFont(it.fontKey);
-   if(ok){status.textContent='Borrado.';seleccionado=null;if(FL().invalidateCatalog){try{FL().invalidateCatalog();}catch(_){}}cargar();}
-   else status.textContent='No se pudo borrar.';
-  }
+  if(!FL()||!FL().deleteCustomFont)return;
+  status.textContent='Borrando...';
+  // deleteCustomFont resuelve DESPUES de que el motor confirme la baja: recien
+  // entonces la relectura de fonts.json deja de traer la tupla borrada.
+  Promise.resolve(FL().deleteCustomFont(it.fontKey)).then(function(ok){
+   if(!ok){status.textContent='No se pudo borrar.';return null;}
+   status.textContent='Borrado.';seleccionado=null;
+   return recargarTrasMutacion(cargar);
+  }).catch(function(e){status.textContent=e.message;});
  });
  newCatBtn.addEventListener('click',function(){
   if(!seleccionado||seleccionado.tipo!=='server')return;
@@ -233,9 +272,7 @@ function crearPanel(){
   const base=(f.name||'fuente').replace(/\.[^/.]+$/,'');
   FL().uploadCustomFont(f,base).then(function(){
    status.textContent='Subida.';
-   if(FL().invalidateCatalog){try{FL().invalidateCatalog().catch(function(){});}catch(_){}}
-   cargar();
-   if(window.ThumbEngine&&window.ThumbEngine.invalidate){try{window.ThumbEngine.invalidate('fonts');}catch(_){}}
+   return recargarTrasMutacion(cargar);
   }).catch(function(e){status.textContent=e.message;});
  });
  function abrirP(aplicar){

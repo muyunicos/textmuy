@@ -2237,7 +2237,15 @@
         if (!gallery || !toggle || !grid) return;
 
         let presetSpriteInfo = null;
+        let presetSpriteVersion = 0;
+        window.addEventListener('textmuy:sprite-invalidado', function(ev) {
+            if (ev.detail && ev.detail.ambito === 'tm-presets') {
+                presetSpriteVersion++;
+                presetSpriteInfo = null;
+            }
+        });
         function cargarPresetSprite() {
+            const version = ++presetSpriteVersion;
             if (!window.ThumbEngine || !window.PresetManager || !PresetManager.listPresets) {
                 return Promise.resolve(null);
             }
@@ -2272,6 +2280,7 @@
                 return new Promise(function(resolve) {
                     const img = new Image();
                     img.onload = function() {
+                        if (version !== presetSpriteVersion) { resolve(null); return; }
                         presetSpriteInfo = { spriteImage: img, manifest: res.manifest, spriteUrl: res.spriteUrl };
                         resolve(presetSpriteInfo);
                     };
