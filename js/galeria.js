@@ -25,6 +25,25 @@ let panel=null;
 let spriteEstadoImg='pendiente';   // pendiente | lista | ausente
 let spriteTrabajoImg=null;
 let spriteVersionImg=0;
+// RC37: la hoja de tm-presets se LEE igual que la de img (nunca se reconstruye
+// al abrir: ThumbEngine solo guarda el manifiesto en memoria y cada apertura
+// regeneraba la hoja, cargando la fuente de cada preset). Sin hoja certificada
+// la lista usa placeholders de texto.
+let spriteEstadoPresets='pendiente'; // pendiente | lista | ausente
+let spriteTrabajoPresets=null;
+let spriteVersionPresets=0;
+function asegurarSpritePresets(){
+ if(spriteEstadoPresets!=='pendiente')return Promise.resolve();
+ if(!window.TextMuyAPI||!window.TextMuyAPI.ensureSpriteCanonico){spriteEstadoPresets='ausente';return Promise.resolve();}
+ if(!spriteTrabajoPresets){
+  const version=spriteVersionPresets;
+  spriteTrabajoPresets=window.TextMuyAPI.ensureSpriteCanonico('tm-presets').then(function(s){
+   if(version===spriteVersionPresets)spriteEstadoPresets=s?'lista':'ausente';
+  }).catch(function(){if(version===spriteVersionPresets)spriteEstadoPresets='ausente';});
+ }
+ return spriteTrabajoPresets;
+}
+function invalidarSpritePresetsVista(){spriteVersionPresets++;spriteEstadoPresets='pendiente';spriteTrabajoPresets=null;}
 function asegurarSpriteImg(){
  if(spriteEstadoImg!=='pendiente')return Promise.resolve();
  if(!window.TextMuyAPI||!window.TextMuyAPI.ensureSpriteCanonico){spriteEstadoImg='ausente';return Promise.resolve();}
@@ -45,7 +64,9 @@ function asegurarSpriteImg(){
 function invalidarSpriteVista(){spriteVersionImg++;spriteEstadoImg='pendiente';spriteTrabajoImg=null;}
 if(typeof window.addEventListener==='function'){
  window.addEventListener('textmuy:sprite-invalidado',function(ev){
-  if(ev.detail&&ev.detail.ambito==='img')invalidarSpriteVista();
+  if(!ev||!ev.detail)return;
+  if(ev.detail.ambito==='img')invalidarSpriteVista();
+  if(ev.detail.ambito==='tm-presets'||ev.detail.ambito==='presets')invalidarSpritePresetsVista();
  });
 }
 
@@ -178,6 +199,9 @@ function crearPanel(){
   function idVista(it){
    if(!it)return null;
    if(typeof it.imgId==='number'&&isFinite(it.imgId)&&Math.floor(it.imgId)===it.imgId&&it.imgId>=1)return it.imgId;
+   // Un preset NUNCA se entrega por su archivo .txm: se entrega su id numerico
+   // (TextMuyAPI.loadPresetById) o, si no tiene id, el nombre sin extension.
+   if(it.tipo==='preset')return (typeof it.presetId==='number'&&it.presetId>=1)?it.presetId:(it.slug||'');
    return it.src;
   }
   function srcVista(it){
@@ -203,6 +227,7 @@ function crearPanel(){
     }
    }catch(_){catPresets=null;}
    if(catPresets&&catPresets.items){
+    pintarGeometria(catPresets.thumbs);
     const ids=Object.keys(catPresets.items).map(Number).sort(function(a,b){return a-b;});
     let nInv=(catPresets.invalidas||[]).length,nLib=(catPresets.libres||[]).length;
     (catPresets.invalidas||[]).forEach(function(iv){try{console.warn('presets:'+iv.reason+' (entrada saltada)');}catch(_){}});
@@ -213,6 +238,11 @@ function crearPanel(){
     });
     avisoEstado=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
     montarTabs();ocultarUpload(true);render();
+    // La hoja llega despues: primer pintado con placeholders y repintado con
+    // las miniaturas reales (solo LECTURA: cero reconstruccion, cero fuentes).
+    if(spriteEstadoPresets==='pendiente'){
+     asegurarSpritePresets().then(function(){if(fuenteActual==='presets')render();});
+    }
     return;
    }
    const nombres=PM()?PM().listPresets():[];
@@ -239,6 +269,7 @@ function crearPanel(){
     catImg=await window.TextMuyAPI.loadCatalogo('img').catch(function(){return null;});
    }
   }catch(_){catImg=null;}
+  pintarGeometria(catImg&&catImg.thumbs);
   const construida=window.TextMuyCatalog.itemsGaleriaImg(catImg,{tab:fuenteActual,q:q,
    puente:bridgeOK()&&PM().listImages?PM().listImages():[]});
   avisoEstado=(construida.libres?construida.libres+' libres':'')+
@@ -279,6 +310,17 @@ function crearPanel(){
 
  function ocultarUpload(v){uploadLabel.hidden=v;}
 
+ // Geometria de los tiles desde thumbs del catalogo (la misma regla que la
+ // galeria de fuentes: js/catalog.js::geometriaTiles). Sin thumbs no toca nada
+ // y manda el default del CSS por data-ambito.
+ function pintarGeometria(thumbs){
+  const g=(window.TextMuyCatalog&&window.TextMuyCatalog.geometriaTiles)
+   ?window.TextMuyCatalog.geometriaTiles(thumbs):null;
+  if(!g)return;
+  list.style.setProperty('--tt-gal-ratio',g.ratio);
+  list.style.setProperty('--tt-gal-col',g.col+'px');
+ }
+
  function render(){
   list.innerHTML='';
   if(!items.length){list.appendChild(el('tt-galpanel-empty','p','Sin resultados.'));rfFooter();return;}
@@ -293,10 +335,19 @@ function crearPanel(){
    let tileListo=null;
    if (typeof it.imgId === 'number' && it.imgId >= 1 && spriteEstadoImg === 'lista' && window.TextMuyAPI) {
     tileListo = window.TextMuyAPI.drawTileCanonico('img', it.imgId);
+   } else if (it.tipo === 'preset' && typeof it.presetId === 'number' && it.presetId >= 1
+    && spriteEstadoPresets === 'lista' && window.TextMuyAPI) {
+    // RC37: la miniatura del preset sale de la hoja del ambito (antes caia al
+    // <img> con el .txm como src: imagen rota).
+    tileListo = window.TextMuyAPI.drawTileCanonico('tm-presets', it.presetId);
    }
    if (tileListo) {
     t.appendChild(tileListo);
    } else if (typeof it.imgId === 'number' && it.imgId >= 1 && it.tipo !== 'preset' && spriteEstadoImg === 'pendiente') {
+    t.appendChild(el('tt-galpanel-ph','span',it.titulo));
+   } else if (it.tipo === 'preset') {
+    // Preset sin miniatura en la hoja: placeholder de texto (un .txm jamas es
+    // una imagen).
     t.appendChild(el('tt-galpanel-ph','span',it.titulo));
    } else {
     img.src = (it.tipo === 'server' && it.thumb) ? it.thumb : srcVista(it);
@@ -401,6 +452,8 @@ function crearPanel(){
 
  function abrirP(fuente,aplicar,seccion,opciones){
   aplicarActual=aplicar;fuenteActual=fuente;
+  // CSS: proporcion y columna del tile segun ambito (style.css --tt-gal-*).
+  ov.dataset.ambito=(fuente==='presets')?'presets':'img';
   previewOpts=opciones||{};
   search.value='';seleccionado=null;
   catSel.innerHTML='';catSel.hidden=true;

@@ -2233,6 +2233,7 @@
         const grid = document.getElementById('tt-gallery-grid');
         const search = document.getElementById('tt-gallery-search');
         const saveBtn = document.getElementById('tt-gallery-save-btn');
+        const spriteBtn = document.getElementById('tt-gallery-sprite-btn');
         const statusEl = document.getElementById('tt-gallery-status');
         if (!gallery || !toggle || !grid) return;
 
@@ -2244,24 +2245,66 @@
                 presetSpriteInfo = null;
             }
         });
+        // RC37: la hoja de miniaturas de presets se LEE por la ruta canonica
+        // (api.js::ensureSpriteCanonico: thumbs.webp validado contra
+        // thumbs.sprite_firma del catalogo). Antes se reconstruia en cada
+        // apertura y el render de cada tile llamaba a
+        // PresetManager.ensureThumbnail(), que dibuja el preset -> cargaba la
+        // fuente de TODOS los presets al abrir. Sin hoja certificada la galeria
+        // muestra el nombre y nada mas; la generacion es explicita (boton).
+        let presetIdsPorNombre = {}; // nombre .txm sin extension -> id de presets.json
         function cargarPresetSprite() {
             const version = ++presetSpriteVersion;
-            if (!window.ThumbEngine || !window.PresetManager || !PresetManager.listPresets) {
+            if (!window.TextMuyAPI || !window.TextMuyAPI.ensureSpriteCanonico) {
                 return Promise.resolve(null);
             }
-            const nombres = PresetManager.listPresets();
-            if (!nombres || !nombres.length) return Promise.resolve(null);
-            const items = nombres.map(function(n) { return { nombre: n }; });
-            var bP = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
-            return window.ThumbEngine.ensureSprite({
-                scope: 'tm-presets',
-                items: items,
-                ancho: 200,
-                alto: 100,
-                columnas: 4,
-                baseUrl: (bP && bP.urls && bP.urls.presetsBase) ? bP.urls.presetsBase : '',
-                render: function(it) {
-                    if (window.PresetManager && PresetManager.ensureThumbnail) {
+            const hoja = Promise.resolve(window.TextMuyAPI.ensureSpriteCanonico("tm-presets"))
+                .catch(function() { return null; });
+            const cat = window.TextMuyAPI.loadCatalogo
+                ? Promise.resolve(window.TextMuyAPI.loadCatalogo("tm-presets")).catch(function() { return null; })
+                : Promise.resolve(null);
+            return Promise.all([hoja, cat]).then(function(r) {
+                if (version !== presetSpriteVersion) return null;
+                const s = r[0], parsed = r[1];
+                if (parsed && parsed.items) {
+                    Object.keys(parsed.items).forEach(function(id) {
+                        const f = parsed.items[id] && parsed.items[id].file;
+                        if (f) presetIdsPorNombre[String(f).replace(/\.txm$/i, '')] = Number(id);
+                    });
+                }
+                if (!s || !s.spriteImage) return null;
+                presetSpriteInfo = { spriteImage: s.spriteImage, spriteUrl: s.spriteUrl };
+                return presetSpriteInfo;
+            }).catch(function() { return null; });
+        }
+
+        // Generacion EXPLICITA de la hoja: unica via que dibuja cada preset (y por
+        // lo tanto carga su fuente). Manda la firma del catalogo: sin ella el motor
+        // escribe thumbs.sprite_firma='' y la hoja queda INcertificable, de modo
+        // que cada apertura volvia a reconstruirla (ese era el bug de origen).
+        function generarMiniaturasPresets() {
+            if (!window.ThumbEngine || !window.PresetManager || !PresetManager.listPresets) {
+                setStatus('Miniaturas: requiere el plugin (iframe).', true);
+                return Promise.resolve(null);
+            }
+            const nombres = PresetManager.listPresets() || [];
+            if (!nombres.length) { setStatus('No hay presets que dibujar.'); return Promise.resolve(null); }
+            setStatus('Generando miniaturas (usa la fuente de cada preset)...');
+            const bP = (window.PresetManager && PresetManager.getBridge) ? PresetManager.getBridge() : null;
+            const cat = window.TextMuyAPI && window.TextMuyAPI.loadCatalogo
+                ? Promise.resolve(window.TextMuyAPI.loadCatalogo('tm-presets')).catch(function() { return null; })
+                : Promise.resolve(null);
+            return cat.then(function(parsed) {
+                return window.ThumbEngine.ensureSprite({
+                    scope: 'tm-presets',
+                    items: nombres.map(function(n) { return { nombre: n }; }),
+                    ancho: 200,
+                    alto: 100,
+                    columnas: 4,
+                    baseUrl: (bP && bP.urls && bP.urls.presetsBase) ? bP.urls.presetsBase : '',
+                    firma: (parsed && parsed.firma) || '',
+                    render: function(it) {
+                        if (!window.PresetManager || !PresetManager.ensureThumbnail) return Promise.resolve(null);
                         return PresetManager.ensureThumbnail(it.nombre).then(function(url) {
                             if (!url) return null;
                             return new Promise(function(res) {
@@ -2273,21 +2316,16 @@
                             });
                         });
                     }
-                    return Promise.resolve(null);
-                }
-            }).then(function(res) {
-                if (!res) return null;
-                return new Promise(function(resolve) {
-                    const img = new Image();
-                    img.onload = function() {
-                        if (version !== presetSpriteVersion) { resolve(null); return; }
-                        presetSpriteInfo = { spriteImage: img, manifest: res.manifest, spriteUrl: res.spriteUrl };
-                        resolve(presetSpriteInfo);
-                    };
-                    img.onerror = function() { resolve(null); };
-                    img.src = res.spriteUrl;
                 });
-            }).catch(function() { return null; });
+            }).then(function(res) {
+                if (!res) { setStatus('No se pudo generar la hoja de miniaturas.', true); return null; }
+                setStatus('Miniaturas generadas.');
+                presetSpriteInfo = null;
+                if (window.PresetManager && PresetManager.invalidarSprite) {
+                    return Promise.resolve(PresetManager.invalidarSprite('tm-presets')).catch(function() {});
+                }
+                return null;
+            }).catch(function(e) { setStatus((e && e.message) || String(e), true); return null; });
         }
 
         function setStatus(msg, esError) {
@@ -2308,19 +2346,24 @@
                 tile.dataset.preset = name;
                 tile.setAttribute('aria-label', name);
 
-                let img = null;
-                if (presetSpriteInfo && window.ThumbEngine && window.ThumbEngine.tile(presetSpriteInfo.manifest, name)) {
-                    const cv = document.createElement('canvas');
-                    cv.width = 200;
-                    cv.height = 100;
-                    const ctx = cv.getContext('2d');
-                    window.ThumbEngine.drawTile(ctx, presetSpriteInfo.spriteImage, presetSpriteInfo.manifest, name, 0, 0, 200, 100);
-                    tile.appendChild(cv);
-                } else {
-                    img = document.createElement('img');
-                    img.alt = name;
-                    img.loading = 'lazy';
-                    tile.appendChild(img);
+                // Miniatura desde la hoja CANONICA del ambito (celda = id-1).
+                // Sin hoja no hay <img>: el label del tile ya muestra el nombre
+                // y la galeria no toca la red.
+                let celda = null;
+                const pid = presetIdsPorNombre[name];
+                if (presetSpriteInfo && window.TextMuyAPI && window.TextMuyAPI.drawTileCanonico
+                    && typeof pid === "number" && pid >= 1) {
+                    try { celda = window.TextMuyAPI.drawTileCanonico("tm-presets", pid); }
+                    catch (_) { celda = null; }
+                }
+                if (celda) tile.appendChild(celda);
+                else {
+                    // Sin hoja: se conserva la altura del tile y se avisa que no
+                    // hay miniatura generada (el nombre vive en el label).
+                    const ph = document.createElement('span');
+                    ph.className = 'tt-gallery-tile-ph';
+                    ph.textContent = 'sin miniatura';
+                    tile.appendChild(ph);
                 }
 
                 const label = document.createElement('span');
@@ -2350,11 +2393,10 @@
 
                 grid.appendChild(tile);
 
-                if (img && window.PresetManager && PresetManager.ensureThumbnail) {
-                    PresetManager.ensureThumbnail(name).then(function(url) {
-                        if (url && img) img.src = url;
-                    });
-                }
+                // RC37: sin hoja canonica NO se pide la miniatura de cada preset:
+                // PresetManager.ensureThumbnail() dibuja el preset y con eso carga
+                // su fuente, o sea abrir la galeria se bajaba todas. El label del
+                // tile ya muestra el nombre; las miniaturas se generan a pedido.
             });
             markSelected();
         }
@@ -2398,6 +2440,16 @@
 
         if (search) search.addEventListener('input', filterTiles);
         if (saveBtn) saveBtn.addEventListener('click', guardarPreset);
+        // Las miniaturas se generan a pedido (dibujar un preset carga su
+        // fuente). Abrir la galeria nunca lo hace.
+        if (spriteBtn) spriteBtn.addEventListener('click', function() {
+            spriteBtn.disabled = true;
+            generarMiniaturasPresets().then(function(res) {
+                spriteBtn.disabled = false;
+                if (res) return cargarPresetSprite().then(populate);
+                return null;
+            });
+        });
 
         // Permite refrescar la galeria desde fuera (import de TextStudio, etc.).
         refrescarGaleriaPresets = function() { populate(); };

@@ -180,6 +180,25 @@
         return esperado;
     }
 
+    /* Geometria de los tiles de una galeria, derivada de thumbs del catalogo.
+     * UNICA regla para los 3 ambitos (fonts 180x30, img 100x100, tm-presets
+     * 200x100): el tile conserva la PROPORCION de la celda del sprite y la
+     * columna minima es el ancho natural de esa celda (recortado a 48..220px
+     * para paneles muy chicos o muy grandes). Con eso la celda se muestra a
+     * ~1x de su tamano natural (sin upscales grandes) y ninguna galeria
+     * hardcodea ratios. thumbs ausentes/invalidos -> null: la galeria deja los
+     * defaults del CSS. */
+    function geometriaTiles(thumbs) {
+        var w = (thumbs && thumbs.w) | 0, h = (thumbs && thumbs.h) | 0;
+        if (!(w > 0) || !(h > 0)) return null;
+        return {
+            w: w,
+            h: h,
+            ratio: w + ' / ' + h,
+            col: Math.min(220, Math.max(48, w))
+        };
+    }
+
     /* Firma canonica del catalogo: dims de reticula + tuplas crudas.
      * DEBE coincidir con PMU_Uploads::sprite ([w,h,c,items]) o el motor
      * rechaza la hoja con 'motor:sprite:catalogo:desactualizado'. Certifica
@@ -345,6 +364,7 @@
         celdaDeSprite: celdaDeSprite,
         requireId: requireId,
         tileDeId: tileDeId,
+        geometriaTiles: geometriaTiles,
         huecoParaAlta: huecoParaAlta,
         mapImgRefs: mapImgRefs,
         hasNumericImgRefs: hasNumericImgRefs

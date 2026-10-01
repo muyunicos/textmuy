@@ -11,7 +11,35 @@ const assert = require('node:assert/strict');
 // Stubs minimos para cargar fonts.js (IIFE de navegador) en Node.
 global.window = {};
 global.localStorage = { getItem: function() { return null; }, setItem: function() {} };
-global.document = { fonts: null, createElement: function() { return {}; } };
+// Canvas falso que registra lo que se dibuja (para verificar el preview).
+const dibujosCanvas = [];
+global.document = {
+    fonts: null,
+    createElement: function() {
+        return {
+            width: 0,
+            height: 0,
+            getContext: function() {
+                return {
+                    fillStyle: '', font: '', textAlign: '', textBaseline: '',
+                    fillRect: function() {}, beginPath: function() {}, rect: function() {},
+                    clip: function() {}, save: function() {}, restore: function() {},
+                    fillText: function(txt, x, y) {
+                        dibujosCanvas.push({ txt: txt, font: this.font, w: this._w, x: x, y: y });
+                    }
+                };
+            }
+        };
+    }
+};
+// FontFace espia: contar SI se pide el archivo de una fuente fisica.
+let fontFaceLlamadas = 0;
+global.FontFace = function(name, src) {
+    fontFaceLlamadas++;
+    this.name = name; this.src = src;
+    this.load = function() { return Promise.reject(new Error('sin red')); };
+};
+global.window.FontFace = global.FontFace;
 global.fetch = function() { return Promise.reject(new Error('no net')); };
 
 require('../js/catalog.js');
@@ -75,6 +103,7 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
     global.window.ThumbEngine = {
         ensureSprite: function (opts) {
             itemsSprite = opts.items;
+            optsSprite = opts;
             return Promise.resolve({ spriteUrl: 'fonts/thumbs.webp', manifest: { tiles: [] } });
         },
         tile: function () { return null; },
@@ -96,6 +125,7 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
         return Promise.reject(new Error('no net'));
     };
     let itemsSprite = null;
+    let optsSprite = null;
     let invalidaciones = 0;
     await FL.invalidateCatalog();       // relee fonts.json con el stub
     await FL.ensureFontsSprite();
@@ -116,6 +146,31 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
     const resBaja = await FL.deleteCustomFont('no-existe');
     assert.equal(resBaja, false, 'sin puente/entrada -> false');
     assert.ok(FL.deleteCustomFont('no-existe') instanceof Promise, 'siempre Promise');
+
+    // 11. RC37: la reticula de la hoja sale del catalogo (thumbs), no de un
+    //     literal 180x30, y la peticion lleva la FIRMA del catalogo (sin firma
+    //     el motor escribe sprite_firma='' y la hoja queda INcertificable).
+    assert.deepEqual(FL.getCatalogThumbs(), { w: 180, h: 30, c: 4 }, 'getCatalogThumbs desde fonts.json');
+    assert.ok(optsSprite, 'ensureFontsSprite llamo a ThumbEngine');
+    assert.equal(optsSprite.ancho, 180, 'ancho desde thumbs');
+    assert.equal(optsSprite.alto, 30, 'alto desde thumbs');
+    assert.equal(optsSprite.columnas, 4, 'columnas desde thumbs');
+    assert.ok(typeof optsSprite.firma === 'string' && optsSprite.firma.length > 0,
+        'la hoja se persiste certificada (firma del catalogo)');
+
+    // 12. RC37: renderFontPreview con cargar:false dibuja SIN tocar la red ni
+    //     FontFace. Es lo que usa la galeria: abrir el panel ya no descarga las
+    //     fuentes fisicas del catalogo (antes: las 15, ~1,4 MB).
+    const antes = fontFaceLlamadas;
+    const cvSinCarga = await FL.renderFontPreview({ key: '2', name: 'Mi Fisica' }, 180, 30, { cargar: false });
+    assert.ok(cvSinCarga, 'el preview sin carga se dibuja igual');
+    assert.equal(fontFaceLlamadas, antes, 'cargar:false no pide el archivo de la fuente');
+    assert.ok(dibujosCanvas.length > 0, 'el preview escribio el nombre en el canvas');
+    //     Control positivo: sin la opcion, la fuente fisica SI se carga (1).
+    FL.registry['fis-test'] = { name: 'Fis Test', path: 'https://test/fonts/fis.ttf' };
+    const antesCarga = fontFaceLlamadas;
+    await FL.renderFontPreview({ key: 'fis-test', name: 'Fis Test' }, 180, 30);
+    assert.equal(fontFaceLlamadas, antesCarga + 1, 'cargar (default) si carga la fuente fisica');
 
     console.log('OK: fonts-catalog.test.js');
 })().catch(function(e) { console.error(e.message); process.exit(1); });

@@ -43,6 +43,7 @@
     var fontCategories = {}; // categoria -> [ids] (derivado del catalogo)
     var catalogLibres = [];  // ids tombstone (no se muestran)
     var catalogInvalidas = []; // [{pos, reason}] para warn + contador
+    var catalogRaw = null;   // JSON crudo de fonts.json (insumo de la firma)
     var FONT_EXT_RE = /\.(ttf|otf|woff|woff2)$/i;
     function catalogUrl() {
         return fontUrlBase() + 'fonts.json';
@@ -109,6 +110,7 @@
         catalogLibres = [];
         catalogInvalidas = [];
         catalogParsed = null;
+        catalogRaw = null;
         return loadCatalog();
     }
     function fetchCatalog() {
@@ -116,6 +118,7 @@
             if (!r.ok) throw new Error('sin fonts.json en ' + catalogUrl());
             return r.json();
         }).then(function (data) {
+            catalogRaw = data || null; // la firma del sprite se calcula sobre el JSON crudo
             catalogFonts = {};
             fontCategories = {};
             catalogLibres = [];
@@ -632,79 +635,84 @@
     // subida al servidor son la unica via (prohibido localStorage).
 
 
+    /** Dibuja el nombre de la fuente en un canvas de ancho x alto SIN tocar la
+     *  red. familyCss es el stack CSS a usar: si la familia aun no esta en
+     *  document.fonts el navegador cae a la del sistema (que es exactamente el
+     *  comportamiento que quiere un placeholder). */
+    function dibujarPreviewFuente(fontName, familyCss, ancho, alto, color) {
+        var cv = document.createElement('canvas');
+        cv.width = ancho;
+        cv.height = alto;
+        var ctx = cv.getContext('2d');
+
+        // Fondo blanco limpio
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, ancho, alto);
+
+        // Clip al espacio util
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, ancho, alto);
+        ctx.clip();
+
+        // Texto: nombre de la fuente, alineado a la izquierda, vertical centrado
+        ctx.font = familyCss;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(fontName, 6, Math.round(alto / 2));
+
+        ctx.restore();
+        return cv;
+    }
+
     /**
      * Renderiza una miniatura de la fuente mostrando SU PROPIO NOMBRE
      * Dimensiones estandar: 180x30px, alineado a la izquierda, recortado si no entra.
+     * opts.cargar === false => NO hace NINGUN fetch: dibuja con la familia
+     * declarada (fuente del sistema si aun no esta cargada). Lo usan los
+     * placeholders de la galeria: abrir el panel de fuentes jamas descarga el
+     * catalogo. Antes cada tile llamaba a loadFont y al abrir se bajaban las
+     * 15 fisicas del catalogo (~1,4 MB) mas el rebuild completo de la hoja.
      */
-    function renderFontPreview(fontItem, ancho, alto) {
+    function renderFontPreview(fontItem, ancho, alto, opts) {
         ancho = ancho || 180;
         alto = alto || 30;
+        opts = opts || {};
         var fontKey = typeof fontItem === 'string' ? fontItem : (fontItem.key || fontItem.nombre);
         var fontName = (fontItem && fontItem.name) || (fontRegistry[fontKey] && fontRegistry[fontKey].name) || fontKey;
         var esOnline = !!(fontItem && fontItem.online) || (catalogFonts[fontKey] && catalogFonts[fontKey].online);
+        var cssReal = '16px "' + fontName + '", sans-serif';
 
         // Online Google: preview con fuente del sistema (rapido, sin red/links).
         if (esOnline) {
-            var cvS = document.createElement('canvas');
-            cvS.width = ancho;
-            cvS.height = alto;
-            var ctxS = cvS.getContext('2d');
-            ctxS.fillStyle = '#ffffff';
-            ctxS.fillRect(0, 0, ancho, alto);
-            ctxS.font = '14px sans-serif';
-            ctxS.fillStyle = '#666666';
-            ctxS.textAlign = 'left';
-            ctxS.textBaseline = 'middle';
-            ctxS.fillText(fontName, 6, Math.round(alto / 2));
-            return Promise.resolve(cvS);
+            return Promise.resolve(dibujarPreviewFuente(fontName, '14px sans-serif', ancho, alto, '#666666'));
+        }
+        // Preview sin carga: cero red (placeholder de la galeria).
+        if (opts.cargar === false) {
+            return Promise.resolve(dibujarPreviewFuente(fontName, cssReal, ancho, alto, '#222222'));
         }
 
         return loadFont(fontKey).then(function () {
-            var cv = document.createElement('canvas');
-            cv.width = ancho;
-            cv.height = alto;
-            var ctx = cv.getContext('2d');
-
-            // Fondo blanco limpio
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, ancho, alto);
-
-            // Clip al espacio util
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, ancho, alto);
-            ctx.clip();
-
-            // Texto: nombre de la fuente, alineado a la izquierda, vertical centrado
-            ctx.font = '16px "' + fontName + '", sans-serif';
-            ctx.fillStyle = '#222222';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(fontName, 6, Math.round(alto / 2));
-
-            ctx.restore();
-            return cv;
+            return dibujarPreviewFuente(fontName, cssReal, ancho, alto, '#222222');
         }).catch(function () {
             // Fallback con fuente de sistema
-            var cv = document.createElement('canvas');
-            cv.width = ancho;
-            cv.height = alto;
-            var ctx = cv.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, ancho, alto);
-            ctx.font = '14px sans-serif';
-            ctx.fillStyle = '#666666';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(fontName, 6, Math.round(alto / 2));
-            return cv;
+            return dibujarPreviewFuente(fontName, '14px sans-serif', ancho, alto, '#666666');
         });
     }
 
     /**
-     * Asegura el spritesheet global de fuentes (180x30 por tile).
+     * Asegura el spritesheet global de fuentes (reticula de catalogo.thumbs).
+     * DEPRECADO para la apertura de la galeria (RC37): la galeria lee la hoja
+     * canonica con TextMuyAPI.ensureSpriteCanonico('fonts') y NUNCA reconstruye
+     * aqui, porque ThumbEngine guarda el manifiesto solo en memoria y cada
+     * apertura disparaba una generacion completa que llamaba a renderFontPreview
+     * por cada item -> se descargaban TODAS las fuentes fisicas. Queda para la
+     * generacion explicita ("Generar miniaturas").
+     * opciones.sinCarga: dibuja los tiles sin descargar ninguna fuente.
      */
-    function ensureFontsSprite() {
+    function ensureFontsSprite(opciones) {
+        opciones = opciones || {};
         if (!window.ThumbEngine) {
             return Promise.resolve(null);
         }
@@ -740,13 +748,30 @@
         });
 
         var bF = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
+        // La reticula la manda el catalogo (thumbs): si el plugin sube el
+        // tamano de la celda, la hoja se escribe con ese tamano y la galeria lo
+        // sigue (js/catalog.js::geometriaTiles). Fallback: la reticula historica.
+        var th = (catalogParsed && catalogParsed.thumbs) || {};
+        var sinCarga = !!opciones.sinCarga;
+        var firma = '';
+        try {
+            if (window.TextMuyCatalog && catalogRaw && catalogRaw.thumbs) {
+                firma = window.TextMuyCatalog.firmaCatalogo(catalogRaw.thumbs, catalogRaw.items);
+            }
+        } catch (_) { firma = ''; }
         return window.ThumbEngine.ensureSprite({
             scope: 'fonts',
             items: items,
-            ancho: 180,
-            alto: 30,
-            columnas: 4,
-            render: renderFontPreview,
+            ancho: th.w > 0 ? (th.w | 0) : 180,
+            alto: th.h > 0 ? (th.h | 0) : 30,
+            columnas: th.c > 0 ? (th.c | 0) : 4,
+            render: function (it, w, h) {
+                return renderFontPreview(it, w, h, { cargar: !sinCarga });
+            },
+            // Sin firma el motor escribe thumbs.sprite_firma='' y la hoja queda
+            // INcertificable para siempre: la ruta canonica (api.js) la rechaza
+            // y se reconstruye en cada apertura.
+            firma: firma,
             baseUrl: (bF && bF.urls && bF.urls.fuentesBase) ? bF.urls.fuentesBase : ''
         });
             });
@@ -799,6 +824,9 @@
         getAvailableFonts: getAvailableFonts,
         getFontCategories: function() { return fontCategories; },
         getCatalogFonts: function() { return catalogFonts; },
+        getCatalogThumbs: function() {
+            return (catalogParsed && catalogParsed.thumbs) || { w: 0, h: 0, c: 0 };
+        },
         getCatalogLibres: function() { return catalogLibres.slice(); },
         getCatalogInvalidas: function() { return catalogInvalidas.slice(); },
         registry: fontRegistry

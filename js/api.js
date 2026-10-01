@@ -70,9 +70,19 @@
     // Cache de catalogos por ambito para resolucion por id (formato unico).
     var catalogCache = {};
     // Nombre explicito del catalogo por ambito: NUNCA derivado del directorio.
+    // Ambito canonico de presets: el motor y ThumbEngine lo llaman
+    // 'tm-presets' (carpeta uploads/pmu/tm-presets/), pero los llamadores del
+    // modulo lo nombran 'presets'. Sin esta normalizacion CATALOGO_FILE/BASE
+    // no tenian clave 'presets' -> loadCatalogo('presets') lanzaba siempre
+    // 'presets:catalogo:sin_puente' (loadPresetById roto, galeria de presets
+    // cayendo siempre al listado legacy). Un solo ambito interno: 'tm-presets'.
+    function ambitoCanonico(ambito) {
+        return ambito === 'presets' ? 'tm-presets' : ambito;
+    }
     var CATALOGO_FILE = { fonts: 'fonts.json', img: 'img.json', 'tm-presets': 'presets.json' };
     var CATALOGO_BASE = { fonts: 'fuentesBase', img: 'imagenesBase', 'tm-presets': 'presetsBase' };
     function loadCatalogo(ambito) {
+        ambito = ambitoCanonico(ambito);
         var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
         var baseKey = CATALOGO_BASE[ambito];
         var base = (b && b.urls && baseKey && b.urls[baseKey]) ? b.urls[baseKey] : '';
@@ -290,7 +300,7 @@
     var canonCache = {};    // ambito -> {canon, spriteUrl, spriteImage}
     function spriteBaseDe(ambito) {
         var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-        var baseKey = CATALOGO_BASE[ambito];
+        var baseKey = CATALOGO_BASE[ambitoCanonico(ambito)];
         var base = (b && b.urls && baseKey && b.urls[baseKey]) ? b.urls[baseKey] : '';
         return base || '';
     }
@@ -326,6 +336,7 @@
     // otro contenido) NO se reutiliza: se devuelve null para que el llamador
     // regenere. Cache en memoria por ambito (invalidada tras mutaciones).
     async function ensureSpriteCanonico(ambito) {
+        ambito = ambitoCanonico(ambito);
         if (!window.TextMuyCatalog || !window.TextMuyCatalog.manifestDeSprite) return null;
         var parsed = null;
         try { parsed = await loadCatalogo(ambito); } catch (_) { return null; }
@@ -354,7 +365,7 @@
     // Dibuja el tile canonico del id en un canvas del tamano del tile.
     // null si el sprite no cubre ese id (hoja vieja: el llamador regenera).
     function drawTileCanonico(ambito, id) {
-        var memo = canonCache[ambito];
+        var memo = canonCache[ambitoCanonico(ambito)];
         if (!memo || !memo.spriteImage || !memo.canon) return null;
         var c = null;
         try { c = window.TextMuyCatalog.celdaDeSprite(memo.spriteImage, memo.canon, id); }
@@ -375,6 +386,7 @@
     // tile; sin render, los items con url se descargan y encajan (pad en img).
     // Devuelve el resultado de ThumbEngine (o null sin motor/catalogo).
     async function reconstruirSpriteCanonico(ambito, opciones) {
+        ambito = ambitoCanonico(ambito);
         opciones = opciones || {};
         if (!window.ThumbEngine || !window.ThumbEngine.ensureSprite) return null;
         var parsed = null;
@@ -416,6 +428,7 @@
     // Necesario tras reconstruir el sprite, porque el motor certifica el
     // catalogo (thumbs.sprite_firma) recien al persistir la hoja.
     function invalidarCatalogo(ambito) {
+        ambito = ambitoCanonico(ambito);
         var base = spriteBaseDe(ambito);
         if (base) delete catalogCache[base + CATALOGO_FILE[ambito]];
         delete catalogSync[ambito];
@@ -423,6 +436,7 @@
     // Invalida la cache canonica del ambito (tras alta/baja/edicion). El
     // proximo ensureSpriteCanonico revalida y trae la hoja nueva (no-cache).
     function invalidarSpriteCanonico(ambito) {
+        ambito = ambitoCanonico(ambito);
         var prev = canonCache[ambito];
         if (prev && prev.spriteUrl) delete spriteCache[prev.spriteUrl];
         delete canonCache[ambito];

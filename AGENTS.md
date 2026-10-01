@@ -79,9 +79,11 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 10 tests Node (catalog-unified, fonts-catalog, img-refs,
-                              preset-cache, preset-delta, preset-load, distort-engine,
-                              flag-wave, pattern-block-box, controls-init)
+└── tests/                 <- 16 tests Node (catalog-unified, tile-geometria, fonts-catalog,
+                              img-refs, preset-cache, preset-ambito, preset-delta,
+                              preset-load, distort-engine, flag-wave, pattern-block-box,
+                              controls-init, galeria-items, invalidacion,
+                              sprite-canonico, rc-bump)
 ```
 
 ## 3. Flujo de trabajo
@@ -145,7 +147,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC36**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC37**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -155,7 +157,9 @@ textmuy/
    `js/catalog.js` (clases `ok`/`free`/`invalid` con causa): `invalid` en GALERÍA =
    salto + `console.warn` + contador visible; en RENDER = rechazo `ambito:id:motivo`.
    Sprite fusionado por ámbito (fonts 180x30, img 100x100, presets 200x100), tile
-   derivado `id-1`, cero manifiestos por tile.
+   derivado `id-1`, cero manifiestos por tile. La **geometría del tile de las
+   galerías sale de `thumbs`** (`catalog.js::geometriaTiles` → variables CSS
+   `--tt-gal-ratio` / `--tt-gal-col`); nunca ratios hardcodeados (RC37).
 9. **Refs de recursos en `.txm`**: `settings.font.src` es STRING canónico (título del
    catálogo de fuentes, p.ej. `"Bangers"`/`"MUY-Alegría"`, o spec Google
    `"Oswald:wght@400;700"`); también se acepta el `id` numérico del catálogo. El editor
@@ -182,7 +186,8 @@ textmuy/
 
 - **`catalog.js`**: parser único de catálogos (clasificación `ok`/`free`/`invalid` con
   causa `ambito:id:motivo`), `tileDeId` (tile=`id-1`), `huecoParaAlta` (reutiliza el
-  tombstone más bajo), walker `mapImgRefs`/`hasNumericImgRefs` (refs de imagen por id).
+  tombstone más bajo), walker `mapImgRefs`/`hasNumericImgRefs` (refs de imagen por id)
+  y `geometriaTiles` (proporción y columna del tile de galería desde `thumbs`).
 - **`editor.js`**: estado del proyecto (`createDefaultSettings`, `loadPreset`) y render
   de todas las capas: fill/pattern/palette, outline, shadows, bevel, specular, icon,
   background, lettering (blendmodes, textures).
@@ -190,20 +195,31 @@ textmuy/
   bindCanvasDimension, gradient colors).
 - **`galeria.js`**: componente único de galería de imágenes (tabs, búsqueda, subida,
   preview en vivo con rollback); lee el sprite `img` canónico (`tile = id-1`) y deduplica
-  el inventario del puente contra el catálogo (identidad = `id`).
+  el inventario del puente contra el catálogo (identidad = `id`). Con `fuente='presets'`
+  lista `presets.json` y dibuja cada miniatura desde la hoja `tm-presets` (solo lectura;
+  sin hoja = placeholder de texto, nunca `<img>` del `.txm`) (RC37). El panel declara su
+  ámbito en `data-ambito` para que el CSS aplique la geometría del tile.
 - **`fuentes-galeria.js`**: galería de fuentes (mismo patrón visual `tt-galpanel-*`:
-  buscador, tabs por categoría dinámica, tiles con preview o sprite `fonts`, upload
-  TTF/OTF/WOFF/WOFF2, footer nombre+categoría+Save/Delete/Select, botón "+ Categoría").
+  buscador, tabs por categoría dinámica, upload TTF/OTF/WOFF/WOFF2, footer
+  nombre+categoría+Save/Delete/Select, botón "+ Categoría" y botón "Generar miniaturas").
+  RC37: los tiles salen de la hoja **canónica leída** (`TextMuyAPI.ensureSpriteCanonico`
+  + `drawTileCanonico`); sin hoja certificada hay placeholder de texto y **cero
+  descargas**; el preview real con el tipo de letra se pide al seleccionar la fuente
+  (1 archivo). La regeneración de la hoja es explícita (botón), jamás al abrir.
   El CRUD físico va por el motor (`op=editar`; Google = solo lectura).
 - **`preset-manager.js`**: CRUD de presets por el motor, formato `.txm`, miniaturas,
   `presetUrlBase()`, `getBridge()` y los listados iniciales que llegan por el puente.
 - **`api.js`**: API pública (`renderTextToPNG`, `renderBatch`, `loadPresetById`,
   `prepareImgRefs`, `clearPresetCache`) y cache de presets + catálogos (1 fetch por
   recurso; no cachea fallos). Resolución de refs de imagen por id (fail-fast con causa
-  en render).
+  en render). Ambito de presets: el motor habla `tm-presets`; `ambitoCanonico()`
+  normaliza el alias `presets` en toda la API interna (una sola cache por recurso) (RC37).
 - **`export.js`**: PNG transparente al tamaño exacto del canvas.
 - **`fonts.js`**: carga Google Fonts + locales, `ensureFontReady`, resolución de la
-  fuente de un preset (`resolveFontFromPreset`).
+  fuente de un preset (`resolveFontFromPreset`), `getCatalogThumbs` (retícula del
+  catálogo) y `renderFontPreview(item, w, h, {cargar:false})` para dibujar **sin tocar
+  la red** (placeholders de la galería) (RC37). `ensureFontsSprite` quedó solo para la
+  generación explícita y manda la firma del catálogo.
 - **`gradient-picker.js`**: picker de gradientes N colores (sincronización con settings).
 - **`effects/`**: bevel (WebGL con normal maps + fallback 2D), specular (Blinn-Phong),
   distort engine (arcos, ondas, bulge per-character con fallback matricial).
@@ -244,12 +260,25 @@ textmuy/
   hoja a `'pendiente'` (`invalidarSpriteVista`), así que la sesión en curso regenera
   la hoja con el catálogo nuevo sin Ctrl+F5.)
 - ✅ **Fuentes**: catálogo con Google lazy por familia (sin extensión) y físicas subidas
-  por el administrador (ámbito `fonts`), con preview desde el sprite del ámbito.
-  RC35: la hoja `fonts` se sirve por manifest EN MEMORIA indexado por nombre STRING
-  (no por el lector canónico id-based); `drawTile` con resultado false degrada al
-  preview renderizado (nunca dibuja una celda vieja). El renombre/movimiento usa
-  `unregisterCustomFont` (solo memoria); SOLO el botón Delete manda `op=baja`, que en
-  el motor hace unlink + tombstone.
+  por el administrador (ámbito `fonts`). RC37: la galería lee la **hoja canónica**
+  (`ensureSpriteCanonico('fonts')` + `drawTileCanonico`, celda `id-1`). El manifest en
+  memoria de ThumbEngine (RC35, indexado por nombre STRING) quedó fuera del camino de
+  lectura: su cache es solo memoria y cada apertura reconstruía la hoja entera, lo que
+  descargaba TODAS las fuentes físicas (~1,4 MB en el mirror). Sin hoja certificada:
+  placeholder de texto y **cero requests**; el preview real se carga al **seleccionar**
+  la fuente (1 archivo) y la hoja se regenera solo con el botón "Generar miniaturas"
+  (que manda `firma`). El renombre/movimiento usa `unregisterCustomFont` (solo memoria);
+  SOLO el botón Delete manda `op=baja`, que en el motor hace unlink + tombstone.
+- ✅ **Geometría de tiles data-driven (RC37)**: `.tt-galpanel-tile` ya no fuerza 1/1;
+  proporción y columna salen de `thumbs` del catálogo (`catalog.js::geometriaTiles` →
+  variables CSS `--tt-gal-ratio` / `--tt-gal-col`, con defaults por `data-ambito` en
+  `style.css`). Fuentes: 2 columnas de ~175×29 px legibles (antes ~62×10 px, ilegibles).
+  Ninguna galería hardcodea el tamaño de la celda.
+- ✅ **Hojas certificadas (RC37)**: todo `ThumbEngine.ensureSprite` del módulo manda
+  `firma`; sin ella el motor escribe `thumbs.sprite_firma=''` y la hoja queda
+  INcertificable (se reconstruía en cada apertura). En `tm-presets` la generación es
+  explícita (botón "Miniaturas" de la galería inferior): dibujar un preset carga su
+  fuente, por eso nunca se hace al abrir.
 - ✅ **Efectos WebGL con fallback a Canvas 2D en el editor**; en la ruta de la API, sin
   WebGL el render falla con causa (Const. II, sin degradación silenciosa).
 - ✅ **Alcance de estilo por linea (Style target All/L1/L2/L3)**: `settings.lines`
@@ -305,18 +334,29 @@ relectura del catalogo antes de resolver. Las galerias no invalidan por su cuent
 Los tokens de version descartan respuestas antiguas en las vistas; esto NO
 serializa las escrituras `op=sprite` en el servidor.
 
+RC37: las galerias NO construyen hojas al abrir. `fonts` y `tm-presets` pasaron a la
+ruta de lectura canonica (`ensureSpriteCanonico` + `drawTileCanonico`), la regeneracion
+es explicita por boton ("Generar miniaturas" en la galeria de fuentes, "Miniaturas" en
+la galeria inferior de presets) y todo `ThumbEngine.ensureSprite` manda `firma`.
+`FontLoader.renderFontPreview(item, w, h, {cargar:false})` dibuja sin tocar la red: es
+lo que usan los placeholders, asi que abrir la galeria de fuentes hace 0 requests de
+fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
+
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 14 suites Node. La prueba opcional `tests/galerias.browser.js` usa Chrome y
+Hay 16 suites Node. La prueba opcional `tests/galerias.browser.js` usa Chrome y
 Playwright instalados externamente (variable `TEXTMUY_CHROME` para el ejecutable);
 valida DOM con motor/miniaturas simulados, no sustituye la prueba en WordPress.
 
 
 ```bash
 node tests/catalog-unified.test.js    # parser unico: ok/free/invalid + tile=id-1 + tombstone
+node tests/tile-geometria.test.js     # geometria del tile desde thumbs (ratio/columna)
 node tests/fonts-catalog.test.js      # wiring fonts.js al parser + rechazo legacy (tuplas string)
+                                      # + preview sin carga (cero FontFace) + thumbs
 node tests/img-refs.test.js           # refs de imagen por id (prepareImgRefs, fail-fast)
 node tests/preset-cache.test.js
+node tests/preset-ambito.test.js      # alias presets -> tm-presets (cache unica + firma)
 node tests/preset-delta.test.js
 node tests/preset-load.test.js        # valida los presets del administrador (lee de los uploads)
 node tests/distort-engine.test.js
