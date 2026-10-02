@@ -26,7 +26,7 @@
 ## 0. Resumen en una frase
 
 TextMuy es un **editor de estilos de texto client-side** al estilo TextStudio
-(Canvas 2D + WebGL) que vive **integrado** en el plugin WordPress "Personalizador PDF"
+(Canvas 2D + WebGL) que vive **integrado** en el plugin para WordPress "Personalizador PDF"
 (iframe same-origin + puente postMessage) y expone una **API de render** que convierte
 texto + preset en un **PNG transparente** del tamaño exacto.
 
