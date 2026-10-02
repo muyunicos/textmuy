@@ -433,6 +433,118 @@
     };
 
     // Initialize the editor
+    // ===== GARANTIA DE LA FUENTE DECLARADA (RC39, 001-fix-bugs-01) =====
+    // El lienzo se dibuja con la familia declarada, pero esa familia solo
+    // existe en el navegador cuando su archivo se descargó. Antes se pintaba
+    // de todas formas y el lienzo mostraba la tipografia del sistema ("parecida
+    // a Times") hasta que el usuario tocaba algo. Ahora:
+    //   1. se asegura la fuente declarada ANTES del primer pintado;
+    //   2. si queda pendiente, se registra un repintado que se dispara al
+    //      quedar disponible (FR-002);
+    //   3. si falla, se avisa con la causa y NO se sustituye la fuente
+    //      (FR-005, R-C2.1, constitucion VI).
+    let avisoFuente = null;   // causa visible de la ultima fuente fallida
+    let repintarPendiente = false;
+    function fuenteDeclarada() {
+        const s = state.settings;
+        return s && s.font ? (s.font.src !== undefined ? s.font.src : s.font) : null;
+    }
+    // Asegura la fuente declarada y deja el lienzo coherente. No lanza: un
+    // fallo se informa y el editor sigue operativo con lo que ya hay.
+    function asegurarFuenteDeclarada() {
+        if (!window.FontLoader || !window.FontLoader.loadFont) return Promise.resolve(null);
+        const ref = fuenteDeclarada();
+        if (ref === undefined || ref === null) return Promise.resolve(null);
+        return Promise.resolve().then(function () {
+            return window.FontLoader.loadFont(ref);
+        }).then(function (familia) {
+            avisoFuente = null;
+            if (window.TextEditorControls && TextEditorControls.reportFontError) {
+                TextEditorControls.reportFontError(null);
+            }
+            return familia;
+        }).catch(function (e) {
+            // Sin sustitucion: se informa la causa y la fuente declarada sigue
+            // en el estado, para que el selector diga la verdad (FR-001).
+            avisoFuente = (e && e.message) || String(e);
+            console.warn('Fuente declarada no disponible: ' + avisoFuente);
+            if (window.TextEditorControls && TextEditorControls.reportFontError) {
+                TextEditorControls.reportFontError(avisoFuente);
+            }
+            return null;
+        });
+    }
+    // Repintar cuando la fuente quede disponible. Solo si la fuente que ya
+    // esta es la pedida: una descarga tardia de una fuente descartada por el
+    // usuario no debe tocar el lienzo (R-C5.3).
+    function alQuedarFuenteLista(ref) {
+        repintarPendiente = false;
+        try {
+            if (window.FontLoader && window.FontLoader.resolveFontFromPreset) {
+                if (window.FontLoader.resolveFontFromPreset(ref) !== window.FontLoader.resolveFontFromPreset(fuenteDeclarada())) return;
+            }
+        } catch (_) { return; }
+        render();
+    }
+    // Punto de entrada comun: asegura la fuente y luego pinta. Lo usan el
+    // arranque y la aplicacion de un preset.
+    function renderConFuente() {
+        asegurarFuenteDeclarada().then(function () { render(); });
+    }
+
+    // ===== PREVISUALIZACION TEMPORAL DE FUENTE (RC39, 001-fix-bugs-01) =====
+    // La galeria de fuentes aplica la fuente explorada al lienzo sin pasar por
+    // el boton de confirmar. NO se toca el estado del proyecto: se guarda la
+    // fuente previa y el lienzo se pinta con la explorada. Al cerrar la
+    // galeria sin confirmar se vuelve a la previa (data-model §4).
+    let fuentePrevia = null;   // referencia previa mientras hay preview activa
+    function aplicarFuentePrevia(id) {
+        if (!state.settings || !state.settings.font) return;
+        if (fuentePrevia === null) {
+            fuentePrevia = state.settings.font.src;
+        }
+        // Se sustituye SOLO la familia efectiva del dibujado, no el estado.
+        state.fontPreviaId = id;
+        // Cargar primero, pintar despues: si la fuente no llega, se avisa y el
+        // lienzo sigue con la anterior en vez de mentirse (R-C5.6, FR-013).
+        if (!window.FontLoader || !window.FontLoader.loadFont) {
+            state.fontPreviaId = null;
+            return;
+        }
+        Promise.resolve().then(function () {
+            return window.FontLoader.loadFont(id);
+        }).then(function () {
+            // Solo se pinta si la previsualizacion sigue vigente: una descarga
+            // tardia de una fuente descartada no debe tocar el lienzo (R-C5.3).
+            if (state.fontPreviaId !== id) return;
+            render();
+        }).catch(function (e) {
+            if (state.fontPreviaId !== id) return;
+            state.fontPreviaId = null;
+            console.warn('Previsualizacion no disponible: ' + ((e && e.message) || e));
+        });
+    }
+    // Confirma la previsualizacion: la fuente explorada ya es la del proyecto,
+    // asi que se suelta la referencia previa. IMPORTANTE: tambien se limpia
+    // `fontPreviaId`, que es lo que hace que `familiaDeFuente` use la fuente
+    // explorada. Sin esta limpieza el lienzo se quedaria pegado a la fuente
+    // previsualizada y el selector podria decir otra cosa (R-C5.5, FR-009).
+    function confirmarFuentePrevia() {
+        fuentePrevia = null;
+        state.fontPreviaId = null;
+    }
+    // Revierte a la referencia previa. Si la descarga de la fuente descartada
+    // termina despues, la comparacion de identidad impide el repintado.
+    function revertirFuentePrevia(anterior) {
+        const previa = fuentePrevia;
+        fuentePrevia = null;
+        state.fontPreviaId = null;
+        if (state.settings && state.settings.font) {
+            state.settings.font.src = (anterior !== undefined) ? anterior : previa;
+        }
+        render();
+    }
+
     function init(canvasId) {
         state.canvas = document.getElementById(canvasId);
         if (!state.canvas) {
@@ -446,9 +558,16 @@
             textarea.value = state.settings.text;
         }
 
-        // Preload custom fonts
+        // El catalogo primero y la fuente declarada despues, que se le pasa
+        // EXPLICITA. Antes la precarga consultaba un estado invisible desde
+        // aqui y terminaba asegurando la fuente por defecto (R5).
+        repintarPendiente = true;
         if (window.FontLoader) {
-            FontLoader.preloadAll();
+            window.FontLoader.preloadAll().then(function () {
+                return asegurarFuenteDeclarada();
+            }).then(function () {
+                alQuedarFuenteLista(fuenteDeclarada());
+            });
         }
 
         const canvasWrapper = document.getElementById('tt-canvas-wrapper');
@@ -548,10 +667,55 @@
         return Math.max(1, Math.round(canvasWidth * displayScale));
     }
 
+    // ===== COMPOSICION DEL VALOR DE FUENTE (RC39, 001-fix-bugs-01) =====
+    // Unica forma de fijar la fuente de un contexto (R-C3.1). Antes cada punto
+    // de dibujado componia su propio valor con el nombre de familia SUELTO:
+    // un nombre con espacios generaba una abreviatura CSS invalida, el
+    // navegador la IGNORABA en silencio y el lienzo conservaba la composicion
+    // anterior. Esa era la fuente fantasma que veia el usuario (US1).
+    //
+    // La familia se pide YA entrecomillada a FontLoader.getFontFamily, que es
+    // un resolvedor puro. Si la fuente declarada no esta disponible, la
+    // ausencia se hace perceptible en vez de dibujar con otra tipografia
+    // (R-C3.3, FR-013).
+    function familiaDeFuente(s) {
+        // RC39: si hay una previsualizacion temporal activa (galeria de
+        // fuentes), el lienzo usa la fuente explorada sin que el estado la
+        // haya adoptionado todavia (R-C5.1, R-C5.5).
+        const enPrevia = (typeof state !== 'undefined' && state.fontPreviaId !== null
+            && state.fontPreviaId !== undefined);
+        const ref = enPrevia
+            ? state.fontPreviaId
+            : (s && s.font ? (s.font.src !== undefined ? s.font.src : s.font) : null);
+        if (window.FontLoader && window.FontLoader.getFontFamily) {
+            const f = window.FontLoader.getFontFamily(ref);
+            if (f) return f;
+        }
+        // Sin modulo de fuentes: se usa el nombre tal cual entrecomillado.
+        const crudo = String(ref === null || ref === undefined ? '' : ref).replace(/"/g, "'");
+        return crudo ? '"' + crudo + '"' : '"sans-serif"';
+    }
+    // Compone y aplica el valor de fuente. Devuelve el valor aplicado, o null
+    // si el contexto lo rechazo (fallo visible, nunca un valor residual).
+    function aplicarFuente(ctx, s, px) {
+        const peso = (s && s.font && s.font.weight) || 'normal';
+        const valor = peso + ' ' + Math.max(1, Math.round(px)) + 'px ' + familiaDeFuente(s);
+        const previo = ctx.font;
+        ctx.font = valor;
+        if (ctx.font !== valor && previo !== valor) {
+            // El contexto rechazo el valor: no se dibuja con una composicion
+            // anterior creyendo que es la fuente pedida (R-C3.4).
+            console.warn('El lienzo rechazo el valor de fuente "' + valor + '" (CSS invalido).');
+        }
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        return valor;
+    }
+
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
         const fontWeight = s.font.weight || 'normal';
+        const familia = familiaDeFuente(s);
         const padding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
         const availW = canvasWidth - padding * 2;
         const availH = canvasHeight - padding * 2;
@@ -562,7 +726,7 @@
 
         while (lo <= hi) {
             const mid = Math.floor((lo + hi) / 2);
-            ctx.font = `${fontWeight} ${mid}px ${fontName}`;
+            ctx.font = fontWeight + ' ' + mid + 'px ' + familia;
 
             // Find the widest line
             let maxLineWidth = 0;
@@ -2259,8 +2423,6 @@
     }
 
     function setTextFont(ctx, s, fontSizePx, lineIdx) {
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
-        const fontWeight = s.font.weight || 'normal';
         let px = fontSizePx;
         if (lineIdx !== undefined && lineIdx !== null && state.lineFontPx && state.lineFontPx[lineIdx] !== undefined) {
             px = state.lineFontPx[lineIdx];
@@ -2268,9 +2430,7 @@
             const ovSize = getNested(s.lines.overrides[String(lineIdx)], 'font.size');
             if (ovSize !== undefined) px = Number(ovSize) || px;
         }
-        ctx.font = `${fontWeight} ${px}px ${fontName}`;
-        ctx.textBaseline = 'alphabetic';
-        ctx.textAlign = 'left';
+        aplicarFuente(ctx, s, px);
         return px;
     }
 
@@ -2971,14 +3131,14 @@
     // Tamano base (canvas) de UNA linea aislada: biseccion como autoFitText
     // pero con una sola linea y caja disponible explicita. Devuelve px.
     function fitSingleLine(ctx, lineText, availW, availH, s) {
-        const fontName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
         const fontWeight = s.font.weight || 'normal';
+        const familia = familiaDeFuente(s);
         let lo = 8;
         let hi = Math.max(8, Math.ceil(Math.max(availW, availH)));
         let best = 8;
         while (lo <= hi) {
             const mid = Math.floor((lo + hi) / 2);
-            ctx.font = `${fontWeight} ${mid}px ${fontName}`;
+            ctx.font = fontWeight + ' ' + mid + 'px ' + familia;
             const w = measureTextWidth(ctx, lineText, s.letterSpacing, mid);
             const m = ctx.measureText('Ag');
             const h = (m.actualBoundingBoxAscent || mid * 0.8) + (m.actualBoundingBoxDescent || mid * 0.2);
@@ -3019,8 +3179,6 @@
                 if (sizing.mode === 'fontsize') {
                     out[ti] = Math.max(8, Math.round(out[ri] * maxPct));
                 } else {
-                    const rName = window.FontLoader ? FontLoader.getFontName(s.font.src || s.font) : (s.font.src || s.font);
-                    ctx.font = `${s.font.weight || 'normal'} ${out[ri]}px ${rName}`;
                     const refW = Math.max(1, measureTextWidth(ctx, lines[ri], s.letterSpacing, out[ri]));
                     let otherH = 0;
                     for (let li = 0; li < n; li++) {
@@ -3096,9 +3254,22 @@
 
     // Load preset with enhanced TextStudio compatibility
     function loadPreset(preset, targetSettings) {
-        // Passing a target is used by the API/export path.  It keeps preset
-        // conversion independent from the visible editor and its DOM controls.
-        const s = targetSettings || state.settings;
+        // RC39 (001-fix-bugs-01): la carga aplica el preset sobre defaults
+        // limpios, no sobre el estado vivo. Antes escribia campo por campo y
+        // TODO campo que el preset no declaraba conservaba el valor de la
+        // vista: de ahi que al cargar un preset el color fuera el que estaba
+        // puesto y no el guardado (FR-016, R-P1.1, R-P1.2).
+        //
+        // Con target (ruta API/export) el objeto es del llamador y se respeta
+        // tal cual: ahi no hay "vista" que contaminar.
+        let s;
+        if (targetSettings) {
+            s = targetSettings;
+        } else {
+            // Estado nuevo desde defaults: nada de la vista sobrevive.
+            state.settings = JSON.parse(JSON.stringify(defaultSettings()));
+            s = state.settings;
+        }
 
         // Basic text properties with validation
         if (preset.text !== undefined) s.text = String(preset.text || 'TEXT');
@@ -3115,6 +3286,20 @@
         if (preset.rotate !== undefined) s.rotate = clampValue(preset.rotate, -180, 180, 0);
         if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0, 1.5, 1);
         if (preset.letterSpacing !== undefined) s.letterSpacing = clampValue(preset.letterSpacing, -0.5, 1.5, 0);
+        if (preset.mergeGradients !== undefined) s.mergeGradients = Boolean(preset.mergeGradients);
+
+        // RC39: el lienzo (tamano y opciones) es parte del preset y NO se
+        // aplicaba. Sin esto, cargar un preset con otro tamano de lienzo
+        // mostraba el de la vista (FR-015).
+        if (preset.canvas && typeof preset.canvas === 'object') {
+            s.canvas = s.canvas && typeof s.canvas === 'object' ? s.canvas : {};
+            if (preset.canvas.width !== undefined) s.canvas.width = clampValue(preset.canvas.width, 1, 10000, 480);
+            if (preset.canvas.height !== undefined) s.canvas.height = clampValue(preset.canvas.height, 1, 10000, 320);
+            if (preset.canvas.maxFontSize !== undefined) s.canvas.maxFontSize = clampValue(preset.canvas.maxFontSize, 1, 100, 100);
+            if (preset.canvas.padding !== undefined) s.canvas.padding = clampValue(preset.canvas.padding, 0, 0.5, 0);
+            if (preset.canvas.zoom !== undefined) s.canvas.zoom = clampValue(preset.canvas.zoom, 0, 300, 100);
+            if (preset.canvas.background !== undefined) s.canvas.background = preset.canvas.background;
+        }
 
         // Fill with enhanced validation
         if (preset.fill) {
@@ -3142,6 +3327,40 @@
                     s.fill.palette.styles = preset.fill.palette.styles;
                 }
             }
+            // RC39: las CAPAS DE RELLENO son el grupo que el lienzo usa de
+            // verdad (getFillLayers las prioriza sobre los campos legacy). No
+            // se aplicaban al cargar, asi que un preset con color de capa
+            // seguia mostrando el color de la vista (FR-015).
+            if (Array.isArray(preset.fill.layers)) {
+                s.fill.layers = JSON.parse(JSON.stringify(preset.fill.layers));
+                ensureFillIds(s.fill);
+            } else {
+                // El preset no declara capas: el relleno vuelve al default, sin
+                // conservar las que hubiera en la vista.
+                delete s.fill.layers;
+            }
+        }
+
+        // RC39: estilos por linea y destino de estilo activo. Este grupo NUNCA
+        // se aplicaba al cargar, asi que un preset con overrides por linea
+        // perdia todo el trabajo de estilos (FR-015).
+        if (preset.lines && typeof preset.lines === 'object') {
+            s.lines = s.lines && typeof s.lines === 'object' ? s.lines : { activeTarget: 'all', overrides: {} };
+            if (preset.lines.activeTarget !== undefined) s.lines.activeTarget = preset.lines.activeTarget;
+            if (preset.lines.sizing && typeof preset.lines.sizing === 'object') {
+                s.lines.sizing = Object.assign({}, s.lines.sizing, preset.lines.sizing);
+            }
+            s.lines.overrides = (preset.lines.overrides && typeof preset.lines.overrides === 'object')
+                ? JSON.parse(JSON.stringify(preset.lines.overrides))
+                : {};
+            // Podar overrides huerfanos de rutas globales (creados por versiones
+            // anteriores que permitian text/canvas en lines.overrides).
+            pruneGlobalOnlyOverrides(s);
+            ensureFillIds(s.fill);
+        } else if (!targetSettings) {
+            // El preset no declara estilos por linea: vuelven al default en vez
+            // de sobrevivir de la vista.
+            s.lines = JSON.parse(JSON.stringify(defaultSettings().lines));
         }
 
         // Outline with enhanced validation (modern TextStudio structure)
@@ -3573,21 +3792,11 @@
             // Update UI elements
             updateUIFromSettings();
 
-            // Trigger font load and render (RC32: loadFont recibe la CLAVE
-            // resuelta por resolveFontFromPreset, nunca el objeto s.font: el
-            // objeto caia en la rama de fallback del registry con 404 ruidoso).
-            if (window.FontLoader && FontLoader.resolveFontFromPreset){
-                Promise.resolve().then(function(){ return FontLoader.resolveFontFromPreset(s.font); })
-                    .then(function(key){ return FontLoader.loadFont(key); })
-                    .catch(function(e){ console.warn((e && e.message) || e); })
-                    .then(function(){ render(); });
-            } else if (window.FontLoader && FontLoader.isCustomFont(s.font.src || s.font)) {
-                FontLoader.loadFont(s.font.src || s.font).then(function() {
-                    render();
-                });
-            } else {
-                render();
-            }
+            // RC39: la fuente declarada se asegura por su identidad y el
+            // pintado espera a que quede lista. El fallo se informa con causa
+            // y NO se sustituye la fuente (FR-005).
+            repintarPendiente = true;
+            renderConFuente();
         }
 
         // Formato unico (T015): resolver refs de imagen por id numerico
@@ -3929,6 +4138,34 @@
         return JSON.parse(JSON.stringify(defaultSettings));
     }
 
+    // RC39 (001-fix-bugs-01): render a un canvas CON la fuente declarada
+    // disponible. Sin esto, exportar el PNG o regenerar una miniatura antes de
+    // que la fuente terminara de bajar producia una imagen con la tipografia
+    // del sistema: el mismo defecto de US1, pero en el camino de salida.
+    //
+    // Se mantiene `renderToCanvas` sincrona para los llamantes que ya
+    // aseguran la fuente por su cuenta (la ruta de la API espera en
+    // ensureFontReady antes de llamar). Quien no lo haga debe usar esta.
+    function renderToCanvasConFuente(canvas, settings, options) {
+        const ref = (settings && settings.font) ? settings.font.src : null;
+        if (!window.FontLoader || !window.FontLoader.loadFont || ref === undefined || ref === null) {
+            renderToCanvas(canvas, settings, options);
+            return Promise.resolve(canvas);
+        }
+        return Promise.resolve().then(function () {
+            return window.FontLoader.loadFont(ref);
+        }).then(function () {
+            renderToCanvas(canvas, settings, options);
+            return canvas;
+        }).catch(function (e) {
+            // Sin sustitucion: la imagen no se produce con otra tipografia. Se
+            // lanza con la causa para que el llamador la muestre (FR-005).
+            const err = new Error('export:fuente no disponible: ' + ((e && e.message) || e));
+            err.cause = e;
+            throw err;
+        });
+    }
+
     // Render to any canvas without mutating the editor UI.  This is shared by
     // PNG download and the public API, so both outputs have the requested size
     // and a genuinely transparent background.
@@ -3970,8 +4207,21 @@
         render: render,
         updateSettings: updateSettings,
         loadPreset: loadPreset,
+        // RC39: la garantia de la fuente declarada. La usa el editor, la
+        // galeria y el motor para pintar solo cuando la fuente esta lista.
+        asegurarFuenteDeclarada: asegurarFuenteDeclarada,
+        fuenteDeclarada: fuenteDeclarada,
+        renderConFuente: renderConFuente,
+        // Previsualizacion temporal de la galeria de fuentes (US2).
+        aplicarFuentePrevia: aplicarFuentePrevia,
+        revertirFuentePrevia: revertirFuentePrevia,
+        confirmarFuentePrevia: confirmarFuentePrevia,
+        familiaDeFuente: familiaDeFuente,
+        aplicarFuente: aplicarFuente,
+        avisoFuente: function () { return avisoFuente; },
         createDefaultSettings: createDefaultSettings,
         renderToCanvas: renderToCanvas,
+        renderToCanvasConFuente: renderToCanvasConFuente,
         getSettings: getSettings,
         getLineTarget: getLineTarget,
         setLineTarget: setLineTarget,

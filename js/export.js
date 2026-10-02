@@ -24,6 +24,31 @@
         return canvas;
     }
 
+    // RC39 (001-fix-bugs-01): espera a que la fuente declarada este disponible
+    // ANTES de dibujar. Sin esta espera, exportar el PNG podia producir una
+    // imagen con la tipografia del sistema si la fuente aun no habia
+    // terminado de bajar (mismo defecto que en la vista, en el camino de
+    // salida). Si la fuente no se puede cargar, lanza con causa y NO se
+    // produce la imagen con otra tipografia (FR-005).
+    async function canvasFromSettingsAsync(settings) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(100, Math.min(8000, Number(settings.canvas.width) || 1920));
+        canvas.height = Math.max(100, Math.min(8000, Number(settings.canvas.height) || 1080));
+        const exportSettings = JSON.parse(JSON.stringify(settings));
+        // El PNG es siempre transparente: el damero es solo ayuda visual.
+        exportSettings.background.active = false;
+        if (exportSettings.background.image) exportSettings.background.image.active = false;
+        if (exportSettings.background.fill && exportSettings.background.fill.image) {
+            exportSettings.background.fill.image.active = false;
+        }
+        if (editor.renderToCanvasConFuente) {
+            await editor.renderToCanvasConFuente(canvas, exportSettings, { transparent: true });
+        } else {
+            editor.renderToCanvas(canvas, exportSettings, { transparent: true });
+        }
+        return canvas;
+    }
+
     function toBlob(canvas) {
         return new Promise(function(resolve, reject) {
             canvas.toBlob(function(blob) {
@@ -35,7 +60,7 @@
 
     async function download() {
         if (!editor) throw new Error('Export manager has not been initialized');
-        const blob = await toBlob(canvasFromSettings(editor.getSettings()));
+        const blob = await toBlob(await canvasFromSettingsAsync(editor.getSettings()));
         saveBlob(blob, generateFileName());
         return blob;
     }
@@ -55,5 +80,11 @@
         return 'textmuy_' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
     }
 
-    window.ExportManager = { init: init, download: download, canvasFromSettings: canvasFromSettings, toBlob: toBlob };
+    window.ExportManager = {
+        init: init,
+        download: download,
+        canvasFromSettings: canvasFromSettings,
+        canvasFromSettingsAsync: canvasFromSettingsAsync,
+        toBlob: toBlob
+    };
 })();

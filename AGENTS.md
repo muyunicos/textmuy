@@ -156,7 +156,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC38**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC40**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -169,13 +169,54 @@ textmuy/
    derivado `id-1`, cero manifiestos por tile. La **geometría del tile de las
    galerías sale de `thumbs`** (`catalog.js::geometriaTiles` → variables CSS
    `--tt-gal-ratio` / `--tt-gal-col`); nunca ratios hardcodeados (RC37).
-9. **Refs de recursos en `.txm`**: `settings.font.src` es STRING canónico (título del
-   catálogo de fuentes, p.ej. `"Bangers"`/`"MUY-Alegría"`, o spec Google
-   `"Oswald:wght@400;700"`); también se acepta el `id` numérico del catálogo. El editor
-   (picker) escribe strings y `FontLoader.resolveFontFromPreset`/`loadFont` los resuelven
-   por título contra el catálogo (Google lazy o FontFace físico). Las **imágenes** de
-   settings sí referencian por `id` numérico; `api.js::prepareImgRefs` las resuelve a URL
+9. **Refs de recursos en `.txm`**: `settings.font.src` es el **id numérico del
+   catálogo** (identidad canónica única, p.ej. `58`). Los `.txm` guardados antes de
+   RC39 referenciaban la fuente por título (`"Bangers"`, `"MUY-Alegría"`); esa forma se
+   acepta por compatibilidad y se **normaliza a id** al cargar (`R-C6.1`). El título
+   (con tildes y enes) se resuelve igual que uno ASCII. `FontLoader.resolveFontId` es el
+   único resolvedor y devuelve siempre el id; el estado del proyecto **nunca** guarda
+   claves internas (`user-<id>`, `server-<archivo>`). Las **imágenes** de settings sí
+   referencian por `id` numérico; `api.js::prepareImgRefs` las resuelve a URL
    (fail-fast en render; base `urls.imagenesBase`).
+
+### 7.1 Decisiones RC39 (001-fix-bugs-01) — fuentes y presets
+
+Tres reglas que corrigen los bugs reportados por el administrador. Están
+especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
+
+- ✅ **Identidad única de fuente = id numérico del catálogo.** El índice vivo es
+  `fontsById`; `fontRegistry` queda solo como mapa de compatibilidad. El selector se
+  puebla con `FontLoader.listFontEntries()` (una entrada por identidad) y TODA entrada
+  dispara carga por identidad. Un título repetido es **ambiguo** y falla con causa, no
+  elige una al azar. `sanitizeFontKey` y las claves `user-<id>` / `server-<archivo>`
+  desaparecieron como identidad: no se persisten en el estado.
+- ✅ **Una sola forma de fijar la fuente de un contexto.** `editor.js::aplicarFuente`
+  compone el valor de `ctx.font` con la familia **entrecomillada** (`FontLoader
+  .getFontFamily`). Sin comillas, un nombre con espacios produce CSS inválido, el
+  navegador lo **ignora en silencio** y el lienzo conserva la composición anterior:
+  esa era la fuente fantasma. Prohibido componer `ctx.font` a mano.
+- ✅ **El estado de carga de una fuente es explícito y reintentable.** Estados
+  *no solicitada / pendiente / disponible / fallida* con causa consultable
+  (`FontLoader.getFontState` / `getFontFailure`). Un fallo **no** marca la fuente como
+  disponible, **no** carga ninguna otra (fin del fallback silencioso a `Bangers`) y
+  **no** impide el reintento. El fallo se muestra en `#tt-font-error`, no solo en
+  consola.
+- ✅ **Cargar un preset REEMPLAZA la vista.** `loadPreset` sin `targetSettings` parte
+  de defaults limpios en vez de escribir campo por campo sobre el estado vivo, y
+  aplica los grupos que antes se perdían: **`fill.layers`** (el que el lienzo prioriza,
+  causa del "el color cambia al de la vista"), **`lines`** (overrides y destino de
+  estilo) y **`canvas`**. Con `targetSettings` (ruta API/export) el objeto es del
+  llamador y se respeta igual.
+- ✅ **Preview en vivo de la galería de fuentes.** Tocar un tile aplica la fuente al
+  lienzo sin pulsar "Select" (`aplicarFuentePrevia`); cerrar sin confirmar revierte
+  (`revertirFuentePrevia`), y una descarga tardía de una fuente descartada no repinta
+  (se compara identidad). "Select" consolida la fuente sin cambiar el lienzo.
+- ✅ **La galería de fuentes se puebla desde `listFontEntries`**, no desde el mapa de
+  categorías + puente: esa doble ruta era la que duplicaba entradas y dejaba fuentes
+  sin efecto.
+- **Suites nuevas** (Node, sin navegador): `tests/fuente-composta.test.js`,
+  `tests/fuente-carga-estados.test.js`, `tests/fuente-selector.test.js`,
+  `tests/preset-roundtrip.test.js`. Total: 20 suites. Todas verdes.
 
 ## 5. Formatos y convenciones de nombres (NO CAMBIAR)
 

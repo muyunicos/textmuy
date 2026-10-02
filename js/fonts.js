@@ -111,6 +111,11 @@
         catalogInvalidas = [];
         catalogParsed = null;
         catalogRaw = null;
+        // El indice canonico se reconstruye con el catalogo nuevo: si una
+        // fuente fue dada de baja o renombrada, su identidad deja de existir
+        // (R-C2.4). Sin esto el selector seguiria ofreciendo fuentes que ya no
+        // estan en el servidor.
+        fontsById = {};
         return loadCatalog();
     }
     function fetchCatalog() {
@@ -149,6 +154,9 @@
             catalogInvalidas.forEach(function (iv) {
                 console.warn('fonts:' + iv.reason + ' (entrada saltada)');
             });
+            // El indice canonico se construye al leer el catalogo: a partir de
+            // aqui la identidad de una fuente es su id numerico (T004).
+            indexarCatalogo();
             return catalogFonts;
         }).catch(function (err) {
             console.warn('No se pudo cargar el catalogo de fuentes (' + catalogUrl() + '):', err && err.message);
@@ -159,6 +167,81 @@
     }
     var loadedFonts = {};
     var loadingPromises = {};
+
+    // ===== IDENTIDAD CANONICA + ESTADO DE CARGA (RC39, 001-fix-bugs-01) =====
+    // La identidad de una fuente es su id NUMERICO de catalogo (data-model §1).
+    // Antes coexistian tres identidades para la misma fuente (id de catalogo,
+    // clave 'user-<id>' y clave 'server-<archivo>'), lo que duplicaba el selector
+    // y dejaba entradas que no cargaban nada. Ahora `fontsById` es el indice
+    // unico; `fontRegistry` queda SOLO como mapa de compatibilidad hacia el
+    // indice, nunca como fuente de verdad.
+    var fontsById = {};      // id numerico -> entrada normalizada
+    var fontStates = {};     // id numerico -> 'pendiente'|'disponible'|'fallida'
+    var fontFailures = {};   // id numerico -> causa del ultimo fallo
+    var fontPromises = {};   // id numerico -> promesa en curso (dedup, R-C2.3)
+
+    // Normaliza una entrada a la forma canonica del indice.
+    function normEntry(id, nombre, archivo, opciones) {
+        opciones = opciones || {};
+        return {
+            id: id,
+            name: nombre || String(id),
+            file: archivo || '',
+            online: opciones.online === undefined ? !FONT_EXT_RE.test(archivo || '') : opciones.online,
+            path: opciones.path !== undefined ? opciones.path : urlFuenteAbsoluta(archivo),
+            categoria: opciones.categoria || 'custom',
+            isCustom: !!opciones.isCustom,
+            isServer: !!opciones.isServer,
+            isUserFile: !!opciones.isUserFile,
+            serverFile: opciones.serverFile || ''
+        };
+    }
+    // Registra/actualiza la entrada canonica de una identidad. Un cambio de
+    // definicion invalida lo que se sabia de esa fuente: si fue renombrada o
+    // sustituida, el estado de carga anterior ya no vale (R-C2.4).
+    function setFontById(id, entrada) {
+        if (!entrada || typeof id !== 'number' || !(id >= 1)) return null;
+        fontsById[id] = entrada;
+        delete loadedFonts[id];
+        delete fontStates[id];
+        delete fontFailures[id];
+        return entrada;
+    }
+    function getFontById(id) {
+        return (typeof id === 'number' && id >= 1) ? (fontsById[id] || catalogFonts[id] || null) : null;
+    }
+    // Una entrada del registro que aun no estaba en el indice (subida muy
+    // reciente, o alta que aun no llego al catalogo) entra al indice con su
+    // identidad, para que la carga por identidad tambien la encuentre.
+    function indexarRegistro(clave) {
+        var e = fontRegistry[clave];
+        if (!e || typeof e.id !== 'number' || !(e.id >= 1)) return null;
+        if (fontsById[e.id]) return fontsById[e.id];
+        return setFontById(e.id, normEntry(e.id, e.name, e.serverFile || '', {
+            online: !!e.online,
+            path: e.path !== undefined ? e.path : undefined,
+            categoria: e.categoria || 'custom',
+            isCustom: !!e.isCustom,
+            isServer: !!e.isServer,
+            isUserFile: !!e.isUserFile,
+            serverFile: e.serverFile || ''
+        }));
+    }
+    // Indice canonico desde el catalogo: la unica fuente de verdad.
+    function indexarCatalogo() {
+        Object.keys(catalogFonts).forEach(function (cid) {
+            var n = +cid;
+            var e = catalogFonts[cid];
+            if (!e || !fontsById[n]) {
+                setFontById(n, normEntry(n, e && e.titulo, e && e.file, {
+                    online: e ? !!e.online : false,
+                    categoria: (e && e.categorias && e.categorias[0]) || 'custom',
+                    isCustom: e ? !e.online : false,
+                    isUserFile: e ? !e.online : false
+                }));
+            }
+        });
+    }
 
     // Soporte para puente de servidor (WordPress Personalizador PDF)
     var bridgeFontsLoaded = false;
@@ -172,18 +255,36 @@
             // (sin archivo) en bridge.fuentes: esas generaban FontFace 404/500
             // (GET .../fonts/Nunito?v=0). Ahora se ignoran en silencio.
             if (!FONT_EXT_RE.test(f.nombre)) return;
-            var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
-            if (!fontRegistry[key]) {
-                fontRegistry[key] = {
-                    name: f.titulo || f.nombre,
-                    path: f.url,
-                    isCustom: true,
-                    isServer: true,
-                    serverFile: f.nombre,
-                    categoria: f.categoria || 'custom'
-                };
-                nameToKeyMap[f.titulo || f.nombre] = key;
+            var nombre = f.titulo || f.nombre;
+            // Si el catalogo ya conoce esta fuente, su identidad manda: la
+            // entrada del puente se traduce a ese id y NO crea una fuente
+            // paralela (T004). El `id` viaja en el inventario del plugin.
+            var idConocido = (typeof f.id === 'number' && f.id >= 1) ? f.id : null;
+            if (idConocido === null) {
+                var porNombre = idsPorNombreRegistro(nombre).concat(idsPorTitulo(nombre));
+                porNombre = porNombre.filter(function (v, i, a) { return a.indexOf(v) === i; });
+                if (porNombre.length === 1) idConocido = porNombre[0];
             }
+            if (idConocido !== null && (catalogFonts[idConocido] || fontsById[idConocido])) {
+                // Solo se enriquece la entrada existente con su URL.
+                var actual = fontsById[idConocido];
+                if (actual) actual.path = f.url || actual.path;
+                nameToKeyMap[nombre] = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+                return;
+            }
+            // Fuente del puente que el catalogo todavia no conoce (subida muy
+            // reciente): se registra con una identidad propia.
+            var idNuevo = idConocido !== null ? idConocido : siguienteIdFuenteVirtual();
+            setFontById(idNuevo, normEntry(idNuevo, nombre, f.nombre, {
+                online: false, path: f.url, isCustom: true, isServer: true,
+                serverFile: f.nombre, categoria: f.categoria || 'custom'
+            }));
+            var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+            fontRegistry[key] = {
+                id: idNuevo, name: nombre, path: f.url, isCustom: true, isServer: true,
+                serverFile: f.nombre, categoria: f.categoria || 'custom'
+            };
+            nameToKeyMap[nombre] = key;
         });
         bridgeFontsLoaded = true;
     }
@@ -214,9 +315,6 @@
         if (!file) return '';
         return /^(https?:)?\/\//i.test(file) ? file : fontUrlBase() + file;
     }
-    function sanitizeFontKey(nombre) {
-        return 'user-' + String(nombre || 'fuente').replace(/[^a-zA-Z0-9_-]/g, '_');
-    }
     function loadUserFonts() {
         if (userFontsPromise) return userFontsPromise;
         // El fonts.json del catalogo lo tiene TODO. Las entradas FISICAS se
@@ -226,24 +324,14 @@
         // falta de verdad, el FontFace de loadFont falla y cae al fallback.
         // Las ONLINE son lazy: se cargan via link Google al elegir/renderizar.
         userFontsPromise = loadCatalog().then(function () {
+            indexarCatalogo();
             var jobs = Object.keys(catalogFonts).map(function (id) {
                 var entry = catalogFonts[id];
                 if (!entry || entry.online) return Promise.resolve(null);
-                var key = sanitizeFontKey(id);
-                if (fontRegistry[key]) return Promise.resolve(key);
-                fontRegistry[key] = {
-                    id: id,
-                    name: entry.titulo || id,
-                    // URL ABSOLUTA: el path relativo se resolveria contra el
-                    // documento del iframe (modules/textmuy/) y daria 404.
-                    path: urlFuenteAbsoluta(entry.file),
-                    isCustom: true,
-                    isUserFile: true,
-                    categoria: (entry.categorias || ['custom'])[0]
-                };
-                nameToKeyMap[entry.titulo || id] = key;
-                nameToKeyMap[id] = key;
-                return Promise.resolve(key);
+                var n = +id;
+                var canon = fontsById[n];
+                if (canon) canon.path = canon.path || urlFuenteAbsoluta(entry.file);
+                return Promise.resolve(canon ? canon.name : entry.titulo);
             });
             return Promise.all(jobs).then(function (keys) {
                 userFontsLoaded = true;
@@ -307,19 +395,25 @@
                 .then(function (res) {
                     if (res && res.success && res.data) {
                         var f = res.data;
+                        // RC39: la fuente recien subida entra al indice con su
+                        // IDENTIDAD, no solo con una clave de texto. Asi aparece
+                        // en el selector como una sola entrada y se puede
+                        // cargar por identidad (R-C1.3, R-C4.1).
+                        var id = (typeof f.id === 'number' && f.id >= 1) ? f.id : siguienteIdFuenteVirtual();
+                        setFontById(id, normEntry(id, fontName, f.nombre, {
+                            online: false, path: f.url, isCustom: true, isServer: true,
+                            serverFile: f.nombre, categoria: 'custom'
+                        }));
                         var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
                         fontRegistry[key] = {
-                            name: fontName,
-                            path: f.url,
-                            isCustom: true,
-                            isServer: true,
-                            serverFile: f.nombre
+                            id: id, name: fontName, path: f.url,
+                            isCustom: true, isServer: true, serverFile: f.nombre
                         };
                         nameToKeyMap[fontName] = key;
                         if (Array.isArray(bridge.fuentes)) {
-                            bridge.fuentes.push({ nombre: f.nombre, titulo: fontName, url: f.url, id: f.id });
+                            bridge.fuentes.push({ nombre: f.nombre, titulo: fontName, url: f.url, id: id });
                         }
-                        return invalidarSpriteFuentes().then(function () { return key; });
+                        return invalidarSpriteFuentes().then(function () { return id; });
                     }
                     throw new Error((res && res.data) || 'Fallo la subida al servidor');
                 });
@@ -337,153 +431,171 @@
     // "Oswald:wght@400;700"); tambien se acepta el id numerico del catalogo.
     // Un string se resuelve a la entrada del catalogo (por titulo) para que
     // loadFont aplique Google-lazy o FontFace fisico sin ambiguedad.
-    function resolverIdPorTitulo(titulo) {
-        var found = null;
-        Object.keys(catalogFonts).some(function (cid) {
-            if (catalogFonts[cid] && catalogFonts[cid].titulo === titulo) {
-                found = +cid; // id numerico (Object.keys devuelve strings)
-                return true;
-            }
+    // Referencia dentro de un preset: `font.src` canonico es el id NUMERICO de
+    // catalogo. Se acepta tambien el titulo (archivos guardados antes de RC39)
+    // y el spec de Google, pero SIEMPRE se devuelve la identidad numerica
+    // (R-C1.3): el estado del proyecto nunca guarda una clave interna.
+    //
+    // Un titulo puede repetirse en el catalogo, asi que la busqueda por titulo
+    // detecta la ambiguedad y falla en vez de elegir una al azar (R-C1.1).
+    function idsPorTitulo(titulo) {
+        var encontrados = [];
+        Object.keys(catalogFonts).forEach(function (cid) {
+            if (catalogFonts[cid] && catalogFonts[cid].titulo === titulo) encontrados.push(+cid);
         });
-        return found;
+        return encontrados;
     }
+    function idsPorNombreRegistro(nombre) {
+        var clave = nameToKeyMap[nombre];
+        if (!clave) return [];
+        var e = fontRegistry[clave];
+        return (e && typeof e.id === 'number' && e.id >= 1) ? [e.id] : [];
+    }
+    // Resuelve cualquier referencia admitida a una identidad NUMERICA.
+    // Falla con causa cuando no puede o cuando es ambigua; nunca devuelve una
+    // fuente sustituta ni un valor por defecto (R-C1.4).
+    function resolveFontId(ref) {
+        if (ref === undefined || ref === null || ref === '') {
+            throw new Error('fonts:?:referencia vacia (elegir la fuente de nuevo en el editor)');
+        }
+        if (typeof ref === 'object') {
+            if (ref.src !== undefined && ref.src !== null) return resolveFontId(ref.src);
+            if (ref.name) return resolveFontId(ref.name);
+            throw new Error('fonts:?:referencia sin src (elegir la fuente de nuevo en el editor)');
+        }
+        if (typeof ref === 'number') {
+            if (Math.floor(ref) !== ref || ref < 1) throw new Error('fonts:' + ref + ':id no valido');
+            indexarCatalogo();
+            if (getFontById(ref)) return ref;
+            throw new Error('fonts:' + ref + ':ausente o invalido (elegir la fuente de nuevo en el editor)');
+        }
+        if (typeof ref !== 'string') {
+            throw new Error('fonts:' + typeof ref + ':tipo de referencia no valido');
+        }
+        var s = ref.trim();
+        if (!s) throw new Error('fonts:?:referencia vacia (elegir la fuente de nuevo en el editor)');
+        // Id numerico, con o sin cadena.
+        if (/^\d+$/.test(s)) return resolveFontId(+s);
+        // Clave interna del registro (tolerancia: se traduce a identidad).
+        if (fontRegistry[s] && typeof fontRegistry[s].id === 'number' && fontRegistry[s].id >= 1) {
+            indexarRegistro(s);
+            return fontRegistry[s].id;
+        }
+        // Mapa de TextStudio.
+        if (textStudioFontMap[s]) {
+            var mapped = resolveFontFromPreset(textStudioFontMap[s]);
+            return resolveFontId(mapped);
+        }
+        // Titulo del catalogo: puede haber mas de una coincidencia.
+        var porTitulo = idsPorTitulo(s).concat(idsPorNombreRegistro(s));
+        var unicos = porTitulo.filter(function (v, i, a) { return a.indexOf(v) === i; });
+        if (unicos.length === 1) return unicos[0];
+        if (unicos.length > 1) {
+            throw new Error('fonts:' + s + ':titulo ambiguo (' + unicos.join(',') + '): elegir la fuente de nuevo en el editor');
+        }
+        // TTF de TextStudio sin entrada en el catalogo.
+        if (/^\d+\.ttf$/i.test(s)) {
+            var reg = registerTextStudioFont(s);
+            if (reg) return reg;
+        }
+        // Spec de Google sin entrada en el catalogo: se registra en el indice
+        // con identidad propia. Acepta acentos, enes y signos (R-C1.2): la
+        // validacion ya no exige ASCII, porque el titulo puede traer cualquiera.
+        // Se rechazan los caracteres que no pueden aparecer ni en un titulo ni
+        // en un spec de Google (p.ej. 'fuente@rara!'), para no crear una fuente
+        // virtual a partir de una referencia corrupta.
+        if (/^[^:]+(:[^:]*)?$/.test(s) && /^[^@!?<>{}[\]\\/]+(:[^:@!?<>{}[\]\\/]*)?$/.test(s)) {
+            var familia = googleFamilyOf(s);
+            var existente = idsPorNombreRegistro(familia)[0];
+            if (existente !== undefined) return existente;
+            var idNuevo = siguienteIdFuenteVirtual();
+            setFontById(idNuevo, normEntry(idNuevo, familia, s, { online: true }));
+            nameToKeyMap[familia] = 'user-' + idNuevo;
+            fontRegistry['user-' + idNuevo] = { id: idNuevo, name: familia, isCustom: false, online: true };
+            return idNuevo;
+        }
+        throw new Error('fonts:' + s + ':fuente desconocida (elegirla desde el picker)');
+    }
+    // Ids virtuales para specs de Google que no estan en el catalogo: arrancan
+    // muy por encima del maximo real para no colisionar con el catalogo.
+    var virtualIdSeq = 100000;
+    function siguienteIdFuenteVirtual() {
+        var maxReal = 0;
+        Object.keys(catalogFonts).forEach(function (cid) { var n = +cid; if (n > maxReal) maxReal = n; });
+        Object.keys(fontsById).forEach(function (cid) { var n = +cid; if (n > maxReal) maxReal = n; });
+        virtualIdSeq = Math.max(virtualIdSeq, maxReal) + 1;
+        return virtualIdSeq;
+    }
+    // Referencia de fuente de un preset. Devuelve SIEMPRE la identidad NUMERICA
+    // de catalogo (R-C1.3). Falla con causa si no resuelve o si es ambigua.
     function resolveFontFromPreset(font) {
-        if (!font) return DEFAULT_FONT_FAMILY;
-        // ID numerico: exige entrada ok en el catalogo.
-        if (typeof font === 'number' && Math.floor(font) === font && font >= 1) {
-            if (catalogFonts[font]) return font;
-            throw new Error('fonts:' + font + ':ausente o invalido (elegir la fuente de nuevo en el editor)');
-        }
-        if (typeof font === 'string') {
-            if (fontRegistry[font]) return font;
-            if (textStudioFontMap[font]) return textStudioFontMap[font];
-            if (nameToKeyMap[font]) return nameToKeyMap[font];
-            // Id del catalogo escrito como string (lo que produce el picker
-            // del editor: <option value="15">) -> id numerico.
-            if (/^\d+$/.test(font)) {
-                var nId = +font;
-                if (catalogFonts[nId]) return nId;
-            }
-            if (/^\d+\.ttf$/i.test(font)) return registerTextStudioFont(font) || font;
-            // Titulo del catalogo -> id (Google o fisica, loadFont decide).
-            var porTitulo = resolverIdPorTitulo(font);
-            if (porTitulo !== null) return porTitulo;
-            // Spec Google sin entrada en el catalogo ("Familia:wght@..."):
-            // loadFont lo resuelve via ensureGoogleFontBySpec.
-            if (/^[^:]+(:[^:]*)?$/.test(font) && /^[A-Za-z0-9 +\-]+(:\w+@[\d;,]+)?$/.test(font)) return font;
-            throw new Error('presets:?:font.src (\"' + font + '\"): fuente desconocida; elegila desde el picker');
-        }
-        if (typeof font.src === 'number' && Math.floor(font.src) === font.src && font.src >= 1) {
-            if (catalogFonts[font.src]) return font.src;
-            if (textStudioFontMap[font.src]) return textStudioFontMap[font.src];
-            throw new Error('fonts:' + font.src + ':ausente o invalido (elegir la fuente de nuevo en el editor)');
-        }
-        if (font.src) {
-            // Mismo criterio que un string suelto (registry, mapas TextStudio,
-            // titulo del catalogo o spec Google).
-            return resolveFontFromPreset(font.src);
-        }
-        if (font.name) {
-            if (nameToKeyMap[font.name]) return nameToKeyMap[font.name];
-            return font.name;
-        }
-        return DEFAULT_FONT_FAMILY;
+        return resolveFontId(font);
     }
 
-    // Carga una fuente fisica (TTF/OTF/WOFF) por URL ABSOLUTA. Sin
-    // pre-chequeo de existencia: el catalogo lo escribio el servidor sobre
-    // archivos reales; si el archivo falta, FontFace falla y se cae al
-    // default (un solo 404 en un caso excepcional, sin peticiones de sondeo).
-    function cargarFisica(fontKey, familia, url) {
+    // Carga una fuente fisica (TTF/OTF/WOFF) por URL ABSOLUTA. Sin pre-chequeo
+    // de existencia: el catalogo lo escribio el servidor sobre archivos reales.
+    // Si el archivo falta, el estado pasa a 'fallida' con causa y la promesa
+    // RECHAZA. Antes caia en silencio a la fuente por defecto (constitucion VI).
+    function cargarFisica(id, familia, url) {
         var font = new FontFace(familia, 'url(' + url + ')');
-        return font.load().then(function (loaded) {
+        fontStates[id] = 'pendiente';
+        delete fontFailures[id];
+        var p = font.load().then(function (loaded) {
             document.fonts.add(loaded);
-            loadedFonts[fontKey] = familia;
+            loadedFonts[id] = familia;
+            fontStates[id] = 'disponible';
+            delete fontFailures[id];
             return familia;
-        }).catch(function () {
-            delete loadingPromises[fontKey];
-            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
+        }).catch(function (err) {
+            // Estado fallida REINTENTABLE: no se marca disponible y no se
+            // borra la entrada, asi un reintento vuelve a intentarlo (R-C2.2).
+            fontStates[id] = 'fallida';
+            fontFailures[id] = 'fonts:' + id + ':no se pudo cargar "' + familia + '" (' + url + ')';
+            delete fontPromises[id];
+            delete loadingPromises[id];
+            delete loadedFonts[id];
+            var e = new Error(fontFailures[id]);
+            e.fontId = id;
+            e.familia = familia;
+            e.cause = err && err.message;
+            throw e;
         });
+        fontPromises[id] = p;
+        loadingPromises[id] = p;
+        return p;
     }
 
-    // RC32: defensa de borde - si llega el objeto font entero ({src,...})
-    // (pasaba desde loadPreset), se resuelve a su clave antes de cargar.
-    function loadFont(fontKey) {
-        if (fontKey && typeof fontKey === 'object') {
-            try { fontKey = resolveFontFromPreset(fontKey); }
-            catch (e) { return Promise.reject(e); }
+    // Asegura que una identidad de fuente quede disponible para el dibujo.
+    // Falla con causa si no puede; NO devuelve ninguna fuente sustituta (R-C2.1).
+    // Dedup: dos peticiones concurrentes de la misma identidad comparten una
+    // sola descarga (R-C2.3).
+    function loadFont(ref) {
+        var id;
+        try { id = resolveFontId(ref); }
+        catch (e) {
+            return Promise.reject(e);
         }
-        // Clave numerica (id de catalogo): se resuelve a su spec/file
-        // antes de cargar. El resto del flujo no cambia.
-        if (typeof fontKey === 'number' && Math.floor(fontKey) === fontKey && fontKey >= 1) {
-            var cent = catalogFonts[fontKey];
-            if (!cent) {
-                return Promise.reject(new Error('fonts:' + fontKey + ':ausente o invalido (elegir la fuente de nuevo en el editor)'));
-            }
-            fontKey = cent.online ? cent.file : cent.titulo;
+        var entry = getFontById(id);
+        if (!entry) {
+            return Promise.reject(new Error('fonts:' + id + ':no registrada en el catalogo'));
         }
-        if (loadedFonts[fontKey]) {
-            return Promise.resolve(loadedFonts[fontKey]);
+        if (fontStates[id] === 'disponible' && loadedFonts[id]) {
+            return Promise.resolve(loadedFonts[id]);
         }
-        if (loadingPromises[fontKey]) {
-            return loadingPromises[fontKey];
-        }
+        if (fontPromises[id]) return fontPromises[id];
 
-        var fontInfo = fontRegistry[fontKey];
-        // Entrada de catalogo (fonts.json): online -> Google lazy, fisica -> FontFace.
-        if (!fontInfo && catalogFonts[fontKey]) {
-            const entry = catalogFonts[fontKey];
-            if (entry.online) {
-                // Spec Google: file guarda "Familia:wght@..." (o la familia a secas).
-                return ensureGoogleFontBySpec(entry.file || entry.titulo || fontKey);
-            }
-            // Fisica del catalogo: archivo en uploads/pmu/fonts/ (URL absoluta).
-            const fullUrl = urlFuenteAbsoluta(entry.file);
-            const p = cargarFisica(fontKey, entry.titulo || fontKey, fullUrl);
-            loadingPromises[fontKey] = p;
-            return p;
+        var familia = entry.name || String(id);
+        if (entry.online) {
+            return asegurarGoogle(id, entry.file || familia, familia);
         }
-        if (!fontInfo) {
-            // Clave desconocida: entrada del catalogo por TITULO (valores del
-            // picker y titulos guardados en los presets). Online -> Google
-            // lazy por spec; fisica -> FontFace con URL absoluta.
-            var idTitulo = resolverIdPorTitulo(fontKey);
-            var porTitulo = (idTitulo !== null) ? catalogFonts[idTitulo] : null;
-            if (porTitulo) {
-                if (porTitulo.online) {
-                    return ensureGoogleFontBySpec(porTitulo.file || porTitulo.titulo || fontKey);
-                }
-                const absUrl = urlFuenteAbsoluta(porTitulo.file);
-                const pt = cargarFisica(fontKey, porTitulo.titulo || fontKey, absUrl);
-                loadingPromises[fontKey] = pt;
-                return pt;
-            }
-            console.warn('Font not found in registry, using fallback:', fontKey, '->', DEFAULT_FONT_FAMILY);
-            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
+        var url = entry.path || urlFuenteAbsoluta(entry.file);
+        if (!url) {
+            fontStates[id] = 'fallida';
+            fontFailures[id] = 'fonts:' + id + ':sin archivo asociado (' + familia + ')';
+            return Promise.reject(new Error(fontFailures[id]));
         }
-
-        // Entrada de catalogo online sin path local: inyectar su spec Google.
-        if (!fontInfo.path) {
-            const spec = (catalogFonts[fontKey] && catalogFonts[fontKey].file) || fontInfo.name || fontKey;
-            return ensureGoogleFontBySpec(spec);
-        }
-
-        var font = new FontFace(fontInfo.name, 'url(' + fontInfo.path + ')');
-        loadingPromises[fontKey] = font.load().then(function(loaded) {
-            document.fonts.add(loaded);
-            loadedFonts[fontKey] = fontInfo.name;
-            return fontInfo.name;
-        }).catch(function(err) {
-            console.warn('Failed to load font ' + fontKey + ':', err);
-            delete loadingPromises[fontKey];
-            // Fallback a Google Fonts (categoria de la fuente o default).
-            return ensureGoogleFontBySpec(DEFAULT_FONT_FAMILY);
-        });
-
-        return loadingPromises[fontKey];
+        return cargarFisica(id, familia, url);
     }
-
-    // Inyecta el <link> css2 de UNA familia Google (campo google del json:
     // "Oswald:wght@400;500;600;700") y espera a document.fonts. Solo se llama
     // al elegir/renderizar esa familia: al abrir la app, cero fuentes.
     // Sin red o sin document.fonts: resuelve igual (canvas usa fallback).
@@ -491,81 +603,163 @@
     function googleFamilyOf(spec) {
         return String(spec || '').split(':')[0].replace(/\+/g, ' ') || spec;
     }
-    function ensureGoogleFontBySpec(spec) {
+    // Carga una familia de Google para una identidad concreta. Estados
+    // explicitos y causa real: si document.fonts no llega a traerla en el
+    // plazo, el estado queda 'fallida' y la promesa RECHAZA (R-C2.1, R-C2.2).
+    function asegurarGoogle(id, spec, familia) {
         spec = String(spec || '').trim();
-        if (!spec) return Promise.resolve(DEFAULT_FONT_FAMILY);
-        const family = googleFamilyOf(spec);
-        if (loadedFonts[family]) return Promise.resolve(loadedFonts[family]);
-        if (loadingPromises[family]) return loadingPromises[family];
+        if (fontStates[id] === 'disponible' && loadedFonts[id]) {
+            return Promise.resolve(loadedFonts[id]);
+        }
+        if (fontPromises[id]) return fontPromises[id];
+        fontStates[id] = 'pendiente';
+        delete fontFailures[id];
+        var fam = familia || googleFamilyOf(spec);
         // 1. Inyectar el <link> css2 una sola vez por familia.
         try {
-            if (typeof document !== 'undefined' && document.createElement && !googleLinksInjected[family]) {
-                googleLinksInjected[family] = true;
-                const link = document.createElement('link');
+            if (typeof document !== 'undefined' && document.createElement && !googleLinksInjected[fam]) {
+                googleLinksInjected[fam] = true;
+                var link = document.createElement('link');
                 link.rel = 'stylesheet';
-                link.href = 'https://fonts.googleapis.com/css2?family=' + spec.split(' ').join('+') + '&display=swap';
-                link.setAttribute('data-textmuy-font', family);
+                link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(spec).replace(/%20/g, '+') + '&display=swap';
+                link.setAttribute('data-textmuy-font', fam);
                 (document.head || document.getElementsByTagName('head')[0] || document.body).appendChild(link);
             }
-        } catch (_) { /* sin DOM: seguir al paso 2 */ }
-        // 2. Esperar a document.fonts (con timeout: sin red resuelve igual).
-        let p;
+        } catch (_) { /* sin DOM: seermarkara fallida abajo */ }
+        var timeoutMs = 8000;
+        var carga;
         try {
             if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
-                const timeout = new Promise(function (res) { setTimeout(function () { res(false); }, 3000); });
-                p = Promise.race([
-                    document.fonts.load('16px "' + family + '"'),
-                    timeout
-                ]).then(function () {
-                    loadedFonts[family] = family;
-                    return family;
-                }).catch(function () {
-                    loadedFonts[family] = family;
-                    return family;
-                });
+                var limite = new Promise(function (res) { setTimeout(function () { res('timeout'); }, timeoutMs); });
+                carga = Promise.race([
+                    document.fonts.load('16px "' + fam + '"').then(function (faces) {
+                        return (faces && faces.length) ? 'ok' : 'vacia';
+                    }),
+                    limite
+                ]);
             } else {
-                loadedFonts[family] = family;
-                p = Promise.resolve(family);
+                carga = Promise.resolve('sin-api');
             }
-        } catch (_) {
-            loadedFonts[family] = family;
-            p = Promise.resolve(family);
+        } catch (e) {
+            carga = Promise.resolve('error');
         }
-        loadingPromises[family] = p;
+        var p = carga.then(function (res) {
+            // Sin document.fonts no hay forma de verificar: se acepta (el
+            // lienzo usara la familia y el navegador decidira). Con API, un
+            // resultado vacio o un timeout SI son fallos reales.
+            if (res === 'ok' || res === 'sin-api') {
+                loadedFonts[id] = fam;
+                fontStates[id] = 'disponible';
+                delete fontFailures[id];
+                return fam;
+            }
+            fontStates[id] = 'fallida';
+            fontFailures[id] = 'fonts:' + id + ':la familia "' + fam + '" no se pudo cargar de Google';
+            delete fontPromises[id];
+            var e = new Error(fontFailures[id]);
+            e.fontId = id;
+            e.familia = fam;
+            throw e;
+        });
+        fontPromises[id] = p;
         return p;
+    }
+    // Compat: recibe un spec de Google y asegura la fuente. Usa la identidad
+    // virtual que le corresponde a la familia.
+    function ensureGoogleFontBySpec(spec) {
+        spec = String(spec || '').trim();
+        if (!spec) return Promise.reject(new Error('fonts:?:spec de Google vacio'));
+        var id;
+        try { id = resolveFontId(spec); }
+        catch (e) { return Promise.reject(e); }
+        return asegurarGoogle(id, spec, googleFamilyOf(spec));
     }
     // Compat: antes recibia el nombre de familia; ahora deriva el spec del
     // catalogo (campo google) y delega. Si no hay spec, usa la familia tal cual.
+    // Familia tipografica de una identidad, YA entrecomillada para componer el
+    // valor de fuente de un contexto (R-C3.2). Sin comillas, un nombre con
+    // espacios genera un valor CSS invalido que el navegador IGNORA en
+    // silencio, dejando el valor anterior en el lienzo: esa era la fuente
+    // fantasma que veia el usuario. Funcion PURA: no toca red ni estados.
+    function getFontFamily(ref) {
+        var id;
+        try { id = resolveFontId(ref); }
+        catch (_) { return null; }
+        var e = getFontById(id);
+        var nombre = (e && e.name) || (catalogFonts[id] && catalogFonts[id].titulo) || String(id);
+        // Escapa comillas dobles para no romper el valor de fuente.
+        var limpio = String(nombre).replace(/"/g, "'");
+        return '"' + limpio + '"';
+    }
+    // Compat: nombre de familia SIN comillas, para quien solo necesita el texto.
     function getFontName(fontKey) {
-        if (fontRegistry[fontKey]) {
-            return fontRegistry[fontKey].name;
-        }
-        if (catalogFonts[fontKey]) {
-            return catalogFonts[fontKey].titulo || fontKey;
-        }
-        // Spec de Google Fonts sin entrada en el catálogo (p.ej. "Oswald:wght@400;700")
-        // → extraer el nombre de familia con googleFamilyOf().
-        const family = googleFamilyOf(fontKey);
-        return family || fontKey;
+        var quoted = getFontFamily(fontKey);
+        if (quoted) return quoted.slice(1, -1);
+        var fam = googleFamilyOf(fontKey);
+        return fam || String(fontKey);
     }
 
     function isCustomFont(fontKey) {
-        return fontKey in fontRegistry && fontRegistry[fontKey].isCustom;
+        var id;
+        try { id = resolveFontId(fontKey); } catch (_) { return false; }
+        var e = getFontById(id);
+        return !!(e && !e.online);
+    }
+    function getFontState(ref) {
+        var id;
+        try { id = resolveFontId(ref); } catch (_) { return 'desconocida'; }
+        return fontStates[id] || 'no solicitada';
+    }
+    function getFontFailure(ref) {
+        var id;
+        try { id = resolveFontId(ref); } catch (_) { return null; }
+        return fontFailures[id] || null;
     }
 
-    function preloadAll() {
-        // Lazy real: al abrir la app NO se carga ninguna fuente. Solo se deja
-        // el catalogo listo (para la galeria) y se asegura la fuente del
-        // template/preset activo si es Google (una sola familia) o local.
+    // Asegura la fuente que se le pase. NO lee el estado del editor: ese estado
+    // es privado a su modulo y la lectura a ciegas hacia que se asegurara
+    // siempre la fuente por defecto (R5). El que llama decide cual es.
+    // Al abrir la app NO se precarga nada mas que el catalogo.
+    function preloadAll(ref) {
         return loadCatalog().then(function () {
-            const cur = resolveFontFromPreset(
-                (typeof state !== 'undefined' && state.settings && state.settings.font)
-                    ? state.settings.font : DEFAULT_FONT_FAMILY
-            );
-            return loadFont(cur).catch(function () { return cur; });
-        }).catch(function () { return DEFAULT_FONT_FAMILY; });
+            indexarCatalogo();
+            if (ref === undefined || ref === null) return null;
+            return loadFont(ref).catch(function (e) {
+                console.warn('preloadAll: ' + ((e && e.message) || e));
+                return null;
+            });
+        }).catch(function () { return null; });
     }
 
+    // Listado UNICO de fuentes para poblar el selector y la galeria: una entrada
+    // por identidad, ordenada por categoria y nombre. Dos titulos iguales son
+    // dos identidades distintas y aparecen como entradas distintas (R-C4.1);
+    // la misma fuente nunca aparece dos veces.
+    function listFontEntries() {
+        indexarCatalogo();
+        var out = [];
+        Object.keys(fontsById).forEach(function (cid) {
+            var id = +cid;
+            var e = fontsById[id];
+            if (!e) return;
+            out.push({
+                id: id,
+                value: id,
+                name: e.name,
+                file: e.file,
+                online: !!e.online,
+                categoria: e.categoria || 'custom',
+                isCustom: !!e.isCustom,
+                isServer: !!e.isServer,
+                state: fontStates[id] || 'no solicitada'
+            });
+        });
+        out.sort(function (a, b) {
+            if (a.categoria !== b.categoria) return String(a.categoria).localeCompare(String(b.categoria));
+            return String(a.name).localeCompare(String(b.name));
+        });
+        return out;
+    }
     function getAvailableFonts() {
         var fonts = [];
         for (var key in fontRegistry) {
@@ -587,9 +781,20 @@
     function unregisterCustomFont(key) {
         var reg = fontRegistry[key];
         if (!reg) return false;
+        var id = (typeof reg.id === 'number' && reg.id >= 1) ? reg.id : null;
         delete fontRegistry[key];
         delete loadedFonts[key];
         delete loadingPromises[key];
+        // RC39: la entrada sale tambien del indice canonico y de los estados
+        // de carga, o la fuente seguiria en el selector y cargandose como si
+        // existiera (R-C2.4).
+        if (id !== null) {
+            delete fontsById[id];
+            delete fontStates[id];
+            delete fontFailures[id];
+            delete fontPromises[id];
+            delete loadedFonts[id];
+        }
         Object.keys(nameToKeyMap).forEach(function (name) {
             if (nameToKeyMap[name] === key) delete nameToKeyMap[name];
         });
@@ -783,26 +988,30 @@
     // El picker enviaba 'user-70' y contaminaba DEFAULT_FONT_FAMILY -> todas
     // las Google caian en fallback y ninguna se aplicaba.
     function familiaDeClave(key) {
-        if (fontRegistry[key] && fontRegistry[key].name) return fontRegistry[key].name;
-        if (catalogFonts[key]) return catalogFonts[key].titulo || catalogFonts[key].file || key;
-        if (typeof key === 'string' && /^[0-9]+$/.test(key) && catalogFonts[+key]) {
-            return catalogFonts[+key].titulo || catalogFonts[+key].file || key;
-        }
-        var porTitulo = (typeof key === 'string') ? resolverIdPorTitulo(key) : null;
-        if (porTitulo !== null && catalogFonts[porTitulo]) {
-            return catalogFonts[porTitulo].titulo || catalogFonts[porTitulo].file || key;
-        }
-        return key;
+        // Resuelve por la identidad canonica: el nombre visible de la fuente,
+        // ya sea que la referencia sea un id, un titulo o una clave interna.
+        try {
+            var id = resolveFontId(key);
+            var e = getFontById(id);
+            if (e && e.name) return e.name;
+        } catch (_) { /* referencia no resoluble: se usa tal cual */ }
+        return String(key);
     }
-    function setDefaultFont(family) {
-        if (typeof family === 'string' && family.trim()) {
-            DEFAULT_FONT_FAMILY = familiaDeClave(family.trim());
-        }
+    // Cambia la fuente por defecto del proyecto. Guardamos la IDENTIDAD, no el
+    // nombre: la fuente vigente se consulta siempre (FR-011), y asi el valor
+    // no se queda congelado en un estado viejo.
+    function setDefaultFont(ref) {
+        if (ref === undefined || ref === null || ref === '') return DEFAULT_FONT_FAMILY;
+        try {
+            DEFAULT_FONT_FAMILY = familiaDeClave(ref);
+        } catch (_) { /* sin catalogo: se conserva la vigente */ }
         return DEFAULT_FONT_FAMILY;
     }
 
     window.FontLoader = {
-        DEFAULT_FONT_FAMILY: DEFAULT_FONT_FAMILY,
+        // Fuente por defecto VIGENTE (getter: antes era una copia congelada que
+        // setDefaultFont nunca actualizaba, FR-011).
+        get DEFAULT_FONT_FAMILY() { return DEFAULT_FONT_FAMILY; },
         setDefaultFont: setDefaultFont,
         loadFont: loadFont,
         ensureGoogleFontBySpec: ensureGoogleFontBySpec,
@@ -812,6 +1021,15 @@
         listServerFonts: listServerFonts,
         fontUrlBase: fontUrlBase,
         getFontName: getFontName,
+        // Familia YA entrecomillada para componer ctx.font (R-C3.2).
+        getFontFamily: getFontFamily,
+        // Estado del ciclo de carga y causa del ultimo fallo (data-model §2).
+        getFontState: getFontState,
+        getFontFailure: getFontFailure,
+        // Identidad canonica de una referencia (id numerico de catalogo).
+        resolveFontId: resolveFontId,
+        // Listado unico por identidad: cada fuente aparece una vez (R-C4.1).
+        listFontEntries: listFontEntries,
         isCustomFont: isCustomFont,
         preloadAll: preloadAll,
         resolveFontFromPreset: resolveFontFromPreset,

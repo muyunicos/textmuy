@@ -231,16 +231,28 @@
     function settingsFromDelta(delta) {
         const settings = JSON.parse(JSON.stringify(getDefaults()));
         applyDelta(settings, delta);
-        // `font.src` canonico: STRING (titulo del catalogo o spec Google) o id
-        // numerico entero >= 1. El editor escribe strings (picker) y
-        // FontLoader los resuelve por titulo; cualquier otro tipo (objeto,
-        // vacio) es un formato invalido y se rechaza con causa.
+        // `font.src` canonico: la IDENTIDAD NUMERICA de la fuente. Los presets
+        // guardados antes de RC39 referenciaban la fuente por titulo, asi que
+        // se acepta esa forma por compatibilidad y se normaliza a identidad
+        // (R-C6.1, R-C1.3). Cualquier otro tipo es un formato invalido y se
+        // rechaza con causa.
         var src = settings && settings.font && settings.font.src;
         if (src !== undefined && src !== null && src !== '') {
             var esId = (typeof src === 'number' && Math.floor(src) === src && src >= 1);
             var esTitulo = (typeof src === 'string' && src.trim() !== '');
             if (!esId && !esTitulo) {
                 throw new Error('presets:' + ((delta && delta.name) || '?') + ':font.src invalido (' + (typeof src) + '): volver a elegir la fuente en el editor');
+            }
+            // Normalizacion a identidad. Si la fuente no se puede resolver se
+            // conserva la referencia original y la carga fallara con causa al
+            // intentar usarla, en vez de dibujar con otra tipografia.
+            if (window.FontLoader && window.FontLoader.resolveFontId) {
+                try {
+                    settings.font.src = window.FontLoader.resolveFontId(src);
+                } catch (e) {
+                    // Sin catalogo todavia: la referencia se conserva tal cual
+                    // y se resolvera cuando el catalogo este disponible.
+                }
             }
         }
         return settings;
@@ -272,7 +284,10 @@
         });
     }
 
-    function thumbnailCanvas(settings) {
+    // RC39 (001-fix-bugs-01): la miniatura ESPERA a la fuente declarada. Antes
+    // se dibujaba de inmediato y, si la fuente aun no habia bajado, la
+    // miniatura del preset se guardaba con la tipografia del sistema.
+    async function thumbnailCanvas(settings) {
         const editor = window.TextEditor;
         if (!editor || !editor.renderToCanvas) throw new Error('Editor not ready');
         const s = JSON.parse(JSON.stringify(settings || editor.getSettings()));
@@ -282,12 +297,19 @@
         const c = document.createElement('canvas');
         c.width = THUMB_WIDTH;
         c.height = THUMB_HEIGHT;
-        editor.renderToCanvas(c, s);
+        if (editor.renderToCanvasConFuente) {
+            await editor.renderToCanvasConFuente(c, s);
+        } else {
+            editor.renderToCanvas(c, s);
+        }
         return c;
     }
 
     async function thumbnailBlob(settings) {
-        return canvasToBlob(thumbnailCanvas(settings), 'image/webp', 0.9);
+        // thumbnailCanvas es asincrona (espera a la fuente declarada), asi que
+        // hay que awaited antes de codificar: sin esto se recibiria una promesa
+        // y el blob saldria vacio.
+        return canvasToBlob(await thumbnailCanvas(settings), 'image/webp', 0.9);
     }
 
     async function thumbnailDataUrl(settings) {

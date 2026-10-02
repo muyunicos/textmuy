@@ -267,6 +267,26 @@
     window.TextEditorControls = window.TextEditorControls || {};
     window.TextEditorControls.bindings = window.TextEditorControls.bindings || [];
     window.TextEditorControls.refreshInputDecorations = refreshInputDecorations;
+    window.TextEditorControls.reportFontError = reportFontError;
+
+    // ===== AVISO DE FUENTE NO DISPONIBLE (RC39, 001-fix-bugs-01) =====
+    // La constitucion prohibe sustituir una fuente por otra en silencio. Para
+    // que el usuario no confunda "el lienzo se ve con otra tipografia" con un
+    // fallo, el aviso va a un aviso visible junto al selector de fuentes, y no
+    // solo a la consola.
+    function reportFontError(causa) {
+        let box = document.getElementById('tt-font-error');
+        if (!box) return;
+        if (!causa) {
+            box.hidden = true;
+            box.textContent = '';
+            return;
+        }
+        box.hidden = false;
+        box.textContent = 'La fuente seleccionada no se pudo cargar: ' + causa
+            + ' Se conserva la fuente elegida; no se usa ninguna otra.';
+        box.setAttribute('role', 'alert');
+    }
 
     function bindRange(id, settingPath, transformFn) {
         registerBinding(id, settingPath);
@@ -308,51 +328,35 @@
         });
     }
 
-    // Fonts can arrive after the select event (notably uploaded fonts). Render
-    // once immediately, then again only when the currently selected face is
-    // ready.  The request id prevents a slow older selection from winning.
+    // Fuentes pueden llegar despues del arranque (catalogo, puente). El
+    // render espera a que la fuente este lista, y se vuelve a pintar cuando
+    // queda disponible, para que el lienzo nunca muestre otra tipografia.
     let fontLoadRequestId = 0;
     function bindFontSelect(id) {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', function() {
             const fontKey = this.value;
+            if (fontKey === '' || fontKey === null || fontKey === undefined) return;
             const requestId = ++fontLoadRequestId;
-            // Al elegir fuente en el picker/galeria: es la fuente real del
-            // proyecto (reemplaza la etiqueta generica inicial). La carga lazy
-            // (Google inyectada o TTF local) la resuelve loadFont al renderizar.
-            try {
-                if (window.FontLoader && window.FontLoader.setDefaultFont) {
-                    window.FontLoader.setDefaultFont(fontKey);
-                }
-            } catch (_) { /* etiqueta best-effort */ }
-            setNestedSetting('font.src', fontKey);
-
-            const settings = editor.getSettings();
-            const weight = settings.font && settings.font.weight ? settings.font.weight : 'normal';
-            const getName = function() {
-                return window.FontLoader ? FontLoader.getFontName(fontKey) : fontKey;
-            };
-            const needsLoader = window.FontLoader &&
-                (FontLoader.isCustomFont(fontKey) || Boolean(FontLoader.registry && FontLoader.registry[fontKey]));
-            const load = needsLoader ? FontLoader.loadFont(fontKey) : Promise.resolve(getName());
-
-            Promise.resolve(load)
-                .then(function(loadedName) {
-                    const name = loadedName || getName();
-                    if (!document.fonts || !document.fonts.load) return name;
-                    return document.fonts.load(`${weight} 64px "${name}"`).then(function() { return name; });
-                })
-                .catch(function() {
-                    // The initial render already used the browser fallback.
-                    return null;
-                })
-                .then(function() {
-                    const current = editor.getSettings().font;
-                    if (requestId === fontLoadRequestId && current && current.src === fontKey) {
-                        editor.render();
-                    }
+            // La identidad de la fuente es la que se guarda en el estado.
+            let identidad = fontKey;
+            if (window.FontLoader && window.FontLoader.resolveFontId) {
+                try { identidad = window.FontLoader.resolveFontId(fontKey); }
+                catch (e) { console.warn('Fuente no resoluble: ' + ((e && e.message) || e)); return; }
+            }
+            setNestedSetting('font.src', identidad);
+            // El lienzo se pinta cuando la fuente este disponible: cargar
+            // primero evita ver la tipografia anterior como si fuera la nueva
+            // (FR-002). Cualquier entrada del selector llega aqui y carga su
+            // fuente, sin excepciones (R-C4.2).
+            if (window.TextEditor && window.TextEditor.asegurarFuenteDeclarada) {
+                window.TextEditor.asegurarFuenteDeclarada().then(function() {
+                    if (requestId === fontLoadRequestId) window.TextEditor.render();
                 });
+            } else {
+                editor.render();
+            }
         });
     }
 
@@ -760,8 +764,8 @@
                 // Con puente: la imagen sube a tm/img/ y el settings guarda SU ID
                 // numerico (R2: solo id en .txm; la preview usa la URL resuelta).
                 // Sin puente (standalone): data-URL embebida.
-                if (window.PresetManager && PresetManager.bridgeAvailable && PresetManager.bridgeAvailable()) {
-                    PresetManager.uploadImage(file, { categoria: categoria }).then(function(res) {
+                if (window.PresetManager && window.PresetManager.bridgeAvailable && window.PresetManager.bridgeAvailable()) {
+                    window.PresetManager.uploadImage(file, { categoria: categoria }).then(function(res) {
                         aplicarImagen(res.id > 0 ? res.id : res.url);
                     }).catch(function(err) {
                         alert(((err && err.message) || 'No se pudo subir la imagen.')
@@ -1892,7 +1896,7 @@
             settings = TextEditor.createDefaultSettings();
             TextEditor.loadPreset(presetRaw, settings);
         }
-        PresetManager.savePreset(nombre, settings).then(function (res) {
+        window.PresetManager.savePreset(nombre, settings).then(function (res) {
             alert('Preset importado y guardado como "' + res.name + '"'
                 + (res.mode === 'server' ? ' (en el servidor).' : ' (.txm descargado: colocalo en presets/).'));
             if (typeof refrescarGaleriaPresets === 'function') refrescarGaleriaPresets();
@@ -2099,107 +2103,126 @@
     // arrancar se reconstruye desde fonts.json (Google) + fisicas del puente
     // + fuentes fisicas del puente. La busqueda y las categorias viven solo
     // en la galeria de fuentes.
+    // El <select> estatico de index.html es solo un esqueleto: al arrancar se
+    // reconstruye desde el catalogo. RC39: se puebla desde UNA sola fuente de
+    // verdad (FontLoader.listFontEntries), con la identidad numerica como
+    // valor. Antes se poblaba desde el mapa de categorias y luego se le
+    // anadian las fisicas del puente con OTRA clave, de modo que la misma
+    // fuente aparecia dos veces y algunas entradas no cargaban nada.
     function rebuildFontPicker() {
         const fontSelect = document.getElementById('tt-font-picker-input');
         if (!fontSelect || !window.FontLoader || !window.FontLoader.loadCatalog) return Promise.resolve();
         const prevValue = fontSelect.value;
         return window.FontLoader.loadCatalog().then(function () {
-            const cats = window.FontLoader.getFontCategories ? window.FontLoader.getFontCategories() : {};
-            const catNames = Object.keys(cats).sort();
-            // Optgroups dinamicos (uno por categoria del catalogo).
-            const customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]');
+            if (!window.FontLoader.listFontEntries) return;
+            const entradas = window.FontLoader.listFontEntries();
             while (fontSelect.firstChild) fontSelect.removeChild(fontSelect.firstChild);
+            const porCategoria = {};
+            entradas.forEach(function (e) {
+                const cat = e.categoria || 'custom';
+                if (!porCategoria[cat]) porCategoria[cat] = [];
+                porCategoria[cat].push(e);
+            });
             const labelOf = function (c) { return c.charAt(0).toUpperCase() + c.slice(1); };
-            catNames.forEach(function (c) {
+            Object.keys(porCategoria).sort().forEach(function (cat) {
                 const g = document.createElement('optgroup');
-                g.label = labelOf(c);
-                (cats[c] || []).slice().sort().forEach(function (name) {
+                g.label = labelOf(cat);
+                g.setAttribute('data-font-group', cat);
+                porCategoria[cat].forEach(function (e) {
                     const o = document.createElement('option');
-                    o.value = name;
-                    o.textContent = (window.FontLoader.getCatalogFonts()[name] || {}).titulo || name;
+                    // La identidad numerica es el valor: es la unica clave que
+                    // el camino de carga entiende (R-C4.1, R-C4.2).
+                    o.value = String(e.id);
+                    o.textContent = e.name;
                     g.appendChild(o);
                 });
                 fontSelect.appendChild(g);
             });
-            // Grupo Custom (fisicas): se rellena via sincronizarFuentesServidor.
-            const g2 = customGroup || document.createElement('optgroup');
-            g2.label = 'Custom';
-            g2.setAttribute('data-font-group', 'custom');
-            fontSelect.appendChild(g2);
-            // Restaurar seleccion previa si sigue existiendo.
-            try {
-                if (prevValue && fontSelect.querySelector('option[value="' + prevValue + '"]')) {
-                    fontSelect.value = prevValue;
-                }
-            } catch (e) { /* selector con caracteres raros: ignorar */ }
+            // Sin catalogo no hay entradas: no se ofrecen fuentes que luego
+            // fallen al elegirse (R-C4.4).
+            restaurarSeleccion(fontSelect, prevValue);
+            sincronizarSeleccion(fontSelect);
         });
     }
-
+    // Deja el selector mostrando la fuente del proyecto. Si la fuente actual
+    // no esta en la lista, se selecciona la primera disponible en vez de
+    // dejar el selector en blanco (R-C4.3, FR-010).
+    function restaurarSeleccion(fontSelect, valor) {
+        if (!fontSelect || !valor) return;
+        const opcion = fontSelect.querySelector('option[value="' + valor + '"]');
+        if (opcion) {
+            fontSelect.value = valor;
+            return;
+        }
+        if (fontSelect.options && fontSelect.options.length > 0) {
+            fontSelect.selectedIndex = 0;
+        }
+    }
+    // Sincroniza el selector con el estado del proyecto SIN disparar el evento
+    // change: escribir la fuente es una decision del usuario, no una
+    // consecuencia de repintar el selector.
+    function sincronizarSeleccion(fontSelect) {
+        if (!fontSelect || !editor) return;
+        const ref = editor.getSettings && editor.getSettings().font ? editor.getSettings().font.src : null;
+        if (ref === null || ref === undefined) return;
+        const valor = String(ref);
+        if (fontSelect.querySelector('option[value="' + valor + '"]')) {
+            if (fontSelect.value !== valor) fontSelect.value = valor;
+        }
+    }
     // ===== FONT PICKER + GALERIA =====
     function initFontFilters() {
         const fontSelect = document.getElementById('tt-font-picker-input');
         if (!fontSelect) return;
 
-        // Reconstruir picker desde el catalogo y luego sincronizar fisicas.
-        rebuildFontPicker().then(function () {
-            sincronizarFuentesServidor();
+        // Un solo paso: el catalogo se lee una vez y el selector se puebla con
+        // el listado unico. Antes habia un segundo paso que anadia las mismas
+        // fuentes con otra clave (R-C4.1).
+        rebuildFontPicker();
+
+        // Tras cargar un preset, deshacer o rehacer, el selector debe reflejar
+        // la fuente del proyecto (R-C4.3, FR-010). Se sincroniza SIN disparar
+        // el evento change: escribir la fuente es del usuario, no del editor.
+        document.addEventListener('textmuy:settings-updated', function () {
+            sincronizarSeleccion(fontSelect);
         });
 
-        // Sincronizar fuentes en el optgroup "Custom": puente (bridge.fuentes,
-        // escaneo del servidor: aparecen solas al subir TTF) + entradas con
-        // url dentro de fonts.json (fisicas declaradas a mano, con HEAD).
-        // Sin puente ni url validas el grupo queda vacio y NO hay 404.
-        function sincronizarFuentesServidor() {
-            var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-            var customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]') || fontSelect.querySelector('optgroup[label="Custom"]');
-            if (!customGroup) return;
-            if (bridge && Array.isArray(bridge.fuentes)) {
-                bridge.fuentes.forEach(function (f) {
-                    // Solo fisicas reales (nombre con extension de fuente). El
-                    // puente viejo mezclaba entradas Google (sin archivo): esas
-                    // generaban spam de 404. Sin extension, se ignoran.
-                    if (!f || !f.nombre || !/\.(ttf|otf|woff|woff2)$/i.test(f.nombre)) return;
-                    var key = 'server-' + f.nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
-                    var opt = customGroup.querySelector('option[value="' + key + '"]');
-                    if (!opt) {
-                        opt = document.createElement('option');
-                        opt.value = key;
-                        opt.textContent = f.titulo || f.nombre;
-                        customGroup.appendChild(opt);
-                    }
-                });
-            }
+        // Cuando llega el puente (o tras un margen), el catalogo se relee por
+        // si el servidor ya habia escrito el inventario. Se reconstruye desde
+        // la misma fuente de verdad, asi que no aparecen duplicados.
+        function refrescar() {
             if (window.FontLoader && window.FontLoader.loadUserFonts) {
-                window.FontLoader.loadUserFonts().then(function (keys) {
-                    (keys || []).forEach(function (key) {
-                        if (customGroup.querySelector('option[value="' + key + '"]')) return;
-                        var name = (window.FontLoader.getFontName && window.FontLoader.getFontName(key)) || key;
-                        var opt = document.createElement('option');
-                        opt.value = key;
-                        opt.textContent = name;
-                        customGroup.appendChild(opt);
-                    });
-                }).catch(function () { /* sin fonts.json: grupo vacio, sin 404 */ });
+                window.FontLoader.loadUserFonts().then(rebuildFontPicker).catch(function () {});
+            } else {
+                rebuildFontPicker();
             }
         }
-
+        window.addEventListener('textmuy-bridge-ready', refrescar);
+        setTimeout(refrescar, 100);
         function seleccionarFuente(key, item) {
-            if (!key) return;
-            let option = null;
-            Array.prototype.some.call(fontSelect.querySelectorAll('option'), function(o) {
-                if (o.value === key) { option = o; return true; }
-                return false;
-            });
-            if (!option) {
-                const customGroup = fontSelect.querySelector('optgroup[data-font-group="custom"]');
-                if (customGroup) {
-                    option = document.createElement('option');
-                    option.value = key;
-                    option.textContent = (item && item.titulo) || key;
-                    customGroup.appendChild(option);
-                }
+            if (key === null || key === undefined || key === '') return;
+            // La clave es la IDENTIDAD de la fuente. Se normaliza a numero
+            // cuando el catalogo la reconoce, para que el valor escrito en el
+            // estado sea siempre la identidad canonica (R-C1.3).
+            let valor = key;
+            if (window.FontLoader && window.FontLoader.resolveFontId) {
+                try { valor = window.FontLoader.resolveFontId(key); }
+                catch (_) { /* referencia no resoluble: se usa tal cual */ }
             }
-            fontSelect.value = key;
+            valor = String(valor);
+            let option = fontSelect.querySelector('option[value="' + valor + '"]');
+            if (!option && (item && (item.id !== undefined))) {
+                // La galeria conoce una fuente que el catalogo aun no tiene.
+                const g = document.createElement('optgroup');
+                g.setAttribute('data-font-group', (item && item.categoria) || 'custom');
+                option = document.createElement('option');
+                option.value = valor;
+                option.textContent = (item && (item.titulo || item.name)) || valor;
+                g.appendChild(option);
+                fontSelect.appendChild(g);
+            }
+            if (!option) return;
+            fontSelect.value = valor;
             fontSelect.dispatchEvent(new Event('change'));
         }
 
@@ -2211,14 +2234,12 @@
                 if (!window.TextMuyGaleriaFuentes) return;
                 window.TextMuyGaleriaFuentes.abrir(function(key, item) {
                     seleccionarFuente(key, item);
-                    // Refrescar Custom por si hubo altas/bajas en la galeria.
-                    sincronizarFuentesServidor();
+                    // Refrescar por si hubo altas/bajas en la galeria: el
+                    // listado se reconstruye desde la misma fuente de verdad.
+                    refrescar();
                 });
             });
         }
-
-        window.addEventListener('textmuy-bridge-ready', sincronizarFuentesServidor);
-        setTimeout(sincronizarFuentesServidor, 100);
     }
 
     // ===== PRESET GALLERY (unico panel de presets: grilla inferior con miniaturas) =====
@@ -2283,14 +2304,14 @@
         // escribe thumbs.sprite_firma='' y la hoja queda INcertificable, de modo
         // que cada apertura volvia a reconstruirla (ese era el bug de origen).
         function generarMiniaturasPresets() {
-            if (!window.ThumbEngine || !window.PresetManager || !PresetManager.listPresets) {
+            if (!window.ThumbEngine || !window.PresetManager || !window.PresetManager.listPresets) {
                 setStatus('Miniaturas: requiere el plugin (iframe).', true);
                 return Promise.resolve(null);
             }
-            const nombres = PresetManager.listPresets() || [];
+            const nombres = window.PresetManager.listPresets() || [];
             if (!nombres.length) { setStatus('No hay presets que dibujar.'); return Promise.resolve(null); }
             setStatus('Generando miniaturas (usa la fuente de cada preset)...');
-            const bP = (window.PresetManager && PresetManager.getBridge) ? PresetManager.getBridge() : null;
+            const bP = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
             const cat = window.TextMuyAPI && window.TextMuyAPI.loadCatalogo
                 ? Promise.resolve(window.TextMuyAPI.loadCatalogo('tm-presets')).catch(function() { return null; })
                 : Promise.resolve(null);
@@ -2304,8 +2325,8 @@
                     baseUrl: (bP && bP.urls && bP.urls.presetsBase) ? bP.urls.presetsBase : '',
                     firma: (parsed && parsed.firma) || '',
                     render: function(it) {
-                        if (!window.PresetManager || !PresetManager.ensureThumbnail) return Promise.resolve(null);
-                        return PresetManager.ensureThumbnail(it.nombre).then(function(url) {
+                        if (!window.PresetManager || !window.PresetManager.ensureThumbnail) return Promise.resolve(null);
+                        return window.PresetManager.ensureThumbnail(it.nombre).then(function(url) {
                             if (!url) return null;
                             return new Promise(function(res) {
                                 const img = new Image();
@@ -2321,8 +2342,8 @@
                 if (!res) { setStatus('No se pudo generar la hoja de miniaturas.', true); return null; }
                 setStatus('Miniaturas generadas.');
                 presetSpriteInfo = null;
-                if (window.PresetManager && PresetManager.invalidarSprite) {
-                    return Promise.resolve(PresetManager.invalidarSprite('tm-presets')).catch(function() {});
+                if (window.PresetManager && window.PresetManager.invalidarSprite) {
+                    return Promise.resolve(window.PresetManager.invalidarSprite('tm-presets')).catch(function() {});
                 }
                 return null;
             }).catch(function(e) { setStatus((e && e.message) || String(e), true); return null; });
@@ -2336,8 +2357,8 @@
 
         function populate() {
             grid.innerHTML = '';
-            const nombres = (window.PresetManager && PresetManager.listPresets)
-                ? PresetManager.listPresets()
+            const nombres = (window.PresetManager && window.PresetManager.listPresets)
+                ? window.PresetManager.listPresets()
                 : [];
             nombres.forEach(function(name) {
                 const tile = document.createElement('button');
@@ -2384,8 +2405,8 @@
                 tile.appendChild(del);
 
                 tile.addEventListener('click', function() {
-                    if (window.PresetManager && PresetManager.loadPreset) {
-                        PresetManager.loadPreset(name);
+                    if (window.PresetManager && window.PresetManager.loadPreset) {
+                        window.PresetManager.loadPreset(name);
                         currentPresetName = name;
                         markSelected();
                     }
@@ -2404,7 +2425,7 @@
         function borrarPreset(name) {
             if (!confirm('Borrar el preset "' + name + '" (su .txm del servidor)?')) return;
             if (!window.PresetManager) return;
-            PresetManager.deletePreset(name).then(function() {
+            window.PresetManager.deletePreset(name).then(function() {
                 setStatus('Preset "' + name + '" borrado.');
                 if (currentPresetName === name) currentPresetName = null;
                 populate();
@@ -2412,11 +2433,11 @@
         }
 
         function guardarPreset() {
-            if (!editor || !window.PresetManager || !PresetManager.savePreset) return;
+            if (!editor || !window.PresetManager || !window.PresetManager.savePreset) return;
             const nombre = prompt('Nombre del preset:');
             if (!nombre) return;
             setStatus('Guardando "' + nombre + '"...');
-            PresetManager.savePreset(nombre, editor.getSettings()).then(function(res) {
+            window.PresetManager.savePreset(nombre, editor.getSettings()).then(function(res) {
                 if (res.mode === 'server') {
                     setStatus('Preset "' + res.name + '" guardado en el servidor.');
                 } else {

@@ -227,6 +227,43 @@ function crearPanel(){
   delBtn.hidden=!esSv;
   status.textContent=it?(it.tipo==='catalogo'?'Google Fonts (solo lectura)':''):'Selecciona una fuente';
  }
+ // RC39 (001-fix-bugs-01): la fuente explorada se aplica al LIENZO de
+ // inmediato, sin pasar por "Select" (FR-007). Es una previsualizacion
+ // temporal: no toca el estado del proyecto, y cerrar la galeria sin
+ // confirmar la revierte (R-C5.1, R-C5.4).
+ let previa=null;   // referencia de la fuente previa del proyecto
+ function previsualizarEnLienzo(it){
+  const ed=window.TextEditor;
+  if(!ed||!ed.getSettings)return;
+  if(!previa) previa={anterior:ed.getSettings().font?ed.getSettings().font.src:null};
+  let id=it.id;
+  if(FL()&&FL().resolveFontId){
+   try{id=FL().resolveFontId(id);}catch(_){id=it.id;}
+  }
+  if(ed.aplicarFuentePrevia) ed.aplicarFuentePrevia(id);
+  if(!it.online)status.textContent='Descargando la fuente para la vista previa...';
+ }
+ // Revierte: el lienzo vuelve a la fuente que habia antes de explorar. Se
+ // llama al cerrar la galeria sin confirmar (R-C5.3, FR-008). Una descarga
+ // que termine despues de revertir NO repinta: la comparacion de identidad
+ // en aplicarFuentePrevia lo impide.
+ function revertirPrevisualizacion(){
+  if(!previa)return;
+  const ed=window.TextEditor;
+  const anterior=previa.anterior;
+  previa=null;
+  if(ed&&ed.revertirFuentePrevia) ed.revertirFuentePrevia(anterior);
+ }
+ // Confirma: la fuente explorada pasa a ser la del proyecto; la
+ // previsualizacion se cierra sin cambiar el lienzo (R-C5.5, FR-009).
+ // Se suelta tambien la referencia de previsualizacion del editor, que es lo
+ // que hacia que el lienzo siguiera usando la fuente explorada.
+ function confirmarPrevisualizacion(){
+  const ed=window.TextEditor;
+  previa=null;
+  if(ed&&ed.confirmarFuentePrevia) ed.confirmarFuentePrevia();
+ }
+
  function sel(it){
   seleccionado=it;
   list.querySelectorAll('.tt-galpanel-tile').forEach(function(t){t.classList.remove('sel');});
@@ -236,6 +273,8 @@ function crearPanel(){
   }catch(_){}
   rfFooter();
   previewSeleccionada(it);
+  // RC39: la fuente se aplica ya al lienzo (no hace falta pulsar Select).
+  previsualizarEnLienzo(it);
  }
  // Preview real SOLO de la fuente seleccionada: es el unico momento en que se
  // descarga su archivo (1 request). Antes se bajaban todas al abrir el panel.
@@ -356,6 +395,9 @@ function crearPanel(){
   ov.hidden=false;
  }
  function cerrar(){
+  // RC39: cerrar sin confirmar REVIERTE la previsualizacion: el lienzo vuelve
+  // a la fuente que tenia antes de explorar (FR-008, R-C5.3).
+  revertirPrevisualizacion();
   ov.hidden=true;
   const main=document.getElementById('tt-main-container');
   if(main&&main.dataset.galPrev!==undefined){main.style.display=main.dataset.galPrev;delete main.dataset.galPrev;}
@@ -365,6 +407,9 @@ function crearPanel(){
  selBtn.addEventListener('click',function(){
   const it=seleccionado;
   if(!it||!aplicarActual){status.textContent='Selecciona primero.';return;}
+  // Confirmar consolida la fuente: la previsualizacion se cierra y el lienzo
+  // NO cambia, porque la fuente explorada ya es la que se quiere (FR-009).
+  confirmarPrevisualizacion();
   aplicarActual(it.slug,it);
   cerrar();
  });

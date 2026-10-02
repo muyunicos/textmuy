@@ -48,6 +48,26 @@ const CAT = global.window.TextMuyCatalog;
 const FL = global.window.FontLoader;
 assert.ok(CAT && FL, 'TextMuyCatalog y FontLoader registrados');
 
+// 0. RC39: el catalogo de ejemplo se inyecta por la via real (fetch simulado),
+//    para que la resolucion por identidad tenga datos con los que trabajar.
+global.fetch = function(url) {
+    if (/fonts\.json/.test(String(url))) {
+        return Promise.resolve({
+            ok: true,
+            json: function() {
+                return Promise.resolve({ thumbs: { w: 180, h: 30, c: 4 }, items: [
+                    [1, 'Bangers', 'display', 'Bangers'],
+                    [2, 'Mi Fisica', 'display', 'MiFisica.woff2'],
+                    [58, 'MUY-Alegría', 'custom', 'MUY-Alegría.ttf'],
+                    [59, 'MUY-Señorita', 'custom', 'MUY-Señorita.ttf'],
+                    [3, '', '', '']
+                ] });
+            }
+        });
+    }
+    return Promise.reject(new Error('no net'));
+};
+
 // 1. Parser unico: tupla numerica ok (Google y fisica) + tombstone libre.
 const p = CAT.parseCatalog({ thumbs: { w: 180, h: 30, c: 4 }, items: [
     [1, 'Bangers', 'display', 'Bangers'],
@@ -67,17 +87,54 @@ assert.equal(CAT.classifyEntry({ nombre: 'O', titulo: 'O', categoria: 'c', googl
 assert.equal(CAT.classifyEntry([1, 'A', 'c', 'a.webp'], { ambito: 'img', pos: 0 }).status, 'ok');
 assert.match(CAT.classifyEntry([1, 'A', 'c', 'AlgoSinExt'], { ambito: 'img', pos: 0 }).reason, /google solo valido en fonts/);
 
-// 3. resolveFontFromPreset: id sin catalogo cargado -> lanza fonts:<id>.
+// 3. Id sin catalogo -> lanza con causa (fail-fast, sin sustituto).
 assert.throws(() => FL.resolveFontFromPreset({ src: 99 }), /fonts:99:/);
-// 4. resolveFontFromPreset: font.src string canonico -> se resuelve (mapa
-//    TextStudio, titulo del catalogo o spec Google tal cual).
-assert.equal(FL.resolveFontFromPreset({ src: 'Nintender Regular' }), 'Press Start 2P');
-assert.equal(FL.resolveFontFromPreset('Bangers'), 'Bangers');
-//    Un string que no es titulo/mapa/spec Google si se rechaza con causa.
 assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocida/);
 
-// 5. loadFont con id inexistente -> Promise rechazada con causa.
 (async function() {
+    // Catalogo cargado por la via real.
+    await FL.loadCatalog();
+
+    // 4. RC39: resolveFontFromPreset devuelve SIEMPRE la identidad NUMERICA de
+    //    catalogo, nunca una clave ni un string de familia (R-C1.3). Antes
+    //    devolvia 'Press Start 2P' / 'Bangers' tal cual, y ese valor no lo
+    //    resolvia el camino de carga.
+    assert.equal(FL.resolveFontFromPreset(1), 1);
+    assert.equal(FL.resolveFontFromPreset('1'), 1);
+    assert.equal(FL.resolveFontFromPreset({ src: 2 }), 2);
+    assert.equal(FL.resolveFontFromPreset('Bangers'), 1);
+    assert.equal(FL.resolveFontFromPreset({ src: 'Bangers' }), 1);
+    //    Titulo con tilde y con ene (caso real de las fuentes del administrador).
+    assert.equal(FL.resolveFontFromPreset('MUY-Alegría'), 58);
+    assert.equal(FL.resolveFontFromPreset('MUY-Señorita'), 59);
+
+    // 4b. Una entrada con tilde se entrecomilla al componer la familia (R-C3.2):
+    //     sin comillas el navegador ignora el valor en silencio.
+    assert.equal(FL.getFontFamily(58), '"MUY-Alegría"');
+    assert.equal(FL.getFontFamily(1), '"Bangers"');
+    //    Una familia con espacios tambien entrecomillada (el bug de la fuente
+    //    fantasma): 'Mi Fisica' sin comillas es CSS invalido.
+    assert.equal(FL.getFontFamily(2), '"Mi Fisica"');
+
+    // 4c. Titulo ambiguo -> error de ambiguedad, no eleccion arbitraria (R-C1.1).
+    global.fetch = function(url) {
+        if (/fonts\.json/.test(String(url))) {
+            return Promise.resolve({
+                ok: true,
+                json: function() {
+                    return Promise.resolve({ thumbs: { w: 180, h: 30, c: 4 }, items: [
+                        [1, 'Dup', 'display', 'Dup'],
+                        [2, 'Dup', 'display', 'Dup2.ttf']
+                    ] });
+                }
+            });
+        }
+        return Promise.reject(new Error('no net'));
+    };
+    await FL.invalidateCatalog();
+    assert.throws(() => FL.resolveFontFromPreset('Dup'), /titulo ambiguo/);
+
+    // 5. loadFont con id inexistente -> Promise rechazada con causa.
     try {
         await FL.loadFont(424242);
         throw new Error('loadFont debio rechazar');
@@ -92,6 +149,10 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
 
     // 7. RC35: un fallo de fonts.json NO queda cacheado (el proximo load
     //    reintenta; sin esto un 404/red transitorio dejaba el catalogo muerto).
+    //    Para esta comprobacion el fetch vuelve a fallar a proposito, y se
+    //    invalida antes para no arrastrar la promesa cacheada del punto 4c.
+    global.fetch = function() { return Promise.reject(new Error('no net')); };
+    await FL.invalidateCatalog();
     const fallo1 = FL.loadCatalog();
     await fallo1; // fetchCatalog traga el error y resuelve con lo que haya
     assert.notEqual(FL.loadCatalog(), fallo1, 'fallo de catalogo -> el proximo load crea una promesa nueva');
@@ -150,6 +211,23 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
     // 11. RC37: la reticula de la hoja sale del catalogo (thumbs), no de un
     //     literal 180x30, y la peticion lleva la FIRMA del catalogo (sin firma
     //     el motor escribe sprite_firma='' y la hoja queda INcertificable).
+    //     Aqui el catalogo vuelve a estar disponible (la seccion 7 lo dejo
+    //     caido a proposito y 4c lo sustituyo por el de ambiguedad).
+    global.fetch = function(url) {
+        if (/fonts\.json/.test(String(url))) {
+            return Promise.resolve({
+                ok: true,
+                json: function() {
+                    return Promise.resolve({ thumbs: { w: 180, h: 30, c: 4 }, items: [
+                        [1, 'Bangers', 'display', 'Bangers'],
+                        [2, 'Mi Fisica', 'display', 'MiFisica.woff2']
+                    ] });
+                }
+            });
+        }
+        return Promise.reject(new Error('no net'));
+    };
+    await FL.invalidateCatalog();
     assert.deepEqual(FL.getCatalogThumbs(), { w: 180, h: 30, c: 4 }, 'getCatalogThumbs desde fonts.json');
     assert.ok(optsSprite, 'ensureFontsSprite llamo a ThumbEngine');
     assert.equal(optsSprite.ancho, 180, 'ancho desde thumbs');
@@ -167,7 +245,9 @@ assert.throws(() => FL.resolveFontFromPreset('fuente@rara!'), /fuente desconocid
     assert.equal(fontFaceLlamadas, antes, 'cargar:false no pide el archivo de la fuente');
     assert.ok(dibujosCanvas.length > 0, 'el preview escribio el nombre en el canvas');
     //     Control positivo: sin la opcion, la fuente fisica SI se carga (1).
-    FL.registry['fis-test'] = { name: 'Fis Test', path: 'https://test/fonts/fis.ttf' };
+    //     RC39: la entrada del registro lleva identidad numerica, porque la
+    //     carga se hace por identidad y no por clave de texto.
+    FL.registry['fis-test'] = { id: 90001, name: 'Fis Test', path: 'https://test/fonts/fis.ttf', isCustom: true };
     const antesCarga = fontFaceLlamadas;
     await FL.renderFontPreview({ key: 'fis-test', name: 'Fis Test' }, 180, 30);
     assert.equal(fontFaceLlamadas, antesCarga + 1, 'cargar (default) si carga la fuente fisica');

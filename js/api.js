@@ -57,11 +57,11 @@
 
     /** Resuelve la clave de fuente del settings via FontLoader (si esta disponible). */
     function defaultFamily() {
-        return (window.FontLoader && FontLoader.DEFAULT_FONT_FAMILY) || 'Bangers';
+        return (window.FontLoader && window.FontLoader.DEFAULT_FONT_FAMILY) || 'Bangers';
     }
     function resolveFontKey(font) {
-        if (window.FontLoader && FontLoader.resolveFontFromPreset) {
-            return FontLoader.resolveFontFromPreset(font);
+        if (window.FontLoader && window.FontLoader.resolveFontFromPreset) {
+            return window.FontLoader.resolveFontFromPreset(font);
         }
         if (font && typeof font === 'object') return font.src || font.name || defaultFamily();
         return (typeof font === 'string' && font) ? font : defaultFamily();
@@ -175,18 +175,26 @@
     }
 
     /**
-     * Garantiza que la familia del settings este cargada en document.fonts ANTES de
-     * renderizar (canvas usa ctx.font: sin esto, una familia aun no cargada se
-     * renderiza con la fuente del sistema). Usado por toda la API publica.
+     * Garantiza que la familia del settings este cargada ANTES de renderizar.
+     *
+     * RC39 (001-fix-bugs-01): una fuente que no se puede cargar REECHA con
+     * causa `fonts:<id>:<motivo>`. Antes el fallo se tragaba con un
+     * `catch` vacio y el render seguia con la tipografia del sistema: en el
+     * PDF eso es una sustitucion silenciosa, prohibida por la constitucion VI
+     * y por FR-005.
      */
     async function ensureFontReady(settings) {
         var key = resolveFontKey(settings.font);
-        if (window.FontLoader && FontLoader.loadFont) {
-            try { await FontLoader.loadFont(key); } catch (_) { /* sigue el fallback */ }
+        if (window.FontLoader && window.FontLoader.loadFont) {
+            // Se deja propagar: el render del PDF no puede salir con una
+            // tipografia que el usuario no eligio.
+            await window.FontLoader.loadFont(key);
         }
         if (document.fonts && document.fonts.load) {
-            var family = (window.FontLoader && FontLoader.getFontName) ? FontLoader.getFontName(key) : key;
+            var family = (window.FontLoader && window.FontLoader.getFontName) ? window.FontLoader.getFontName(key) : key;
             var weight = (settings.font && settings.font.weight) || 'normal';
+            // document.fonts.load no lanza si la familia no existe: solo se
+            // espera a que el navegador termine de bajarla.
             try { await document.fonts.load(weight + ' 64px "' + family + '"'); } catch (_) {}
         }
     }
