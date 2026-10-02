@@ -39,6 +39,17 @@ iframe, aviso `textmuy-ready` y envio inmediato):
 fuentesBase, imagenesBase}, nonces:{motor}, presets, imagenes, fuentes}}
 ```
 
+**Handshake con acuse**: al aplicar el puente, el modulo MUST acusar
+recibo al padre con `{type:'textmuy-bridge-ok'}` (mismo origen). El
+padre MUST esperar ese acuse antes de invocar `renderBatch`. El
+`postMessage` del puente se entrega como TAREA mientras que el
+`.then()` de la promesa de carga del iframe corre como MICROTAREA: sin
+esa espera el primer render arranca con `bridge=null` y rechaza con
+`presets:sin_puente` (solo el segundo intento funciona). Excepciones
+declaradas: sin puente configurado no se espera acuse, y un modulo
+viejo en cache que no acuse MUST NOT dejar la promesa colgada (el padre
+resuelve con un tiempo de espera acotado).
+
 `urls.motor` es el endpoint UNICO del motor de recursos del plugin
 (`admin-post.php?action=pmu_uploads`). El puente es REQUISITO de
 funcionamiento: sin el, el editor MUST mostrar un estado de error
@@ -184,7 +195,33 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 3.1.1 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-09-16
+**Version**: 3.1.2 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-10-01
+
+## Sync Impact Report (v3.1.2, 2026-10-01)
+
+- **Bump**: PATCH — se completa el protocolo del puente con su acuse.
+  Sin cambio de payload ni de responsabilidades.
+- **Modificado**: III (Integrado WordPress UNICO) — el handshake queda
+  bidireccional: el modulo MUST responder `textmuy-bridge-ok` al
+  aplicar el puente, y el padre MUST esperar ese acuse antes de
+  invocar `renderBatch`. Motivo: el `postMessage` del puente se
+  entrega como TAREA y el `.then()` de la promesa de carga del iframe
+  corre como MICROTAREA, de modo que el primer render arrancaba con
+  `bridge=null` y rechazaba con `presets:sin_puente` (reproducido en
+  WordPress real: "Probar" fallaba al primer clic y recien al segundo
+  mostraba la imagen). Excepciones declaradas: sin puente configurado no
+  se espera acuse, y un modulo viejo en cache no deja la promesa
+  colgada (tiempo de espera acotado en el padre).
+- **Impacto en el plugin**: `assets/admin.js` (consola) y
+  `assets/tienda.js` (ficha del comprador) deben esperar el acuse antes
+  de resolver la carga del render-core. Sin ese cambio el arreglo del
+  modulo no tiene efecto. Desplegar plugin y modulo en el mismo paso
+  (cache-bust RC37 -> RC38 en `index.html` y `render-core.html`).
+- **Origen**: validacion manual del contrato de render en WordPress real
+  (2026-10-01) previa a especificar la API (spec 010). El contrato
+  `{id, text, preset|settings, width, height, overrides?}` ya existia y
+  funciona; esto corrige la condicion de carrera del primer render.
+
 
 ## Sync Impact Report (v3.1.1, 2026-09-16)
 
