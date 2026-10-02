@@ -135,6 +135,15 @@ textmuy/
    `preset-manager.js` (`bridgeAvailable()` / `getBridge()`). SIN puente el editor
    muestra un estado de error claro y NO opera: cero fetches a rutas relativas del
    módulo, cero data-URL de guardado, cero descarga de `.txm`.
+   **Handshake con acuse (RC38)**: al aplicar el puente, el módulo contesta
+   `{type:'textmuy-bridge-ok'}` al padre. El padre **debe esperar ese acuse** antes de
+   llamar `renderBatch`. Sin esa espera hay una carrera: el `postMessage` del puente se
+   entrega como TAREA pero el `.then()` de la promesa del iframe corre como
+   MICROTAREA, así que el primer render arrancaba con `bridge=null` y fallaba con
+   `presets:sin_puente` (solo el segundo clic funcionaba). Consumidores con handshake:
+   `assets/admin.js` (consola) y `assets/tienda.js` (ficha). Si no hay puente configurado
+   no se espera acuse; si el módulo está viejo en caché y nunca acusa, el padre resuelve
+   igual a los 3 s (nunca deja la promesa colgada).
 3. **Escrituras SOLO vía el motor**: toda mutación es `POST` a `urls.motor`
    (`admin-post.php?action=pmu_uploads`) con `_wpnonce` (`nonces.motor`) + `op`
    (`listar|alta|baja|editar|sprite|miniatura`) + payload. El módulo no conoce handlers
@@ -147,7 +156,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC37**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC38**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones

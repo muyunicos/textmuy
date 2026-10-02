@@ -52,6 +52,21 @@
                 if (typeof window.dispatchEvent === 'function' && typeof window.Event === 'function') {
                     window.dispatchEvent(new window.Event('textmuy-bridge-ready'));
                 }
+
+                // ACKNACK DEL PUENTE: el padre espera esta confirmacion antes de
+                // llamar renderBatch. Sin ella hay una carrera: el postMessage del
+                // puente se entrega como TAREA, pero el .then() de la promesa del
+                // iframe corre como MICROTAREA, asi que el primer render arrancaba
+                // con bridge=null ("presets:sin_puente") y solo el segundo clic
+                // funcionaba. Un consumidor nuevo (p. ej. una API de render) seria
+                // SIEMPRE la primera llamada en frio, con lo que fallaria siempre.
+                // Contrato del handshake: textmuy-bridge -> textmuy-bridge-ok.
+                try {
+                    if (window.parent && window.parent !== window
+                        && typeof window.parent.postMessage === 'function') {
+                        window.parent.postMessage({ type: 'textmuy-bridge-ok' }, window.location.origin);
+                    }
+                } catch (_) { /* parent cruzado o inaccesible */ }
             }
         });
         // Avisar al parent que el modulo ya escucha (el parent reenvia el puente).
