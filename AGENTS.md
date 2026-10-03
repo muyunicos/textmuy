@@ -59,9 +59,14 @@ texto + preset en un **PNG transparente** del tamaño exacto.
 ```
 textmuy/
 ├── AGENTS.md              <- ESTE archivo (contexto obligatorio)
+├── README.md              <- Ficha de desarrollo (entorno, Spec Kit, pruebas)
 ├── index.html             <- Editor completo (UI; iframe de la pestaña "Estilos de Texto")
 ├── render-core.html       <- Motor de render headless (~220 KB sin UI: fonts + effects +
 │                             editor + export + api); iframe off-screen del plugin
+├── docs/                  <- entorno-desarrollo.md (Windows + pwsh, Spec Kit + Cline)
+├── .clinerules/           <- Workflows /speckit-* de la integracion cline (versionados)
+├── .specify/              <- Spec Kit: constitution, scripts powershell/*.ps1, templates
+├── specs/                 <- Especificaciones SDD (001-fix-bugs-01/...)
 ├── css/                   <- style.css (unico CSS del modulo)
 ├── js/
 │   ├── main.js            <- Bootstrap del editor
@@ -79,11 +84,13 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 16 tests Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 21 tests Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
-                              controls-init, galeria-items, invalidacion,
-                              sprite-canonico, rc-bump)
+                              controls-init, galeria-items, invalidacion, sprite-canonico,
+                              rc-bump, fuente-compuesta, fuente-carga-estados,
+                              fuente-selector, preset-roundtrip, integridad-archivos)
+                              + galerias.browser.js (opcional; Chrome/Playwright externos)
 ```
 
 ## 3. Flujo de trabajo
@@ -357,6 +364,18 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
 
 ## 8. Dificultades del entorno (IMPORTANTE AL TRABAJAR AQUÍ)
 
+**Entorno declarado (verificado 2026-10-03)**: Windows + **PowerShell 7 (`pwsh`) 7.6.6** +
+VS Code + extensión **Cline**. La integración de **Spec Kit** es `cline` (predeterminada y
+única) con scripts **`ps`**. Detalle, verificaciones y diagnóstico:
+`docs/entorno-desarrollo.md`.
+
+- ⚠️ **Diagnóstico antes que cambios**: ante un fallo, verificá primero shell activo
+  (`$PSVersionTable.PSVersion` → 7.x; `(Get-Process -Id $PID).Path` → `pwsh.exe`), directorio
+  actual (`Get-Location`), PATH y herramientas (`Get-Command pwsh,specify,uv,node,git`).
+  No asumas Bash, WSL, `cmd` ni Windows PowerShell 5.1 como shell activo.
+- ⚠️ **Ejecución**: todos los comandos se corren desde la **raíz de este repositorio** (el
+  módulo) y las rutas con espacios van entre comillas. En pwsh secuenciá con `;` (y `&&`
+  cuando el primer fallo deba cortar); no uses sintaxis de bash ni de cmd.
 - ⚠️ **Node SOLO para testing**: no corre en el servidor WordPress productivo.
 - ⚠️ **Sin puente no hay editor**: al abrir `index.html` como archivo local (`file://`)
   el puente no existe y el editor muestra su estado de error. El helper
@@ -368,12 +387,23 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
 - ⚠️ **WebGL puede no estar disponible**: bevel/especular tienen fallback Canvas 2D, PERO en
   la ruta de la API (constitución II) sin WebGL el render falla con causa (sin fallback
   silencioso).
-- ⚠️ **Git-Bash + carpeta `here/`**: en comandos largos de shell el cwd se pierde (ENOENT
-  fantasma con `cp`/`mkdir`); usar rutas absolutas Windows, `node -e` con `fs`, o la
-  herramienta editor.
 - ⚠️ **Vivir integrado**: este repositorio se importa dentro del plugin como
   `wp-content/plugins/personalizador-pdf/modules/textmuy/`; para probarlo hay que abrir
   la pestaña "Estilos de Texto" del plugin (no hay modo standalone).
+- 🚫 **Sin aprobación explícita**: no modificar bases de datos, credenciales ni servicios
+  externos, y no desplegar/publicar sin aprobación del usuario.
+
+**Spec Kit**: los workflows `.clinerules/workflows/speckit-*.md` ejecutan
+`.specify/scripts/powershell/*.ps1` desde la raíz del módulo (integración `cline`, scripts
+`ps`). A diferencia del repo del plugin, aquí `.specify/` y `.clinerules/` SÍ están
+versionados: lo que cambie un `upgrade` se revisa con `git status` / `git diff` y se
+commitea. No editar a mano los archivos gestionados (workflows, scripts, templates): se
+actualizan con el CLI. Para verificar/actualizar:
+
+```powershell
+specify integration status                      # esperado: OK; cline (default + instalada)
+specify integration upgrade cline --script ps   # diff-aware; --force solo si es deliberado
+```
 
 ## 9. Cómo probar
 
@@ -394,12 +424,14 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 16 suites Node. La prueba opcional `tests/galerias.browser.js` usa Chrome y
-Playwright instalados externamente (variable `TEXTMUY_CHROME` para el ejecutable);
-valida DOM con motor/miniaturas simulados, no sustituye la prueba en WordPress.
+Hay 21 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
+opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados externamente
+(variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con motor/miniaturas
+simulados, no sustituye la prueba en WordPress.
 
 
-```bash
+```powershell
+# Desde la raiz del modulo. Cada suite imprime su propio "OK: <archivo>".
 node tests/catalog-unified.test.js    # parser unico: ok/free/invalid + tile=id-1 + tombstone
 node tests/tile-geometria.test.js     # geometria del tile desde thumbs (ratio/columna)
 node tests/fonts-catalog.test.js      # wiring fonts.js al parser + rechazo legacy (tuplas string)
@@ -409,6 +441,7 @@ node tests/preset-cache.test.js
 node tests/preset-ambito.test.js      # alias presets -> tm-presets (cache unica + firma)
 node tests/preset-delta.test.js
 node tests/preset-load.test.js        # valida los presets del administrador (lee de los uploads)
+node tests/preset-roundtrip.test.js   # guardar/cargar un preset campo por campo (RC39)
 node tests/distort-engine.test.js
 node tests/flag-wave.test.js
 node tests/pattern-block-box.test.js
@@ -416,9 +449,18 @@ node tests/controls-init.test.js      # smoke: Controls.init() corre sin lanzar 
 node tests/galeria-items.test.js
 node tests/invalidacion.test.js
 node tests/sprite-canonico.test.js
+node tests/fuente-compuesta.test.js   # familia compuesta entrecomillada (RC39)
+node tests/fuente-carga-estados.test.js  # estados de carga explicitos + reintento (RC39)
+node tests/fuente-selector.test.js    # selector sin duplicados, toda entrada funciona (RC39)
+node tests/integridad-archivos.test.js   # sin caracteres corruptos + version RC documentada
 node tests/rc-bump.test.js
-# Git Bash: node --check acepta UN archivo por invocacion.
-for archivo in js/*.js js/effects/*.js; do node --check "$archivo" || exit 1; done
+
+# Todas las suites de una vez (frena en la primera que falle):
+Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
+
+# Sintaxis de todos los scripts (node --check acepta UN archivo por invocacion):
+Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
+Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
 ```
 
 - **Único modo de prueba: integrado.** Pestaña "Estilos de Texto" del plugin
@@ -432,6 +474,9 @@ for archivo in js/*.js js/effects/*.js; do node --check "$archivo" || exit 1; do
 
 - ✅ OBLIGATORIO: leer este AGENTS.md completo antes de proponer cambios.
 - ✅ OBLIGATORIO: subir `?v=RCn` en `index.html` y `render-core.html` al cambiar JS.
+- ✅ OBLIGATORIO: trabajar en **PowerShell 7 (`pwsh`)** desde la raíz del módulo; ante un
+  fallo, verificar shell, directorio, PATH y herramientas antes de cambiar el entorno
+  (§8, `docs/entorno-desarrollo.md`).
 - ✅ Mensajes e interfaz en español (sin tildes en código puro para evitar problemas de
   encoding).
 - ✅ Las rutas, catalogos y archivos son datos del plugin: NO hardcodear rutas, NO
@@ -440,3 +485,8 @@ for archivo in js/*.js js/effects/*.js; do node --check "$archivo" || exit 1; do
 - ❌ NO DEBES: introducir fallbacks client-side ni reactivar el modo standalone.
 - ❌ NO DEBES: editar los vendors de `utils/`.
 - ❌ NO DEBES: regenerar `.min` propios (eliminados a proposito; fuente unica los `.js`).
+- ❌ NO DEBES: editar a mano los archivos gestionados de `.specify/` y `.clinerules/`
+  (workflows, scripts, templates); actualizalos con
+  `specify integration upgrade cline --script ps`.
+- ❌ NO DEBES: modificar bases de datos, credenciales ni servicios externos, ni
+  desplegar/publicar sin aprobación explícita del usuario.

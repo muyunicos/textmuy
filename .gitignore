@@ -4,5 +4,7 @@
 Thumbs.db
 *.tmp
 *.swp
-.vscode/
+# .vscode: solo se versiona la config compartida del entorno (terminal en PowerShell).
+.vscode/*
+!.vscode/settings.json
 .idea/

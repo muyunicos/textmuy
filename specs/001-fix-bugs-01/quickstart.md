@@ -9,6 +9,9 @@ enlaza con el requisito o el invariante que demuestra.
 
 ## Prerrequisitos
 
+- **Windows + PowerShell 7 (`pwsh`)**: shell soportado para todos los comandos de esta
+  guía (ver `docs/entorno-desarrollo.md`). No se asume Bash, WSL, `cmd` ni Windows
+  PowerShell 5.1.
 - Node disponible **solo para pruebas unitarias**. No corre en el servidor WordPress.
 - Una instalación de WordPress con el plugin y el módulo desplegados, para la
   validación integrada (única forma de probar la ruta del motor de render).
@@ -19,25 +22,27 @@ enlaza con el requisito o el invariante que demuestra.
 
 ## 1. Puertas automaticas (Node)
 
-Ejecutar antes de considerar cualquier tarea terminada. Las 16 suites existentes
+Ejecutar antes de considerar cualquier tarea terminada. Las 21 suites existentes
 deben seguir en verde: el feature es correctivo y no puede romper lo que ya funciona.
 
-```bash
-cd modules/textmuy
+```powershell
+# Si estas en la raiz del plugin, entra al modulo; si ya estas en este repo, omitilo.
+Set-Location modules\textmuy
 
-# Suite completa. Las 16 deben imprimir "OK: <archivo>".
-for t in tests/*.test.js; do node "$t" || break; done
+# Suite completa. Las 21 deben imprimir su propio "OK: <archivo>".
+Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
 
 # Sintaxis de todos los scripts tocados (node --check acepta un archivo por vez).
-for f in js/*.js js/effects/*.js; do node --check "$f" || break; done
+Get-ChildItem js -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
+Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
 
 # Version de recarga coherente en los dos HTML (debe ser la misma en ambos).
-grep -o '?v=RC[0-9]*' index.html | sort -u
-grep -o '?v=RC[0-9]*' render-core.html | sort -u
+Select-String -Path index.html, render-core.html -Pattern '\?v=RC\d+' -AllMatches |
+    ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
 ```
 
-**Salida esperada**: 16 suites en OK, ningún error de sintaxis, y una única versión
-coincidente en los dos documentos.
+**Salida esperada**: 21 suites en OK, ningún error de sintaxis, y una única versión
+coincidente en los dos documentos (`?v=RC40` al 2026-10-03).
 
 ---
 
