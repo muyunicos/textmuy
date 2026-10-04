@@ -25,6 +25,30 @@ let panel=null;
 let spriteEstadoImg='pendiente';   // pendiente | lista | ausente
 let spriteTrabajoImg=null;
 let spriteVersionImg=0;
+// ===== GENERACION DE LA HOJA (spec 009, US2 / T017) =====
+// Apertura de una galeria: lee la hoja certificada y, si faltan celdas, la
+// completa sola (F1 dibuja / F2 persiste una vez) con progreso visible. El
+// boton "Generar miniaturas" ya no existe (FR-009): solo queda Reintentar en
+// error (T020).
+function conEstadoHoja(ambito, estado, extra) {
+    return Object.assign({ ambito: ambito, estado: estado }, extra || {});
+}
+function completarHoja(ambito, opciones) {
+    opciones = opciones || {};
+    if (!window.TextMuyAPI || !window.TextMuyAPI.asegurarHojaCompleta) {
+        return Promise.resolve(conEstadoHoja(ambito, 'error', { causa: ambito + ':hoja:api:ausente' }));
+    }
+    return Promise.resolve(window.TextMuyAPI.asegurarHojaCompleta(ambito, opciones))
+        .catch(function (e) { return conEstadoHoja(ambito, 'error', { causa: (e && e.message) || String(e) }); });
+}
+// tm-presets: la celda la dibuja el render del preset (carga su fuente).
+function renderPresetEnHoja(it) {
+    var PM = window.PresetManager;
+    if (!PM || !PM.renderPresetTile) return null;
+    var nombre = it && it.file ? String(it.file).replace(/\.txm$/i, '') : '';
+    if (!nombre) return null;
+    return PM.renderPresetTile(nombre);
+}
 // RC37: la hoja de tm-presets se LEE igual que la de img (nunca se reconstruye
 // al abrir: ThumbEngine solo guarda el manifiesto en memoria y cada apertura
 // regeneraba la hoja, cargando la fuente de cada preset). Sin hoja certificada
@@ -44,20 +68,22 @@ function asegurarSpritePresets(){
  return spriteTrabajoPresets;
 }
 function invalidarSpritePresetsVista(){spriteVersionPresets++;spriteEstadoPresets='pendiente';spriteTrabajoPresets=null;}
-function asegurarSpriteImg(){
- if(spriteEstadoImg!=='pendiente')return Promise.resolve();
- if(!window.TextMuyAPI||!window.TextMuyAPI.ensureSpriteCanonico){spriteEstadoImg='ausente';return Promise.resolve();}
+// RC46 / T017: la galeria de imagenes ya no reconstruye la hoja a mano. Delega
+// en el nucleo de dos fases, que respeta la hoja certificada (0 descargas) y,
+// si faltan celdas, dibuja solo esas y persiste una vez.
+function asegurarSpriteImg(opts){
+ if(spriteEstadoImg!=='pendiente')return Promise.resolve({estado:'listo'});
+ if(!window.TextMuyAPI||!window.TextMuyAPI.asegurarHojaCompleta){
+  spriteEstadoImg='ausente';return Promise.resolve({estado:'error',causa:'img:hoja:api:ausente'});
+ }
  if(!spriteTrabajoImg){
   const version=spriteVersionImg;
-  spriteTrabajoImg=window.TextMuyAPI.ensureSpriteCanonico('img').then(async function(s){
-   if(version!==spriteVersionImg)return;
-   if(!s){
-    await window.TextMuyAPI.reconstruirSpriteCanonico('img');
-    if(version!==spriteVersionImg)return;
-    s=await window.TextMuyAPI.ensureSpriteCanonico('img');
-   }
-   if(version===spriteVersionImg)spriteEstadoImg=s?'lista':'ausente';
-  }).catch(function(){if(version===spriteVersionImg)spriteEstadoImg='ausente';});
+  spriteTrabajoImg=completarHoja('img',opts||{}).then(function(r){
+   if(version!==spriteVersionImg)return r;
+   if(r&&r.estado==='error'){spriteEstadoImg='ausente';return r;}
+   spriteEstadoImg='pendiente';spriteTrabajoImg=null;
+   return r;
+  });
  }
  return spriteTrabajoImg;
 }
@@ -238,10 +264,23 @@ function crearPanel(){
     });
     avisoEstado=(nLib?nLib+' libres':'')+((nLib&&nInv)?', ':'')+(nInv?nInv+' invalidas':'');
     montarTabs();ocultarUpload(true);render();
-    // La hoja llega despues: primer pintado con placeholders y repintado con
-    // las miniaturas reales (solo LECTURA: cero reconstruccion, cero fuentes).
-    if(spriteEstadoPresets==='pendiente'){
-     asegurarSpritePresets().then(function(){if(fuenteActual==='presets')render();});
+    // T017: la hoja de presets se completa sola (celda = render del preset).
+    if (bridgeOK()) {
+     asegurarSpritePresets().then(function () {
+      if (spriteEstadoPresets === 'lista') { render(); return; }
+      completarHoja('tm-presets', {
+       renderTile: renderPresetEnHoja,
+       onProgress: function (hechos, total, fallos) {
+        status.textContent = 'Completando miniaturas: ' + hechos + '/' + total +
+         (fallos ? ' (' + fallos + ' con error)' : '') + '...';
+       }
+      }).then(function (r) {
+       if (r && r.estado === 'error') { avisoEstado = 'Miniaturas: ' + (r.causa || ''); render(); return null; }
+       invalidarSpritePresetsVista();
+       status.textContent = 'Miniaturas listas.';
+       return asegurarSpritePresets().then(function () { render(); });
+      });
+     });
     }
     return;
    }
@@ -281,13 +320,31 @@ function crearPanel(){
   });
   if(!bridgeOK())avisoEstado='Requiere el plugin (iframe).';
   montarTabs();ocultarUpload(false);
-  // Sprite canonico: render inmediato con placeholders y repintado al llegar
-  // (evita las N descargas de originales mientras la hoja viaja).
-  if (spriteEstadoImg === 'pendiente') {
-   render();
-   asegurarSpriteImg().then(function(){ if(spriteEstadoImg!=='pendiente') render(); });
-  } else {
-   render();
+  // T017: pintado inmediato con los nombres y repintado cuando la hoja quede
+  // lista. La generacion va sola (sin boton) y avisa el progreso N/M.
+  render();
+  if (bridgeOK()) {
+   asegurarSpriteImg({
+    onProgress: function (hechos, total, fallos) {
+     status.textContent = 'Completando miniaturas: ' + hechos + '/' + total +
+      (fallos ? ' (' + fallos + ' con error)' : '') + '...';
+    }
+   }).then(function (r) {
+    if (r && r.estado === 'error') {
+     avisoEstado = 'Miniaturas: ' + (r.causa || 'sin causa');
+     status.textContent = avisoEstado;
+     render();
+     return null;
+    }
+    // T017: tanto 'listo' como 'generado' terminan con la hoja certificada. Se
+    // relee UNA vez (sin volver a pasar por el nucleo) y se repinta.
+    status.textContent = 'Miniaturas listas.';
+    return window.TextMuyAPI.ensureSpriteCanonico('img').then(function (s) {
+     if (s && s.spriteImage) spriteEstadoImg = 'lista';
+     else spriteEstadoImg = 'ausente';
+     render();
+    });
+   });
   }
  }
 

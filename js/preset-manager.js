@@ -316,6 +316,46 @@
         return blobToDataURL(await thumbnailBlob(settings));
     }
 
+    /**
+     * Render de la celda de un preset para la hoja `tm-presets` (spec 009,
+     * US2/T017). Devuelve el CANVAS directamente, no un data-URL: el render de
+     * `ThumbEngine.ensureSprite` solo acepta HTMLImageElement/HTMLCanvasElement/
+     * ImageBitmap/Blob, y el unico camino previo era ensureThumbnail -> data-URL
+     * -> `new Image()` dentro de ThumbEngine, que ademas codificaba y decodificaba
+     * el mismo webp dos veces por celda.
+     * Cache por nombre en la sesion (misma clave que `thumbnailCache`).
+     */
+    const canvasCache = new Map();
+    async function renderPresetTile(name) {
+        const safe = sanitizeName(name);
+        if (canvasCache.has(safe)) return canvasCache.get(safe);
+        const tarea = (async function () {
+            const entry = await fetchPreset(name);
+            let settings = entry.data;
+            if (entry.kind === 'txm') {
+                settings = settingsFromDelta(entry.data.settings);
+            } else if (window.TextEditor && window.TextEditor.createDefaultSettings
+                && window.TextEditor.loadPreset) {
+                const converted = window.TextEditor.createDefaultSettings();
+                window.TextEditor.loadPreset(entry.data, converted);
+                settings = converted;
+            }
+            return await thumbnailCanvas(settings);
+        })();
+        canvasCache.set(safe, tarea);
+        try {
+            return await tarea;
+        } catch (e) {
+            canvasCache.delete(safe);
+            console.warn('No se pudo dibujar la miniatura del preset', name, e);
+            return null;
+        }
+    }
+    /** Descarta el canvas memorizado de un preset (tras borrarlo/renombrarlo). */
+    function limpiarCanvasPreset(name) {
+        canvasCache.delete(sanitizeName(name));
+    }
+
     // ===== GUARDADO / BORRADO =====
     async function leerJson(resp) {
         try { return await resp.json(); } catch (_) { return null; }
@@ -644,6 +684,10 @@
         moverFuente,
         // Miniaturas de galeria (spritesheet thumbs.webp por ambito, op=sprite)
         ensureThumbnail,
-        thumbnailDataUrl
+        thumbnailDataUrl,
+        // Render de la celda para la hoja `tm-presets` (spec 009 T017): devuelve
+        // el canvas que ThumbEngine puede dibujar directamente.
+        renderPresetTile,
+        limpiarCanvasPreset
     };
 })();

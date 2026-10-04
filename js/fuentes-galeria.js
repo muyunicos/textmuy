@@ -39,19 +39,48 @@ if(typeof window.addEventListener==='function'){
 }
 // La mutacion ya espero la invalidacion central y la relectura del catalogo.
 function recargarTrasMutacion(cargar){return Promise.resolve().then(cargar);}
-// RC37: la hoja de fuentes se LEE por la ruta canonica (thumbs.webp validado
-// contra thumbs.sprite_firma del catalogo). NO se reconstruye aqui: ver el
-// encabezado (invariante 3). Sin hoja certificada -> null y la galeria pinta
-// placeholders (cero red); la generacion la dispara el usuario con el boton.
-function cargarSpriteFuentes(){
+// RC46 / T017 (spec 009): la hoja de fuentes se LEE por la ruta canonica y, si
+// faltan celdas, se COMPLETA sola con el nucleo de dos fases. Ya NO existe el
+// boton "Generar miniaturas" (FR-009): la generacion es automatica al abrir y,
+// si falla, el estado muestra la causa exacta con su Reintentar.
+function cargarSpriteFuentes(estado){
  fuentesSpriteInfo=null;
- if(!window.TextMuyAPI||!window.TextMuyAPI.ensureSpriteCanonico)return Promise.resolve(null);
+ if(!window.TextMuyAPI||!window.TextMuyAPI.asegurarHojaCompleta)return Promise.resolve(null);
  const version=++fuentesSpriteVersion;
- return Promise.resolve(window.TextMuyAPI.ensureSpriteCanonico('fonts')).then(function(res){
-  if(!res||!res.spriteImage||version!==fuentesSpriteVersion)return null;
-  fuentesSpriteInfo={spriteImage:res.spriteImage,canon:res.canon,spriteUrl:res.spriteUrl};
-  return fuentesSpriteInfo;
- }).catch(function(){return null;});
+ const progreso=estado&&estado.onProgress?estado.onProgress:function(){};
+ const render=estado&&estado.renderTile?estado.renderTile:renderFuenteEnHoja;
+ return Promise.resolve(window.TextMuyAPI.asegurarHojaCompleta('fonts',{
+  renderTile:render,
+  onProgress:function(h,t,f){progreso(h,t,f);}
+ })).then(function(r){
+  if(version!==fuentesSpriteVersion)return null;
+  // T017: tanto 'listo' (la hoja YA estaba certificada: no hubo nada que
+  // generar) como 'generado' (se acaba de persistir) exigen LEER la hoja para
+  // poder dibujar las celdas. Si solo se hacia con 'generado', la galeria caia
+  // a placeholders aunque la hoja se descargara bien.
+  if(r&&r.estado==='error'){
+   if(estado&&estado.onError)estado.onError(r.causa||'');
+   return null;
+  }
+  return window.TextMuyAPI.ensureSpriteCanonico('fonts').then(function(s){
+   if(version!==fuentesSpriteVersion)return null;
+   if(s&&s.spriteImage){
+    fuentesSpriteInfo={spriteImage:s.spriteImage,canon:s.canon,spriteUrl:s.spriteUrl};
+    return fuentesSpriteInfo;
+   }
+   return null;
+  });
+ }).catch(function(e){
+  if(estado&&estado.onError)estado.onError((e&&e.message)||String(e));
+  return null;
+ });
+}
+// Celda de fuente para la hoja: delega en el preview de fonts.js (1 archivo
+// fisico o 1 familia Google por celda, nunca el conjunto).
+function renderFuenteEnHoja(it,w,h){
+ const F=FL();
+ if(!F||!F.renderFontPreview)return null;
+ return F.renderFontPreview({key:String(it.id),name:it.titulo,online:!!it.online},w,h);
 }
 function abrir(aplicar){if(!panel)panel=crearPanel();panel.abrir(aplicar);}
 function crearPanel(){
@@ -70,7 +99,7 @@ function crearPanel(){
   '<input type="text" class="tt-galpanel-name" placeholder="Nombre...">'+
   '<select class="tt-galpanel-cat"></select>'+
   '<button type="button" class="tt-galpanel-btn tt-galpanel-newcat">+ Categoria</button>'+
-  '<button type="button" class="tt-galpanel-btn tt-galpanel-gensprite" hidden title="Descarga las fuentes fisicas y arma el sprite de miniaturas del ambito (una sola vez)">Generar miniaturas</button>'+
+  '<button type="button" class="tt-galpanel-btn tt-galpanel-reintentar" hidden title="Vuelve a intentar completar la hoja de miniaturas">Reintentar</button>'+
   '<div class="tt-galpanel-foot-btns">'+
   '<button type="button" class="tt-galpanel-btn tt-galpanel-save" hidden>Save</button>'+
   '<button type="button" class="tt-galpanel-btn tt-galpanel-del" hidden>Delete</button>'+
@@ -87,7 +116,7 @@ function crearPanel(){
  const nameIn=ov.querySelector('.tt-galpanel-name');
  const catSel=ov.querySelector('.tt-galpanel-cat');
  const newCatBtn=ov.querySelector('.tt-galpanel-newcat');
- const genBtn=ov.querySelector('.tt-galpanel-gensprite');
+ const reintentarBtn=ov.querySelector('.tt-galpanel-reintentar');
  const saveBtn=ov.querySelector('.tt-galpanel-save');
  const delBtn=ov.querySelector('.tt-galpanel-del');
  const selBtn=ov.querySelector('.tt-galpanel-sel');
@@ -154,7 +183,25 @@ function crearPanel(){
   ocultarUpload(!bridgeOK());
   status.textContent=avisoCatalogo||'';
   render();
-  cargarSpriteFuentes().then(function(){render();});
+  // T017: la hoja se completa sola al abrir. Con hoja certificada no hay
+  // descargas; sin ella se dibujan las celdas que falten y se persiste una vez.
+  // El progreso va al status y, al terminar, se repinta con las celdas.
+  if(bridgeOK()){
+   cargarSpriteFuentes({
+    onProgress:function(h,t,f){
+     status.textContent='Completando miniaturas: '+h+'/'+t+(f?' ('+f+' con error)':'')+'...';
+    },
+    onError:function(causa){
+     status.textContent='Miniaturas: '+(causa||'sin causa');
+     render();
+     actualizarBotonHojas({error:true});
+    }
+   }).then(function(){
+    if(fuentesSpriteInfo)status.textContent='Miniaturas listas.';
+    render();
+    actualizarBotonHojas({error:false});
+   });
+  }
  }
  function ocultarUpload(v){uploadLabel.hidden=v;}
 
@@ -173,11 +220,11 @@ function crearPanel(){
   list.style.setProperty('--tt-gal-col',g.col+'px');
   return g;
  }
- // La hoja solo se genera a pedido: es la unica ruta que descarga todas las
- // fuentes fisicas, asi que nunca se ofrece sin puente ni con hoja lista.
- function actualizarBotonHojas(){
-  genBtn.hidden=!!(fuentesSpriteInfo||!bridgeOK()||!window.TextMuyAPI
-   ||!window.TextMuyAPI.reconstruirSpriteCanonico);
+ // T020: el boton solo aparece en ERROR (nunca como generador manual): FR-009
+ // prohibe el boton "Generar miniaturas"; la generacion es automatica al abrir
+ // y, si falla, se muestra la causa exacta con su reintento.
+ function actualizarBotonHojas(estado){
+  if(estado&&estado.error){reintentarBtn.hidden=false;}else{reintentarBtn.hidden=true;}
  }
  // Tiles de la hoja canonica: por ID numerico del catalogo (celda = id-1).
  function render(){
@@ -370,28 +417,28 @@ function crearPanel(){
   if(!seleccionado||seleccionado.tipo!=='server')return;
   nuevaCategoria();
  });
- // Generacion EXPLICITA de la hoja del ambito (invariante 3 del encabezado):
- // unica ruta que descarga las fuentes fisicas. Deja el catalogo certificado
- // (thumbs.sprite_firma) para que de aqui en mas la galeria solo lea el
- // thumbs.webp. Nunca se dispara sola al abrir el panel.
- genBtn.addEventListener('click',function(){
-  if(!FL()||!window.TextMuyAPI||!window.TextMuyAPI.reconstruirSpriteCanonico)return;
-  genBtn.disabled=true;
-  status.textContent='Generando miniaturas (descarga las fuentes fisicas)...';
-  const render=function(it,w,h){
-   return FL().renderFontPreview({key:String(it.id||it.nombre),name:it.titulo||it.name,online:!!it.online},w,h);
-  };
-  Promise.resolve(window.TextMuyAPI.reconstruirSpriteCanonico('fonts',{render:render})).then(function(res){
-   if(!res){status.textContent='No se pudo generar la hoja (sin puente o sin catalogo).';return null;}
-   status.textContent='Miniaturas generadas.';
-   if(PM()&&PM().invalidarSprite){
-    return Promise.resolve(PM().invalidarSprite('fonts')).catch(function(){});
-   }
-   return null;
-  }).then(function(){return recargarTrasMutacion(cargar);})
-   .catch(function(e){status.textContent=(e&&e.message)||String(e);})
-   .then(function(){genBtn.disabled=false;});
+ // T020 (spec 009): Reintentar, visible SOLO tras un error de generacion. Ya no
+ // es el boton de generar: la hoja se completa sola al abrir (FR-009).
+ reintentarBtn.addEventListener('click',function(){
+  if(!window.TextMuyAPI||!window.TextMuyAPI.asegurarHojaCompleta)return;
+  reintentarBtn.hidden=true;
+  reintentarBtn.disabled=true;
+  status.textContent='Reintentando completar miniaturas...';
+  // La celda que fallo queda fuera de la cache de dibujados: si no, el nucleo
+  // la daria por hecha y el reintento no haria nada.
+  if(window.TextMuyAPI.invalidarDibujados)window.TextMuyAPI.invalidarDibujados('fonts');
+  cargar();
  });
+
+
+
+
+
+
+
+
+
+
  uploadInput.addEventListener('change',function(){
   const f=this.files&&this.files[0];this.value='';
   if(!f||!FL())return;

@@ -555,10 +555,17 @@
         var render = opciones.renderTile || renderDeAmbito(ambito);
         var fallos = 0, hechos = 0;
         // F1: dibuja en memoria; cada celda descarga SOLO su fuente (I5).
+        // El render lleva un TOPE: una fuente que se cuelga (sin red, promesa
+        // abierta) no puede congelar la galeria entera. Al vencer se cuenta como
+        // fallo de esa celda, con lo cual la hoja NO se persiste (I3) y la UI
+        // muestra la causa con su Reintentar (T020). Sin este tope un render
+        // colgado dejaba `asegurarHojaCompleta` sin resolver nunca.
+        var topeMs = opciones.timeoutMs > 0 ? opciones.timeoutMs : 15000;
         for (var p = 0; p < pendientes.length; p++) {
             var it3 = pendientes[p];
             var ok = null;
-            try { ok = await render(it3, thumbs.w | 0, thumbs.h | 0); } catch (_) { ok = null; }
+            try { ok = await conTope(render(it3, thumbs.w | 0, thumbs.h | 0), topeMs); }
+            catch (_) { ok = null; }
             if (ok) {
                 it3.canvasListo = ok;
                 dibujados[ambito + ':' + it3.id] = ok;
@@ -607,6 +614,26 @@
         return { estado: 'generado', total: total, dibujados: hechos, fallos: 0 };
     }
 
+    // Corre un render de celda con tope de tiempo. Resuelve null al vencer (se
+    // cuenta como fallo de esa celda) y propaga el error si la promesa lo lanza.
+    function conTope(promesa, ms) {
+        if (!promesa || typeof promesa.then !== 'function') return Promise.resolve(promesa);
+        return new Promise(function (resolve, reject) {
+            var resuelto = false;
+            var t = setTimeout(function () {
+                if (resuelto) return;
+                resuelto = true;
+                resolve(null); // vencio: la celda queda sin dibujar
+            }, ms);
+            promesa.then(function (v) {
+                if (resuelto) return;
+                resuelto = true; clearTimeout(t); resolve(v);
+            }, function (e) {
+                if (resuelto) return;
+                resuelto = true; clearTimeout(t); reject(e);
+            });
+        });
+    }
     // Descarta las celdas dibujadas en memoria. Con ambito, solo las suyas; sin
     // ambito, todas. Lo usan las galerias al invalidar la hoja tras una mutacion
     // y los tests al reiniciar el escenario.

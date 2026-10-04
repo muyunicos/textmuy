@@ -1901,9 +1901,10 @@ fieldset legend label {
 .tt-galpanel-sel { background: var(--tt-accent, #0089ff); color: #fff; border-color: var(--tt-accent, #0089ff); margin-left: auto; }
 .tt-galpanel-sel:hover { opacity: .85; }
 .tt-galpanel-del { border-color: var(--tt-danger, #ff4444); }
-/* Boton de generacion explicita de la hoja del ambito (galeria de fuentes). */
-.tt-galpanel-gensprite { margin-top: 6px; }
-.tt-galpanel-gensprite[disabled] { opacity: .6; cursor: progress; }
+/* RC46 / spec 009 (T018): el boton de generar miniaturas se retiro (FR-009).
+   La hoja se completa sola al abrir la galeria; en error queda "Reintentar". */
+.tt-galpanel-reintentar { margin-top: 6px; }
+.tt-galpanel-reintentar[disabled] { opacity: .6; cursor: progress; }
 .tt-galpanel-status { font-size: 11px; color: var(--tt-text-muted, #999); margin-top: 5px; min-height: 14px; }
 .tt-galpanel-ctrls { padding: 6px 0; border-top: 1px solid var(--tt-border, #2a2a2a); margin-top: 8px; }
 .tt-galpanel-ctrl-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 4px 0; }

@@ -196,5 +196,41 @@ const celda = id => ({ w: 180, h: 30, id });
     assert.deepEqual(dibujadas3, [1, 3], 'el tombstone (id=2) no se dibuja');
     assert.deepEqual(escrituras[0].items.map(i => i.id), [1, 2, 3], 'el hueco se mantiene en items');
 
+    // ---------------------------------------------------------------------
+    // 8. Un render que NUNCA resuelve no debe colgar la galeria: la celda se
+    //    cuenta como fallo al vencer el tope y la hoja NO se persiste (I3).
+    //    Sin este tope, `asegurarHojaCompleta` no resolvia nunca y las galerias
+    //    se quedaban congeladas (0 tiles / sin repintado).
+    // ---------------------------------------------------------------------
+    reiniciar();
+    instalarThumbEngine({ certifica: true });
+    const r8 = await API.asegurarHojaCompleta('fonts', {
+        timeoutMs: 40,
+        renderTile: function (it) {
+            if (it.id === 2) return new Promise(function () { /* nunca resuelve */ });
+            return Promise.resolve(celda(it.id));
+        }
+    });
+    assert.equal(r8.estado, 'error', 'render colgado => error, no cuelgue');
+    assert.equal(r8.fallos, 1, 'la celda colgada cuenta como fallo');
+    assert.equal(escrituras.length, 0, 'I3: con una celda colgada NO se escribe');
+
+    // ---------------------------------------------------------------------
+    // 9. `timeoutMs` ausente usa el tope por defecto (no cuelga tampoco), y un
+    //    render que lanza se trata igual que uno que devuelve null.
+    // ---------------------------------------------------------------------
+    reiniciar();
+    instalarThumbEngine({ certifica: true });
+    const r9 = await API.asegurarHojaCompleta('fonts', {
+        timeoutMs: 30,
+        renderTile: function (it) {
+            if (it.id === 1) throw new Error('boom');
+            return Promise.resolve(celda(it.id));
+        }
+    });
+    assert.equal(r9.estado, 'error', 'render que lanza => error');
+    assert.equal(r9.fallos, 1);
+    assert.equal(escrituras.length, 0);
+
     console.log('OK: hoja-generacion.test.js');
 })().catch(function (e) { console.error(e); process.exit(1); });
