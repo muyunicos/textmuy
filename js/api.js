@@ -242,10 +242,22 @@
         if (params.height) settings.canvas.height = Math.max(100, Math.min(8000, Number(params.height) || settings.canvas.height));
         mergeDeep(settings, params.overrides || {});
 
-        // Formato unico: refs de imagen por id numerico -> URLs (fail-fast).
-        await prepareImgRefs(settings);
-
-        await ensureFontReady(settings);
+        // Dependencias del render: tipografia y recursos de imagen se inician A LA
+        // VEZ y se esperan juntas (FR-026, FR-027, R-D1.1, R-D1.2). Antes iban
+        // encadenadas -primero todas las imagenes, despues la fuente-, con lo
+        // que el tiempo total era la SUMA de los tiempos en lugar del de la
+        // dependencia mas lenta (R-D1.3, SC-015).
+        //
+        // Se informa la dependencia concreta que fallo: un fallo de imagen no
+        // puede reportarse como fallo de fuente ni al reves (FR-028, R-D2.2).
+        await Promise.all([
+            prepareImgRefs(settings).catch(function (e) {
+                throw new Error('img:recursos: ' + ((e && e.message) || e));
+            }),
+            ensureFontReady(settings).catch(function (e) {
+                throw new Error('fuente:' + ((e && e.message) || e));
+            })
+        ]);
 
         const canvas = ExportManager.canvasFromSettings(settings);
         return ExportManager.toBlob(canvas);

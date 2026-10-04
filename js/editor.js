@@ -699,17 +699,40 @@
     // si el contexto lo rechazo (fallo visible, nunca un valor residual).
     function aplicarFuente(ctx, s, px) {
         const peso = (s && s.font && s.font.weight) || 'normal';
-        const valor = peso + ' ' + Math.max(1, Math.round(px)) + 'px ' + familiaDeFuente(s);
+        const familia = familiaDeFuente(s);
+        const valor = peso + ' ' + Math.max(1, Math.round(px)) + 'px ' + familia;
         const previo = ctx.font;
         ctx.font = valor;
-        if (ctx.font !== valor && previo !== valor) {
-            // El contexto rechazo el valor: no se dibuja con una composicion
-            // anterior creyendo que es la fuente pedida (R-C3.4).
+        // R-C3.4 / FR-025: avisar SOLO cuando el lienzo rechazo de verdad el
+        // valor. Comparar el texto crudo daba falso positivo: el navegador
+        // serializa el valor normalizado (p.ej. 'normal 187px "Bangers"' se lee
+        // como 'normal 187px Bangers' porque las comillas sobran), con lo que
+        // se avisaba ~15 veces por pintado sobre un valor perfectamente valido.
+        // Un rechazo real solo ocurre si el valor era invalido de verdad; se
+        // comprueba comparando lo normalizado y confirmando que la familia
+        // pedido no quedo aplicada.
+        if (!fuenteAplicada(ctx, valor, familia)) {
             console.warn('El lienzo rechazo el valor de fuente "' + valor + '" (CSS invalido).');
         }
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
         return valor;
+    }
+    // Normaliza un valor de fuente para comparar: sin comillas y con espacios
+    // normalizados. Chrome devuelve el shorthand ya serializado, que puede
+    // diferir del puesto solo en las comillas de la familia.
+    function normalizarValorFuente(v) {
+        return String(v || '').replace(/"/g, '').replace(/'/g, '').replace(/\s+/g, ' ').trim();
+    }
+    // El lienzo aplico el valor si, tras normalizar, lo que quedo puesto
+    // corresponde al valor pedido (o al menos tiene el tamano y la familia).
+    function fuenteAplicada(ctx, valor, familia) {
+        const actual = normalizarValorFuente(ctx.font);
+        const pedido = normalizarValorFuente(valor);
+        if (actual === pedido) return true;
+        // Si la familia pedida aparece en lo que quedo puesto, el navegador
+        // acepto el valor aunque lo serialice distinto.
+        return normalizarValorFuente(familia).length > 0 && actual.indexOf(normalizarValorFuente(familia)) !== -1;
     }
 
     // Auto-fit: find the largest font size that fits within the canvas

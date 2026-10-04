@@ -299,6 +299,78 @@ preset ya existente en el servidor carga sin migracion (FR-019, SC-011)
   version vigente
 - [x] T054 [P] Actualizar `specs/001-fix-bugs-01/checklists/requirements.md` registrando
   que los criterios se verificaron en WordPress, con la fecha del recorrido
+que los criterios se verificaron en WordPress, con la fecha del recorrido
+
+---
+
+## Phase 8: Regresión RC40 — identidad de fuente (P1)
+
+**Purpose**: Corregir la regresión que impide cargar cualquier fuente por nombre. La
+implementación de Phase 2 trató el registro interno como una segunda fuente de verdad y
+lo sumó a la búsqueda por nombre visible, de modo que toda fuente quedaba ambigua
+cuando el catálogo llegaba. Requisitos: FR-021 a FR-025. Contrato:
+`contracts/font-resolution.md` R-C1.5 a R-C1.8.
+
+**Note**: Es un defecto de implementación, no de requisito: el contrato ya pedía fallar
+ante un título repetido, pero la ambigüedad era falsa (la misma fuente contada dos
+veces).
+
+### Tests for the regression
+
+> Las pruebas se escriben primero y se confirman fallando.
+
+- [x] T055 [P] [US3] Regresión en `tests/fuente-selector.test.js`: resolver un nombre
+  visible con el catálogo vacío y comprobar que NO crea identidad; luego cargar el
+  catálogo con esa fuente y comprobar que resuelve a la identidad del catálogo, sin
+  ambigüedad y sin duplicado en el listado (R-C1.5 a R-C1.8, SC-012, SC-013)
+- [x] T056 [P] [US1] Regresión en `tests/fuente-composta.test.js`: componer el valor de
+  fuente de una familia que el navegador normaliza (p.ej. entrecomillada cuando no lo
+  necesita) y comprobar que NO se emite el aviso de rechazo (FR-025, SC-014)
+
+### Implementation of the regression fix
+
+- [x] T057 [US3] En `js/fonts.js`, al resolver por nombre visible, usar **solo** las
+  coincidencias del catálogo cuando el catálogo tiene alguna; consultar el registro
+  únicamente cuando no tiene ninguna (FR-022, R-C1.6)
+- [x] T058 [US3] En `js/fonts.js`, no crear identidades provisionales mientras el
+  catálogo esté pendiente: la resolución espera al catálogo en lugar de inventar
+  (FR-023, R-C1.7)
+- [x] T059 [US3] En `js/fonts.js`, al indexar el catálogo, descartar la identidad
+  provisional de cualquier familia que el catálogo pase a proveer, para que una
+  familia nunca tenga dos identidades vivas (FR-024, R-C1.8)
+- [x] T060 [US1] En `js/editor.js`, no tratar como rechazo del navegador una diferencia
+  de formato en la lectura del valor de fuente: comparar normalizando o consultar si
+  la familia está disponible, y no emitir el aviso en un valor que el navegador aceptó
+  (FR-025)
+- [x] T061 [US3] Ejecutar las suites T055 y T056 y confirmar que pasan; verificar que
+  las 21 suites previas siguen en verde
+
+---
+
+## Phase 9: US5 — dependencias del render en paralelo (Priority: P2)
+
+**Purpose**: Que el render declare sus dependencias y las espere juntas, no encadenadas.
+Hoy espera todas las imágenes y después la fuente: el tiempo total es la suma.
+Requisitos: FR-026 a FR-030. Contrato: `contracts/render-dependencies.md`.
+
+### Tests for US5
+
+- [x] T062 [P] [US5] En `tests/render-dependencias.test.js`: comprobar que el render
+  inicia la tipografía y los recursos de imagen de forma concurrente y que la suma de
+  esperas no se encadena (R-D1.1, R-D1.3, SC-015)
+
+### Implementation of US5
+
+- [x] T063 [US5] En `js/api.js`, en el render, iniciar las dependencias de forma
+  concurrente y esperar a todas antes de dibujar, en lugar de encadenarlas
+  (FR-026, FR-027, R-D1.1, R-D1.2)
+- [x] T064 [US5] En `js/api.js`, nombrar en el fallo la dependencia concreta que no se
+  pudo obtener, sin confundir un fallo de imagen con uno de tipografía (FR-028,
+  R-D2.1, R-D2.2)
+- [x] T065 [US5] En `js/api.js` y `js/editor.js`, verificar que no se piden fuentes ni
+  imágenes que el estilo no declara (FR-030, R-D1.5)
+- [ ] T066 [US5] Ejecutar la suite T062 y repetir la verificación de paridad del render
+  (T050): el PDF debe seguir coincidiendo con la vista del editor
 
 ---
 

@@ -109,6 +109,51 @@ const FL = global.window.FontLoader;
     await FL.invalidateCatalog();
     const vacio = FL.listFontEntries();
     assert.equal(vacio.length, 0, 'sin catalogo no hay entradas');
+// 9. RC40 (regresion): el editor arranca ANTES de que el puente entregue el
+    //    catalogo, y resuelve la fuente por defecto en ese momento. Eso fue lo
+    //    que rompio todo: al no estar todavia en el catalogo se le invento una
+    //    identidad; cuando el catalogo llego, la misma fuente quedo con DOS
+    //    identidades y toda fuente por nombre resulto ambigua.
+    //    Secuencia real: catalogo vacio -> resolver -> catalogo real -> resolver.
+    //    R-C1.5 (el catalogo manda), R-C1.7 (no inventar), R-C1.8 (descartar).
+
+    // 9a. Catalogo NO LEIDO todavia (lo que pasa al abrir el editor: el puente
+    //     aun no entrego fonts.json). No se puede afirmar que la fuente no
+    //     exista, asi que no se inventa identidad: resolver falla y se reintenta
+    //     cuando el catalogo llegue (R-C1.7).
+    const fetchBueno = global.fetch;
+    global.fetch = function () { return Promise.reject(new Error('sin catalogo aun')); };
+    FL.invalidateCatalog();
+    await FL.loadCatalog().catch(function () {});
+    let idSinCatalogo = null;
+    try { idSinCatalogo = FL.resolveFontId('Bangers'); } catch (e) { idSinCatalogo = null; }
+    assert.equal(idSinCatalogo, null,
+        'sin catalogo leido no se inventa identidad: resolver falla y se reintenta');
+    global.fetch = fetchBueno;
+
+    // 9b. Llega el catalogo real con Bangers en el id 1: debe resolver a 1.
+    catalogoActual = {
+        thumbs: { w: 180, h: 30, c: 4 },
+        items: [[1, 'Bangers', 'display', 'Bangers'], [2, 'Otra', 'display', 'Otra']]
+    };
+    await FL.invalidateCatalog();
+    assert.equal(FL.resolveFontId('Bangers'), 1,
+        'con el catalogo presente el nombre resuelve a la identidad del catalogo');
+
+    // 9c. Y la fuente NO queda duplicada en el listado: si sobreviviera una
+    //     identidad provisional, 'Bangers' apareceria dos veces, que es el bug.
+    const listadas = FL.listFontEntries().filter((e) => e.name === 'Bangers');
+    assert.equal(listadas.length, 1, 'la fuente aparece una sola vez en el listado');
+    assert.equal(listadas[0].id, 1, 'con la identidad del catalogo');
+
+    // 9d. Una familia que el catalogo NO trae (p.ej. una Google importada) debe
+    //     poder resolverse: es una fuente nueva, no un error. R-C1.6.
+    const nueva = FL.resolveFontId('Fuente Nueva De Google');
+    assert.equal(typeof nueva, 'number', 'una familia no catalogada resuelve a una identidad');
+    assert.notEqual(nueva, 1, 'no colapsa con la identidad del catalogo');
+    assert.equal(FL.resolveFontId('Bangers'), 1,
+        'el catalogo sigue mandando despues de crear una fuente nueva');
+
 
     console.log('OK: fuente-selector.test.js');
 })().catch(function (e) { console.error(e.stack || e.message); process.exit(1); });

@@ -193,4 +193,54 @@ existe.
   este tipo para las galerías, pero no cubre el puente ni el motor, así que no resolvería
   la brecha que importa aquí.
 - *Omitir la verificación de la ruta headless*: dejaría sin comprobar precisamente el
+- *Omitir la verificación de la ruta headless*: dejaría sin comprobar precisamente el
+  cambio de mayor radio de impacto del lote.
+
+---
+
+## R10. Identidad de fuente: catálogo ante registro (regresión RC40)
+
+**Decision**: El catálogo es la única fuente de verdad de la identidad de una fuente.
+El registro interno queda como espejo de compatibilidad: se consulta solo cuando el
+catálogo no tiene ninguna coincidencia, nunca genera una identidad para una fuente que
+el catálogo ya provee, y su identidad se descarta cuando el catálogo pasa a
+proveer esa familia.
+
+**Rationale**: La regresión vino de tratar el registro como una segunda fuente de verdad
+y sumarlo a la búsqueda por nombre visible. El editor arranca antes de que el puente
+entregue el catálogo, así que la fuente por defecto no estaba en él y se le inventó una
+identidad; cuando el catálogo llegó, la misma fuente apareció con dos identidades y
+toda fuente por nombre quedó ambigua. La raíz no fue el requisito (R-C1.1 ya pedía
+fallar ante un título repetido) sino la implementación: la ambigüedad era falsa.
+
+**Alternatives considered**:
+- *Eliminar las identidades provisionales*: se descartó porque el catálogo marca sus
+  fuentes de Google como **solo lectura** y la única acción de alta es subir un archivo
+  físico. Un preset importado de TextStudio que pida una fuente de Google no catalogada
+  quedaría sin salida salvo editar `fonts.json` a mano, lo que además invalida la firma
+  del sprite. La tolerancia es necesaria; lo que estaba mal era **cuándo** se creaba.
+- *Esperar siempre al catálogo antes de resolver*: se conserva como complemento, no
+  sustituto, porque cuando el catálogo no llega nunca (sin puente) hay que poder
+  trabajar igual.
+
+## R11. Almacenamiento de las fuentes de Google
+
+**Decision**: Fuera de este feature. Las fuentes de Google siguen remotas, se piden por
+demanda y se esperan como una dependencia más del render.
+
+**Rationale**: Guardarlas localmente no hace falta para que lo reportado funcione, y es
+un cambio de contrato de almacenamiento: el módulo hoy es consumidor de `uploads/pmu/` y
+escribir durante un render lo contradice (constitución III). Como incremento posterior
+tiene sentido por **fiabilidad**, no por corrección: con el fallo ya no
+silencioso, un Google inalcanzable hace fallar el render en vez de salir con otra
+tipografía. Para un cliente esperando un mockup, eso es un pedido perdido.
+
+**Alternatives considered**:
+- *Descargar las ~42 Google al subirlas*: es lo que hará el administrador si quiere
+  reproducibilidad, y **el mecanismo ya existe** (subida de fuentes físicas por el
+  motor). No requiere construir nada: alcanza con subir los archivos. Descargarlas
+  automáticamente sería escribir en el servidor, que es lo que se evita aquí.
+- *Cachear en el navegador al primer uso*: descartado por ser una debilidad (una caché
+  local no sobrevive al borrado de datos del navegador y no sirve para renders
+  programáticos).
   cambio de mayor radio de impacto del lote.

@@ -145,7 +145,64 @@ fuentes no queda alterado.
    fuente vigente y no un valor capturado al inicio.
 
 ---
+---
 
+### User Story 5 - El render espera a TODO lo que necesita, en paralelo (Priority: P2)
+
+Genero el mockup de un producto, o el admin mira la vista previa de un placeholder, y el
+estilo usa tipografía **y** además fondos, texturas o logos. Hoy esas cosas se piden una
+detrás de otra: primero todas las imágenes, y recién después la fuente. El render no
+empieza hasta que la última termina, así que el tiempo total es la **suma** de los
+tiempos.
+
+Quiero que el render **declare lo que necesita y espere a todo junto**: la fuente y los
+recursos empiezan a cargarse al mismo tiempo, y el dibujo ocurre cuando están todos
+listos. El total pasa a ser el tiempo del recurso más lento, no la suma.
+
+**Why this priority**: Es la misma idea que US1 aplicada al camino de salida. US1
+corrige que se pinte con la fuente correcta; esta historia corrige que no se haga
+esperando de más. Juntas, el render es correcto **y** predecible. Sin esto, corregir
+US1 vuelve más lento el PDF, porque ahora la fuente se espera de verdad y se suma al
+resto de la espera.
+
+**Independent Test**: Con un preset que use fuente más tres imágenes, el tiempo total
+del render no crece al sumar recursos: mide un preset de una sola imagen y uno de
+cuatro con la misma fuente, y compara contra el tiempo de solo la fuente. No depende de
+las historias 1 a 4 para comprobarse.
+
+**Acceptance Scenarios**:
+
+1. **Given** un preset que usa tipografía y varios recursos de imagen, **When** se
+   renderiza, **Then** la fuente y las imágenes empiezan a cargarse al mismo tiempo y
+   el render ocurre cuando todas están listas.
+2. **Given** un preset que usa tipografía y varios recursos de imagen, **When** se
+   renderiza, **Then** el tiempo total no es la suma de los tiempos de cada recurso.
+3. **Given** que un recurso tarda mucho más que el resto, **When** se renderiza,
+   **Then** el render espera a ese recurso y no a los demás por turnos.
+4. **Given** que uno de los recursos no se puede obtener, **When** se renderiza,
+   **Then** el render informa la causa de ese recurso concreto y no dibuja el resultado
+   con sustituciones.
+5. **Given** el editor abierto y un preset con tipografía e imágenes, **When** se
+   muestra la vista previa, **Then** el comportamiento de espera es el mismo que en el
+   render del PDF.
+
+---
+
+- **Resolución con el catálogo todavía pendiente**: el editor arranca antes de que el
+  puente entregue el catálogo. Resolver en ese momento con un nombre visible es
+  justamente lo que produjo la regresión (una identidad inventada que después se
+  volvió ambigüedad). Debe esperar, no adivinar.
+- **Una familia pedida por un import que el catálogo no trae**: no es un error, es una
+  fuente nueva. Debe funcionar y quedar seleccionable, sin duplicar ninguna del
+  catálogo.
+- **El catálogo llega después de que una fuente ya se estaba usando**: la identidad
+  real debe asumir el lugar de la provisional, sin dejar dos referencias vivas a la
+  misma familia.
+- **Recurso de imagen que falla mientras la fuente sí carga**: el error debe nombrar al
+  recurso que falló, no a la fuente.
+- **Preset sin recursos de imagen**: el render debe funcionar igual, sin esperar nada
+  que no declaró.
+- **Fuente con espacios, tildes o eñes en el nombre**: es el caso exacto de las
 
 ### Edge Cases
 
@@ -244,6 +301,42 @@ fuentes no queda alterado.
 - **FR-020**: El comportamiento de carga de presets MUST ser idéntico en la vista
   del editor y en el motor de renderizado, incluidos los presets importados desde
   TextStudio.
+- **FR-020**: El comportamiento de carga de presets MUST ser idéntico en la vista
+  del editor y en el motor de renderizado, incluidos los presets importados desde
+  TextStudio.
+
+### Requisitos de resolución de identidad (contrato de fuentes)
+
+Estos requisitos formalizan el contrato que la implementación de RC39 incumplió. La
+regresión documentada en `checklists/requirements.md` bornó de aquí.
+
+- **FR-021**: El catálogo de fuentes MUST ser la única fuente de verdad de la
+  identidad de una fuente. El registro interno MUST NOT generar identidades para
+  fuentes que el catálogo ya provee.
+- **FR-022**: Al resolver una referencia por nombre visible, si el catálogo tiene
+  coincidencias, el sistema MUST usar **solo** las del catálogo. Las entradas del
+  registro interno se consultan únicamente cuando el catálogo no tiene ninguna.
+- **FR-023**: El sistema MUST NOT crear una identidad para una fuente antes de que
+  el catálogo esté disponible. Con el catálogo pendiente, la resolución MUST esperar.
+- **FR-024**: Cuando el catálogo pase a prover una familia que tenía una identidad
+  creada por el registro, esa identidad MUST descartarse para que no queden dos
+  referencias a la misma fuente.
+- **FR-025**: El aviso de "el lienzo rechazó la fuente" MUST distinguir un rechazo
+  real del navegador de una diferencia de formato en la lectura del valor. El sistema
+  MUST NOT informar como error un valor que el navegador aceptó.
+
+### Requisitos del render (US5)
+
+- **FR-026**: El render MUST declarar sus dependencias —tipografía y recursos de
+  imagen— e iniciarlas de forma concurrente, no encadenarlas.
+- **FR-027**: El render MUST comenzar a dibujar solo cuando todas las dependencias
+  declaradas estén resueltas.
+- **FR-028**: Si una dependencia no puede obtenerse, el render MUST informar la causa
+  de esa dependencia concreta y MUST NOT producir un resultado con sustituciones.
+- **FR-029**: El editor y el motor de render MUST usar el mismo mecanismo de espera
+  de dependencias, de modo que la vista previa y el PDF produced el mismo resultado.
+- **FR-030**: El render MUST NOT descargar tipografías que el estilo no declara, ni
+  recursos de imagen que el estilo no usa.
 
 ### Key Entities
 
@@ -299,6 +392,18 @@ fuentes no queda alterado.
   sobreviven de la vista anterior.
 - **SC-011**: El 100% de los presets existentes en el servidor siguen cargando
   correctamente después de la corrección, sin necesidad de volver a guardarlos.
+- **SC-011**: El 100% de los presets existentes en el servidor siguen cargando
+  correctamente después de la corrección, sin necesidad de volver a guardarlos.
+- **SC-012**: Con el catálogo disponible, el 100% de las fuentes del catálogo se
+  resuelven a su identidad de catálogo, sin ambigüedad y sin aparecer duplicadas en el
+  selector.
+- **SC-013**: Con el catálogo aún no disponible, el sistema no crea identidades
+  provisionales: cero fuentes aparecen como ambiguas una vez que el catálogo llega.
+- **SC-014**: El editor no emite avisos de "fuente rechazada" cuando el navegador aceptó
+  el valor. Cero avisos falsos positivos por pintado.
+- **SC-015**: El tiempo total de un render con tipografía y N recursos de imagen no
+  crece de forma acumulativa con N: duplicar los recursos no duplica el tiempo total
+  (medido sobre el mismo preset con una y con cuatro imágenes).
 
 ## Assumptions
 

@@ -42,6 +42,17 @@ del proyecto, desde un preset guardado o desde un preset importado:
   estado del proyecto. El estado nunca guarda una clave interna de registro.
 - **R-C1.4**: La resolución no tiene resultado por defecto. Si no puede resolver,
   falla con causa; nunca devuelve una fuente sustituta.
+- **R-C1.5** *(añadido tras la regresión RC40)*: El catálogo es la **única** fuente de
+  verdad de la identidad. El registro interno es un espejo de compatibilidad y jamás
+  genera una identidad para una fuente que el catálogo ya provee.
+- **R-C1.6** *(añadido tras la regresión RC40)*: Al resolver por nombre visible, si el
+  catálogo tiene coincidencias se usan **solo** las del catálogo. El registro se
+  consulta únicamente cuando el catálogo no tiene ninguna.
+- **R-C1.7** *(añadido tras la regresión RC40)*: No se crea ninguna identidad mientras
+  el catálogo esté pendiente. La resolución espera al catálogo en lugar de inventar.
+- **R-C1.8** *(añadido tras la regresión RC40)*: Cuando el catálogo pase a proveer una
+  familia que tenía una identidad creada por el registro, esa identidad se descarta.
+  Una familia nunca tiene dos identidades vivas.
 
 ---
 

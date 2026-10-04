@@ -241,6 +241,40 @@
                 }));
             }
         });
+        descartarVirtualesCubiertas();
+    }
+    // El catalogo esta DISPONIBLE cuando se leyo de verdad. Antes de que
+    // llegue no se puede afirmar que una fuente no exista, y por eso no se
+    // crean identidades provisionales (R-C1.7).
+    function catalogoListo() {
+        return catalogParsed !== null && catalogParsed !== undefined;
+    }
+    // R-C1.8: cuando el catalogo pasa a proveer una familia que tenia una
+    // identidad creada por el registro, esa identidad se descarta. Sin esto una
+    // familia queda con dos identidades vivas y el selector la muestra dos veces.
+    function descartarVirtualesCubiertas() {
+        var porBorrar = [];
+        Object.keys(fontsById).forEach(function (cid) {
+            var id = +cid;
+            if (id < 100000) return;                 // solo identidades provisionales
+            var nombre = fontsById[id] && fontsById[id].name;
+            if (!nombre) return;
+            var enCatalogo = idsPorTitulo(nombre);
+            if (enCatalogo.indexOf(id) === -1) return;
+            porBorrar.push({ id: id, nombre: nombre });
+        });
+        porBorrar.forEach(function (v) {
+            delete fontsById[v.id];
+            delete fontStates[v.id];
+            delete fontFailures[v.id];
+            delete fontPromises[v.id];
+            delete loadedFonts[v.id];
+            var clave = nameToKeyMap[v.nombre];
+            if (clave && fontRegistry[clave] && fontRegistry[clave].id === v.id) {
+                delete fontRegistry[clave];
+                delete nameToKeyMap[v.nombre];
+            }
+        });
     }
 
     // Soporte para puente de servidor (WordPress Personalizador PDF)
@@ -321,7 +355,8 @@
         // registran DIRECTO del catalogo: el catalogo lo escribe el servidor
         // escaneando uploads/pmu/fonts/, asi que la existencia ya esta
         // validada en origen. Cero peticiones extra al arrancar; si un archivo
-        // falta de verdad, el FontFace de loadFont falla y cae al fallback.
+        // falta de verdad, el FontFace de loadFont falla y se informa con causa
+        // (sin sustitucion: constitucion VI, FR-005).
         // Las ONLINE son lazy: se cargan via link Google al elegir/renderizar.
         userFontsPromise = loadCatalog().then(function () {
             indexarCatalogo();
@@ -487,11 +522,21 @@
             return resolveFontId(mapped);
         }
         // Titulo del catalogo: puede haber mas de una coincidencia.
-        var porTitulo = idsPorTitulo(s).concat(idsPorNombreRegistro(s));
-        var unicos = porTitulo.filter(function (v, i, a) { return a.indexOf(v) === i; });
-        if (unicos.length === 1) return unicos[0];
-        if (unicos.length > 1) {
-            throw new Error('fonts:' + s + ':titulo ambiguo (' + unicos.join(',') + '): elegir la fuente de nuevo en el editor');
+        // R-C1.6: el CATALOGO manda. Si el catalogo tiene la familia, se usan
+        // solo sus identidades; el registro solo se consulta cuando el catalogo
+        // no tiene ninguna. Sumarlos era lo que producia la ambiguedad falsa
+        // de la regresion RC40 (identidades 1 y 100001 para la misma fuente).
+        var delCatalogo = idsPorTitulo(s);
+        if (delCatalogo.length === 1) return delCatalogo[0];
+        if (delCatalogo.length > 1) {
+            throw new Error('fonts:' + s + ':titulo ambiguo (' + delCatalogo.join(',') + '): elegir la fuente de nuevo en el editor');
+        }
+        // El catalogo no tiene esta familia: ahora si se consulta el registro.
+        var delRegistro = idsPorNombreRegistro(s);
+        var unicosRegistro = delRegistro.filter(function (v, i, a) { return a.indexOf(v) === i; });
+        if (unicosRegistro.length === 1) return unicosRegistro[0];
+        if (unicosRegistro.length > 1) {
+            throw new Error('fonts:' + s + ':titulo ambiguo (' + unicosRegistro.join(',') + '): elegir la fuente de nuevo en el editor');
         }
         // TTF de TextStudio sin entrada en el catalogo.
         if (/^\d+\.ttf$/i.test(s)) {
@@ -507,6 +552,17 @@
         if (/^[^:]+(:[^:]*)?$/.test(s) && /^[^@!?<>{}[\]\\/]+(:[^:@!?<>{}[\]\\/]*)?$/.test(s)) {
             var familia = googleFamilyOf(s);
             var existente = idsPorNombreRegistro(familia)[0];
+var existente = idsPorNombreRegistro(familia)[0];
+            if (existente !== undefined) return existente;
+            // R-C1.7: con el catalogo PENDIENTE no se inventa identidad. El
+            // editor arranca antes de que el puente entregue el catalogo, y
+            // hacerlo ahi fue la causa de la regresion RC40: se creo una
+            // identidad para la fuente por defecto y, al llegar el catalogo, la
+            // misma fuente quedo con dos identidades y todo por nombre fallo.
+            if (!catalogoListo()) {
+                throw new Error('fonts:' + s + ':catalogo no disponible todavia (se reintenta al cargar)');
+            }
+            var idNuevo = siguienteIdFuenteVirtual();
             if (existente !== undefined) return existente;
             var idNuevo = siguienteIdFuenteVirtual();
             setFontById(idNuevo, normEntry(idNuevo, familia, s, { online: true }));

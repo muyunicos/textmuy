@@ -4,12 +4,11 @@ const path = require('node:path');
 
 // Verificacion de integridad de los archivos tocados por 001-fix-bugs-01:
 // ningun caracter CJK/corrupto debe colarse en codigo ni en documentacion.
-// Las rutas son relativas al directorio desde el que se ejecuta la suite
-// (raiz del modulo), igual que las demas suites de tests/.
-const leer = (f) => fs.readFileSync(f, 'utf8');
-
-// Verificacion de integridad de los archivos tocados por 001-fix-bugs-01:
-// ningun caracter CJK/corrupto debe colarse en codigo ni en documentacion.
+// Las rutas se resuelven contra la RAIZ DEL MODULO (el directorio padre de
+// tests/), no contra el directorio de trabajo: asi la suite da el mismo
+// resultado se ejecute desde donde se ejecute.
+const RAIZ = path.resolve(__dirname, '..');
+const leer = (f) => fs.readFileSync(path.resolve(RAIZ, f), 'utf8');
 const ARCHIVOS = [
     'AGENTS.md',
     'js/fonts.js',

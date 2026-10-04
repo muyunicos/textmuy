@@ -102,6 +102,43 @@ los criterios siguen en PASS.
   tres sitios (RC40).
 - Sigue PENDIENTE la verificacion integrada en WordPress (T049 y T050), que no es
   automatizable: incluye comprobar que el PDF renderizado coincide con la vista.
+### Regresion RC40 (2026-10-03): identidades creadas antes que el catalogo
+
+**Estado**: abierta. Detectada en WordPress por el administrador al abrir la pestaña
+"Estilos de Texto". Symptoms: el aviso `La fuente seleccionada no se pudo cargar:
+fonts:Bangers:titulo ambiguo (1,100001)` y, en consola, el aviso
+`El lienzo rechazo el valor de fuente "normal 187px "Bangers" (CSS invalido)`.
+
+Causa raiz (reproducida antes de corregir): el editor arranca antes de que el puente
+entregue el catalogo. Al resolver el nombre visible de la fuente por defecto, el
+catalogo aun no contenia esa fuente, asi que el modulo le invento una identidad
+provisional (id 100001). Cuando el catalogo llego con esa misma fuente en el id 1, la
+busqueda por nombre encontro **dos** coincidencias (catalogo + registro) y resolvio
+"titulo ambiguo". Ninguna fuente por nombre podia cargar.
+
+El contrato `contracts/font-resolution.md` R-C1.1 ya exigia fallar ante un titulo
+ambiguo, pero la ambiguedad era falsa: la misma fuente contada dos veces. El defecto
+no fue de requisito sino de implementacion: el registro se trato como una segunda
+fuente de verdad en lugar de un espejo del catalogo.
+
+Requirements anadidos para que el contrato sea explicito e inverificable de romper:
+FR-021 (el catalogo es la unica fuente de verdad de identidad), FR-022 (precedencia
+del catalogo al resolver por nombre), FR-023 (no crear identidades con el catalogo
+pendiente), FR-024 (descartar la identidad provisional cuando el catalogo la
+provee), FR-025 (el aviso de rechazo del lienzo no debe ser un falso positivo) y
+SC-012 a SC-014.
+
+**Correccion de una reportacion propia**: en la misma sesion se senalo un fallo en la
+guarda del aviso de fuente que no existia (la condicion ya era correcta). Se verifico
+contra el codigo antes de tocar nada y se descarto.
+
+### Ampliacion del alcance: US5 (2026-10-03)
+
+Decidido por el administrador que la carga paralela de dependencias entra en este mismo
+feature, y no en uno aparte: comparte idea con US1 ("esperar a la fuente correcta") y
+partirlas dejaba el spec cerrado con el cuello de botella secuencial. Se documento
+antes de implementar: US5 con 5 escenarios, FR-026 a FR-030 y SC-015, mas cinco casos
+limite. La decision de contexto queda en las notas de la planificacion.
 
 **Reviewer note**: this checklist records requirements quality only. It does not
 assert that any fix has been implemented.
