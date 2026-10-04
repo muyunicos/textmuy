@@ -8,7 +8,10 @@
     --tt-bg-panel-2: #222;
     --tt-bg-panel-3: #111;
     --tt-bg-hover: #2a2a2a;
-    --tt-bg-canvas: #1a1a2e;
+    /* Fondo del area del canvas: degradado de grises neutros (no compite con
+       el azul de acento). Ver .tt-background-color / .tt-bottom-shadow. */
+    --tt-bg-canvas: #3a3a3a;
+    --tt-bg-canvas-2: #2a2a2a;
     --tt-border: #2a2a2a;
     --tt-border-input: #444;
     --tt-border-soft: #333;
@@ -83,13 +86,15 @@ strong {
     display: flex;
 }
 
+/* Fade inferior: usa la paleta del area del canvas (no --tt-bg) para no
+       dejar una franja negra sobre el degradado gris. */
 .tt-bottom-shadow {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
     height: 60px;
-    background: linear-gradient(to top, var(--tt-bg), transparent);
+    background: linear-gradient(to top, var(--tt-bg-canvas-2), transparent);
     pointer-events: none;
     z-index: 1;
 }
@@ -223,7 +228,14 @@ strong {
 .tt-background-color {
     width: 100%;
     height: 100%;
-    background: var(--tt-bg-canvas);
+    /* Degradado de grises + viñeteado superior suave. El fondo real del
+       proyecto (settings.background) NO se toca: esto es solo el area de
+       trabajo alrededor del canvas. */
+    background:
+        radial-gradient(120% 90% at 50% 0%,
+            rgba(255,255,255,.10), rgba(255,255,255,0) 60%),
+        linear-gradient(160deg, var(--tt-bg-canvas) 0%,
+            var(--tt-bg-canvas-2) 100%);
 }
 
 .tt-background-image {
