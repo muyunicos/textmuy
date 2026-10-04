@@ -473,6 +473,21 @@
                     { key: String(it.id), name: it.titulo, online: !!it.online }, w, h, { cargar: true });
             };
         }
+        // Imagenes: F1 pide el ORIGINAL de esa celda (1 request) y lo entrega
+        // como Image; ThumbEngine lo encaja con `pad` al componer la hoja.
+        // RC46: antes este ambito devolvia null, de modo que las 128 celdas
+        // contaban como fallo y la hoja de `img` no se persistia nunca.
+        if (ambito === 'img') {
+            return function (it) {
+                if (!it || !it.url) return null;
+                return new Promise(function (res) {
+                    var img = new Image();
+                    img.onload = function () { res(img); };
+                    img.onerror = function () { res(null); };
+                    img.src = it.url;
+                });
+            };
+        }
         return function () { return null; };
     }
     // Items canonicos del ambito: uno por id 1..maxId, con hueco estable

@@ -76,7 +76,7 @@ function reiniciar() {
     API.invalidarSpriteCanonico('fonts');
     API.invalidarCatalogo('fonts');
     invalidarDibujados();
-    puente = { urls: { fuentesBase: 'https://test/fonts/' }, nonces: { motor: 'n' } };
+    puente = { urls: { fuentesBase: 'https://test/fonts/', imagenesBase: 'https://test/img/', presetsBase: 'https://test/tm-presets/' }, nonces: { motor: 'n' } };
 }
 const celda = id => ({ w: 180, h: 30, id });
 
@@ -231,6 +231,29 @@ const celda = id => ({ w: 180, h: 30, id });
     assert.equal(r9.estado, 'error', 'render que lanza => error');
     assert.equal(r9.fallos, 1);
     assert.equal(escrituras.length, 0);
+
+    // ---------------------------------------------------------------------
+    // 10. `img`: el render POR DEFECTO (sin renderTile) debe pedir el original
+    //     de la celda y devolverlo como Image. Antes devuelto null para este
+    //     ambito (se asumia que ThumbEngine resolvia solo), y como F1 invoca el
+    //     render directamente, las 128 celdas de `img` contaban como fallo y la
+    //     hoja jamas se persistia.
+    // ---------------------------------------------------------------------
+    reiniciar();
+    data.items = [[1, 'Fondo', 'fondos', 'a.svg'], [2, 'Icono', 'iconos', 'b.svg']];
+    instalarThumbEngine({ certifica: true });
+    global.Image = class {
+        constructor() { this.width = 40; this.height = 30; }
+        set src(v) { this._src = v; queueMicrotask(() => this.onload && this.onload()); }
+    };
+    const r10 = await API.asegurarHojaCompleta('img');
+    assert.equal(r10.estado, 'generado', 'img: con render por defecto => genera');
+    assert.equal(r10.fallos, 0, 'img: 0 fallos');
+    assert.equal(escrituras.length, 1, 'img: 1 escritura');
+    const o10 = escrituras[0];
+    assert.equal(o10.pad, true, 'img: pad para encajar el original');
+    assert.equal(o10.items.length, 2);
+    assert.equal(o10.items[0].url, 'https://test/img/a.svg', 'img: el item lleva la URL del original (base imagenesBase)');
 
     console.log('OK: hoja-generacion.test.js');
 })().catch(function (e) { console.error(e); process.exit(1); });

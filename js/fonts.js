@@ -676,25 +676,40 @@ var existente = idsPorNombreRegistro(familia)[0];
         fontStates[id] = 'pendiente';
         delete fontFailures[id];
         var fam = familia || googleFamilyOf(spec);
-        // 1. Inyectar el <link> css2 una sola vez por familia.
-        try {
-            if (typeof document !== 'undefined' && document.createElement && !googleLinksInjected[fam]) {
-                googleLinksInjected[fam] = true;
+        var timeoutMs = 8000;
+        // RC46: RCARRA ARREGLADA. Antes se inyectaba el <link> y se llamaba
+        // document.fonts.load() en el MISMO tick: si la hoja de estilo todavia
+        // no estaba parseada, load() resolvia con 0 caras y la fuente quedaba
+        // 'fallida' con "no se pudo cargar de Google" (y sin reintento util,
+        // porque googleLinksInjected ya la daba por puesta). Ahora se espera a
+        // que el <link> cargue (o al mismo plazo) y solo entonces se pide la
+        // cara. El sintoma era que las miniaturas de los presets con fuente
+        // Google no se generaban nunca.
+        var linkListo = new Promise(function (res) {
+            var yaInyectada = googleLinksInjected[fam];
+            if (typeof document === 'undefined' || !document.createElement || yaInyectada) {
+                return res(yaInyectada ? 'puesta' : 'sin-dom');
+            }
+            googleLinksInjected[fam] = true;
+            try {
                 var link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(spec).replace(/%20/g, '+') + '&display=swap';
                 link.setAttribute('data-textmuy-font', fam);
+                link.onload = function () { res('cargada'); };
+                link.onerror = function () { res('error'); };
                 (document.head || document.getElementsByTagName('head')[0] || document.body).appendChild(link);
-            }
-        } catch (_) { /* sin DOM: seermarkara fallida abajo */ }
-        var timeoutMs = 8000;
+            } catch (_) { res('error'); }
+        });
         var carga;
         try {
             if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
                 var limite = new Promise(function (res) { setTimeout(function () { res('timeout'); }, timeoutMs); });
                 carga = Promise.race([
-                    document.fonts.load('16px "' + fam + '"').then(function (faces) {
-                        return (faces && faces.length) ? 'ok' : 'vacia';
+                    linkListo.then(function () {
+                        return document.fonts.load('16px "' + fam + '"').then(function (faces) {
+                            return (faces && faces.length) ? 'ok' : 'vacia';
+                        });
                     }),
                     limite
                 ]);
