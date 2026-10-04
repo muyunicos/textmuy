@@ -164,7 +164,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC44**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC45**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -241,7 +241,7 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
   `tests/fuente-carga-estados.test.js`, `tests/fuente-selector.test.js`,
   `tests/preset-roundtrip.test.js`. Total: 20 suites. Todas verdes.
 
-### 7.2 Decisiones RC44 — arranque sin puente (bugfix)
+### 7.2 Decisiones RC44/RC45 — arranque sin puente (bugfix)
 
 Correcciones verificadas con una simulación real en Chrome (iframe same-origin,
 puente postMessage en 3 momentos, motor/miniaturas simulados; escenario con
@@ -265,6 +265,11 @@ puente limpio y escenario sin puente):
 - ✅ **`main.js` retira la clase `tt-loading` del contenedor** al ocultar el
   overlay (quedaba pegada para siempre; el overlay se ocultaba solo por
   estilo inline).
+- ✅ **La fuente del proyecto se recupera sola con el puente tardío (RC45).**
+  `main.js` escucha `textmuy-bridge-ready`: si la fuente declarada no está
+  `disponible`/`pendiente`, relee el catálogo (ya con base del puente),
+  reintenta `asegurarFuenteDeclarada()` y repinta; el aviso `#tt-font-error`
+  se limpia sin que el usuario toque el selector.
 
 ## 5. Formatos y convenciones de nombres (NO CAMBIAR)
 

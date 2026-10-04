@@ -26,6 +26,15 @@
             ExportManager.init(TextEditor);
         }
 
+        // RC45: si el puente llega DESPUES del arranque (p. ej. >1.2 s), el
+        // catalogo quedo vacio y la fuente declarada quedo fallida con su
+        // aviso visible. Al llegar el puente se relee el catalogo y se
+        // reintenta la fuente: el aviso se limpia y el lienzo se repinta
+        // solo, sin que el usuario tenga que tocar el selector.
+        if (typeof window.addEventListener === 'function') {
+            window.addEventListener('textmuy-bridge-ready', reintentarFuenteDeclarada);
+        }
+
         // Hide loading overlay (y retirar la clase de carga: RC44)
         var loading = document.getElementById('tt-canvas-loading');
         if (loading) {
@@ -111,6 +120,28 @@
                 updateRangeFill(this);
             });
         });
+    }
+
+    // RC45: reintento de la fuente declarada cuando el puente llega tarde.
+    // No hace nada si la fuente ya esta disponible o en curso; si el catalogo
+    // aun no estaba, loadCatalog() lo trae con la base del puente y despues
+    // se asegura la fuente y se repinta. Un fallo real se mantiene visible
+    // en #tt-font-error (asegurarFuenteDeclarada nunca rechaza).
+    function reintentarFuenteDeclarada() {
+        if (!window.TextEditor || !window.FontLoader || !window.FontLoader.loadCatalog) return;
+        var ref = null;
+        try {
+            var s = window.TextEditor.getSettings ? window.TextEditor.getSettings() : null;
+            ref = (s && s.font) ? (s.font.src !== undefined ? s.font.src : s.font) : null;
+        } catch (_) { return; }
+        if (ref === null || ref === undefined || ref === '') return;
+        var estado = window.FontLoader.getFontState ? window.FontLoader.getFontState(ref) : null;
+        if (estado === 'disponible' || estado === 'pendiente') return;
+        window.FontLoader.loadCatalog().then(function() {
+            return window.TextEditor.asegurarFuenteDeclarada ? window.TextEditor.asegurarFuenteDeclarada() : null;
+        }).then(function() {
+            if (window.TextEditor.render) window.TextEditor.render();
+        }).catch(function() { /* el fallo se muestra en #tt-font-error */ });
     }
 
     function updateRangeFill(el) {
