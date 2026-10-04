@@ -86,7 +86,12 @@
         var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
         var baseKey = CATALOGO_BASE[ambito];
         var base = (b && b.urls && baseKey && b.urls[baseKey]) ? b.urls[baseKey] : '';
-        if (!base) throw new Error(ambito + ':catalogo:sin_puente');
+        // RC44: SIN puente se RECHAZA la promesa, nunca se lanza sincronico.
+        // Un throw aqui escapaba a los llamadores que envuelven la llamada con
+        // Promise.resolve(...).catch(...) (Promise.resolve evalua el argumento
+        // ANTES de envolverlo): abrir la galeria de presets sin puente moria
+        // con 'tm-presets:catalogo:sin_puente' sin capturar.
+        if (!base) return Promise.reject(new Error(ambito + ':catalogo:sin_puente'));
         var url = base + CATALOGO_FILE[ambito];
         if (catalogCache[url]) return catalogCache[url];
         var p = fetch(url, { cache: 'no-store' }).then(function (r) {

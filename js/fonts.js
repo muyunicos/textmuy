@@ -78,9 +78,9 @@
         if (catalogPromise) return catalogPromise;
         // Dentro del iframe del plugin, el fonts.json real vive en uploads y la
         // base URL llega por el puente (textmuy-bridge-ready). Al arrancar el
-        // puente puede no haber llegado aun; diferir el fetch hasta que llegue
-        // (o hasta un timeout corto en standalone/arranque sin puente).
-        // Evita el 404 engañoso a fonts/fonts.json del modulo en iframe.
+        // puente puede no haber llegado aun; la carga se difiere hasta que
+        // llegue o hasta un plazo corto. RC44: sin puente NO se hace fetch
+        // relativo al modulo (AGENTS 4.2: cero fetches relativos sin puente).
         var inIframe = (typeof window !== 'undefined' && window.parent && window.parent !== window);
         if (inIframe) {
             var b = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
@@ -91,7 +91,12 @@
                         if (done) return;
                         done = true;
                         catalogPromise = null; // reiniciar para que la carga real corra
-                        resolve(fetchCatalog());
+                        // Solo se hace fetch si para entonces hay base del puente.
+                        // Al vencer el plazo sin puente se resuelve vacio: el
+                        // catalogo real llegara con textmuy-bridge-ready.
+                        var b2 = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+                        if (b2 && b2.urls && b2.urls.fuentesBase) resolve(fetchCatalog());
+                        else resolve({});
                     };
                     window.addEventListener('textmuy-bridge-ready', finish);
                     setTimeout(finish, 1200); // fallback: arranque con puente lento

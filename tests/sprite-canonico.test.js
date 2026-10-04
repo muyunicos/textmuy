@@ -54,5 +54,15 @@ function invalidar() { API.invalidarSpriteCanonico('img'); API.invalidarCatalogo
     assert.equal(API.loadCatalogoSync('img'), null, 'reconstruccion obliga a releer certificacion');
     puente = null;
     assert.equal(await API.ensureSpriteCanonico('img'), null, 'sin puente no opera');
+    // RC44: sin puente loadCatalogo RECHAZA la promesa (no lanza sincronico):
+    // los llamadores que envuelven con Promise.resolve(...).catch(...) no
+    // pierden el error y abrir la galeria de presets no muere.
+    let lanzaSincrono = false;
+    try {
+        const promesa = API.loadCatalogo('img');
+        assert.ok(promesa && typeof promesa.then === 'function', 'loadCatalogo devuelve promesa');
+        await promesa.then(function () { return null; }, function () { return null; });
+    } catch (_) { lanzaSincrono = true; }
+    assert.equal(lanzaSincrono, false, 'loadCatalogo sin puente rechaza, no lanza sincronico');
     console.log('OK: sprite-canonico.test.js');
 })().catch(e => { console.error(e); process.exitCode = 1; });

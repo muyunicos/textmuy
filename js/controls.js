@@ -2301,7 +2301,9 @@
             const hoja = Promise.resolve(window.TextMuyAPI.ensureSpriteCanonico("tm-presets"))
                 .catch(function() { return null; });
             const cat = window.TextMuyAPI.loadCatalogo
-                ? Promise.resolve(window.TextMuyAPI.loadCatalogo("tm-presets")).catch(function() { return null; })
+                // RC44: .then() envuelve la llamada; un throw sincronico tambien
+                // queda como rechazo capturado (defensa del contrato async).
+                ? Promise.resolve().then(function() { return window.TextMuyAPI.loadCatalogo("tm-presets"); }).catch(function() { return null; })
                 : Promise.resolve(null);
             return Promise.all([hoja, cat]).then(function(r) {
                 if (version !== presetSpriteVersion) return null;
@@ -2332,7 +2334,8 @@
             setStatus('Generando miniaturas (usa la fuente de cada preset)...');
             const bP = (window.PresetManager && window.PresetManager.getBridge) ? window.PresetManager.getBridge() : null;
             const cat = window.TextMuyAPI && window.TextMuyAPI.loadCatalogo
-                ? Promise.resolve(window.TextMuyAPI.loadCatalogo('tm-presets')).catch(function() { return null; })
+                // RC44: envuelto para que un throw sincronico quede como rechazo.
+                ? Promise.resolve().then(function() { return window.TextMuyAPI.loadCatalogo('tm-presets'); }).catch(function() { return null; })
                 : Promise.resolve(null);
             return cat.then(function(parsed) {
                 return window.ThumbEngine.ensureSprite({
@@ -2469,12 +2472,18 @@
         toggle.addEventListener('click', function() {
             const open = gallery.classList.toggle('open');
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            if (open) {
-                if (!presetSpriteInfo) {
-                    cargarPresetSprite().then(function() { populate(); });
-                } else {
-                    populate();
-                }
+            if (!open) return;
+            // RC44: sin puente la galeria NO opera: estado visible en vez de
+            // panel vacio o excepcion (AGENTS 4.2). El status vive en el
+            // toolbar y es el punto de aviso del panel.
+            if (!(window.PresetManager && window.PresetManager.bridgeAvailable && window.PresetManager.bridgeAvailable())) {
+                setStatus('Los presets requieren el plugin (puente no disponible). Recarga la pagina.', true);
+                return;
+            }
+            if (!presetSpriteInfo) {
+                cargarPresetSprite().then(function() { populate(); });
+            } else {
+                populate();
             }
         });
 

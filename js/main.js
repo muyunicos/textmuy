@@ -26,10 +26,10 @@
             ExportManager.init(TextEditor);
         }
 
-        // Hide loading overlay
+        // Hide loading overlay (y retirar la clase de carga: RC44)
         var loading = document.getElementById('tt-canvas-loading');
         if (loading) {
-            setTimeout(function() { loading.style.display = 'none'; }, 300);
+            setTimeout(function() { loading.style.display = 'none'; var ttRoot = document.getElementById('tt'); if (ttRoot && ttRoot.classList) ttRoot.classList.remove('tt-loading'); }, 300);
         }
 
         // Initialize range slider visual fills

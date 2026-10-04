@@ -84,12 +84,13 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 21 tests Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 22 tests Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
-                              rc-bump, fuente-compuesta, fuente-carga-estados,
-                              fuente-selector, preset-roundtrip, integridad-archivos)
+                              rc-bump, render-dependencias, fuente-compuesta,
+                              fuente-carga-estados, fuente-selector, preset-roundtrip,
+                              integridad-archivos)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
 ```
 
@@ -163,7 +164,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC43**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC44**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -239,6 +240,31 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
 - **Suites nuevas** (Node, sin navegador): `tests/fuente-composta.test.js`,
   `tests/fuente-carga-estados.test.js`, `tests/fuente-selector.test.js`,
   `tests/preset-roundtrip.test.js`. Total: 20 suites. Todas verdes.
+
+### 7.2 Decisiones RC44 — arranque sin puente (bugfix)
+
+Correcciones verificadas con una simulación real en Chrome (iframe same-origin,
+puente postMessage en 3 momentos, motor/miniaturas simulados; escenario con
+puente limpio y escenario sin puente):
+
+- ✅ **`TextMuyAPI.loadCatalogo` RECHAZA la promesa, no lanza sincrónico.**
+  Sin base de puente devuelve `Promise.reject(ambito:catalogo:sin_puente)`.
+  El `throw` sincrónico anterior escapaba a los llamadores que envuelven la
+  llamada con `Promise.resolve(...).catch(...)` —`Promise.resolve` evalúa el
+  argumento ANTES de envolverlo—: abrir la galería de presets sin puente
+  moría con una excepción no capturada y el panel quedaba vacío. Los dos
+  call sites de `controls.js` quedaron además envueltos con `.then(...)` por
+  defensa. Regresión cubierta en `tests/sprite-canonico.test.js`.
+- ✅ **La galería de presets muestra estado sin puente.** Al abrir sin
+  `bridgeAvailable()` el toolbar avisa ("Los presets requieren el plugin...")
+  y no se intenta cargar la hoja: cero excepciones, cero red.
+- ✅ **`fonts.js` no hace fetch relativo sin puente.** Al vencer el plazo del
+  arranque diferido se resuelve catálogo vacío y se espera
+  `textmuy-bridge-ready`; se eliminan los 404 a `fonts.json` del módulo
+  (regla §4.2: cero fetches a rutas relativas sin puente).
+- ✅ **`main.js` retira la clase `tt-loading` del contenedor** al ocultar el
+  overlay (quedaba pegada para siempre; el overlay se ocultaba solo por
+  estilo inline).
 
 ## 5. Formatos y convenciones de nombres (NO CAMBIAR)
 
@@ -439,7 +465,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 21 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
+Hay 22 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
 opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados externamente
 (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con motor/miniaturas
 simulados, no sustituye la prueba en WordPress.
@@ -468,6 +494,7 @@ node tests/fuente-compuesta.test.js   # familia compuesta entrecomillada (RC39)
 node tests/fuente-carga-estados.test.js  # estados de carga explicitos + reintento (RC39)
 node tests/fuente-selector.test.js    # selector sin duplicados, toda entrada funciona (RC39)
 node tests/integridad-archivos.test.js   # sin caracteres corruptos + version RC documentada
+node tests/render-dependencias.test.js   # dependencias del render en paralelo (RC41)
 node tests/rc-bump.test.js
 
 # Todas las suites de una vez (frena en la primera que falle):
