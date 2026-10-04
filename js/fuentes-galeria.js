@@ -232,13 +232,40 @@ function crearPanel(){
  // temporal: no toca el estado del proyecto, y cerrar la galeria sin
  // confirmar la revierte (R-C5.1, R-C5.4).
  let previa=null;   // referencia de la fuente previa del proyecto
+ // FR-034: cada tipo de entrada de la galeria nombra su identidad en un campo
+ // distinto: las de catalogo usan `fontId` y las subidas en la sesion usan
+ // `fontKey`. El preview leia `it.id`, que NINGUNA entrada tiene, asi que
+ // llegaba undefined y la previsualizacion no aplicaba nada ("referencia
+ // vacia"). Se lee el campo que corresponda a cada tipo.
+ function identidadDeEntrada(it){
+  if(!it)return null;
+  // Catalogo: identidad numerica del catalogo.
+  if(typeof it.fontId==='number'&&it.fontId>=1)return it.fontId;
+  // Subida en la sesion: la clave del registro, que se traduce a identidad.
+  if(it.fontKey)return it.fontKey;
+  // Tolerancia con otras formas (id o slug numerico).
+  if(typeof it.id==='number'&&it.id>=1)return it.id;
+  if(typeof it.slug==='number'&&it.slug>=1)return it.slug;
+  return it.slug||it.id||null;
+ }
  function previsualizarEnLienzo(it){
   const ed=window.TextEditor;
   if(!ed||!ed.getSettings)return;
+  const ref=identidadDeEntrada(it);
+  if(ref===null||ref===undefined||ref===''){
+   status.textContent='Esta fuente todavia no tiene identidad: no se puede previsualizar.';
+   return;
+  }
   if(!previa) previa={anterior:ed.getSettings().font?ed.getSettings().font.src:null};
-  let id=it.id;
+  // Resolver a identidad con el criterio del resto del modulo.
+  let id=ref;
   if(FL()&&FL().resolveFontId){
-   try{id=FL().resolveFontId(id);}catch(_){id=it.id;}
+   try{id=FL().resolveFontId(ref);}
+   catch(_){
+    // FR-034: si no puede resolverse NO se aplica en silencio.
+    status.textContent='No se pudo identificar la fuente: elige otra.';
+    return;
+   }
   }
   if(ed.aplicarFuentePrevia) ed.aplicarFuentePrevia(id);
   if(!it.online)status.textContent='Descargando la fuente para la vista previa...';

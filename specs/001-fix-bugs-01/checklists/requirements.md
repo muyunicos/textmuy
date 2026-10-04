@@ -101,6 +101,31 @@ los criterios siguen en PASS.
 - Estado: 21 suites en verde, sintaxis limpia, version de recarga coherente en los
   tres sitios (RC40).
 - Sigue PENDIENTE la verificacion integrada en WordPress (T049 y T050), que no es
+### Defectos de sincronía de identidad (2026-10-03)
+
+**Estado**: abierta. Reportados por el administrador tras desplegar RC41.
+
+Dos síntomas, un mismo origen familiar: la migración a identidad numérica (R1) llegó a
+las opciones, al lienzo y a los presets, pero **no a todos los que escriben o leen la
+identidad**.
+
+1. Al abrir, el lienzo dibujaba Bangers (correcto, resolvía por identidad) pero el
+   desplegable mostraba "MUY-Alegría". Causa: el estado por defecto seguía siendo el
+   string 'Bangers', el desplegable se puebla con identidades numéricas
+   (`option[value="1"]`), y la sincronía buscaba `option[value="Bangers"]`, que no
+   existe. Sin selección válida, el navegador muestra la primera entrada de la lista,
+   que por orden de categoría es una fuente propia. El desplegable miente sobre la
+   fuente del proyecto: incumplimiento de FR-010.
+2. El preview de la galería no aplicaba nada: `fonts:?:referencia vacia`. Causa: el
+   preview leía `it.id`, y las entradas de la galería usan `fontId` (catálogo) o
+   `fontKey` (sesión). Ninguna tiene `id`. Es un defecto de la implementación de US2.
+
+Requirements añadidos: FR-031 (resolver la referencia antes de buscar la opción),
+FR-032 (estado por defecto en forma canónica), FR-033 (no dejar una entrada
+arbitraria como si fuera la fuente elegida) y FR-034 (el preview resuelve la
+identidad con el mismo criterio que el resto del módulo). Criterios SC-016 y SC-017.
+
+### Ampliacion del alcance: US5 (2026-10-03)
   automatizable: incluye comprobar que el PDF renderizado coincide con la vista.
 ### Regresion RC40 (2026-10-03): identidades creadas antes que el catalogo
 

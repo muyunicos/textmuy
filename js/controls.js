@@ -2159,13 +2159,32 @@
         }
     }
     // Sincroniza el selector con el estado del proyecto SIN disparar el evento
-    // change: escribir la fuente es una decision del usuario, no una
-    // consecuencia de repintar el selector.
+    // change: escribir la fuente es una decision del usuario, no una consecuencia
+    // de repintar el selector.
+    //
+    // FR-031: la referencia del proyecto se RESUELVE a identidad antes de buscar
+    // la opcion. Sin esto, un proyecto que declara la fuente por nombre visible
+    // (referencia antigua, como el estado por defecto 'Bangers') busca
+    // option[value="Bangers"], que no existe porque las opciones van por identidad
+    // numerica; el desplegable queda sin seleccion valida y el navegador muestra
+    // la PRIMERA entrada de la lista, que es otra fuente. El usuario veia
+    // "MUY-Alegria" en el desplegable mientras el lienzo dibujaba Bangers.
     function sincronizarSeleccion(fontSelect) {
         if (!fontSelect || !editor) return;
         const ref = editor.getSettings && editor.getSettings().font ? editor.getSettings().font.src : null;
-        if (ref === null || ref === undefined) return;
-        const valor = String(ref);
+        if (ref === null || ref === undefined || ref === '') return;
+        let valor = String(ref);
+        // Resolver a identidad antes de buscar la opcion.
+        if (window.FontLoader && window.FontLoader.resolveFontId && !/^\d+$/.test(valor)) {
+            try { valor = String(window.FontLoader.resolveFontId(ref)); }
+            catch (_) {
+                // FR-033: no se puede representar la fuente declarada. NO se deja
+                // una entrada arbitraria: se limpia la seleccion para que el
+                // desplegable no muestre una fuente que el usuario no eligio.
+                try { fontSelect.selectedIndex = -1; } catch (_e) {}
+                return;
+            }
+        }
         if (fontSelect.querySelector('option[value="' + valor + '"]')) {
             if (fontSelect.value !== valor) fontSelect.value = valor;
         }

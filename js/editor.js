@@ -12,7 +12,13 @@
         // ===== TEXT =====
         text: 'TEXT',
         font: {
-            src: 'Bangers',
+            // FR-032: la fuente por defecto se declara por IDENTIDAD de catalogo,
+            // que es la forma canonica (R-C1.3). Antes era el nombre visible
+            // 'Bangers', y como el desplegable se puebla con identidades
+            // numericas (option value="1"), el selector no encontraba su opcion y
+            // quedaba mostrando la primera entrada de la lista: el usuario veia
+            // una fuente que no era la del proyecto.
+            src: 1,
             size: 76,
             weight: 'normal',
             name: '',

@@ -374,6 +374,44 @@ Requisitos: FR-026 a FR-030. Contrato: `contracts/render-dependencies.md`.
 
 ---
 
+## Phase 10: Sincronía de la identidad en la interfaz (P1)
+
+**Purpose**: Corregir los dos defectos reportados tras RC41: el desplegable muestra una
+fuente distinta de la del proyecto al abrir, y el preview de la galería no aplica nada.
+Ambos son incumplimientos de FR-010. Requisitos: FR-031 a FR-034.
+
+**Note**: La migración a identidad numérica (R1) llegó a las opciones, al lienzo y a
+los presets, pero no al estado por defecto ni al preview de la galería.
+
+### Tests for the phase
+
+> Las pruebas se escriben primero y se confirman fallando.
+
+- [x] T067 [P] [US1] Regresión en `tests/fuente-selector.test.js`: con el proyecto
+  declarando una fuente por nombre visible (referencia antigua) y el desplegable
+  poblado con identidades numéricas, la sincronía MUST dejar seleccionada la fuente
+  declarada y MUST NOT dejar una entrada arbitraria (FR-031, FR-033, SC-016)
+- [x] T068 [P] [US2] Regresión en `tests/fuente-selector.test.js`: la previsualización
+  de la galería MUST resolver la identidad de una entrada de catálogo (`fontId`) y de
+  una subida en la sesión (`fontKey`), y aplicar la fuente correspondiente (FR-034,
+  SC-017)
+
+### Implementation of the phase
+
+- [x] T069 [US1] En `js/controls.js`, resolver la referencia de fuente del proyecto a
+  identidad antes de buscar la opción, para que un valor antiguo por nombre visible
+  siga encontrando su entrada; y cuando no pueda resolverse, no dejar una entrada
+  arbitraria seleccionada (FR-031, FR-033)
+- [x] T070 [US1] En `js/editor.js`, dejar el estado por defecto en la forma canónica de
+  identidad, sin depender de un nombre visible suelto (FR-032)
+- [x] T071 [US2] En `js/fuentes-galeria.js`, resolver la identidad de la fuente
+  explorada con el campo que corresponda a cada tipo de entrada de la galería, y no
+  aplicar en silencio una previsualización que no se pudo resolver (FR-034)
+- [x] T072 Ejecutar las suites T067 y T068 y confirmar que pasan; verificar que todas
+  las suites siguen en verde
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

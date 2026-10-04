@@ -163,7 +163,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC41**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC42**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -202,6 +202,21 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
   .getFontFamily`). Sin comillas, un nombre con espacios produce CSS inválido, el
   navegador lo **ignora en silencio** y el lienzo conserva la composición anterior:
   esa era la fuente fantasma. Prohibido componer `ctx.font` a mano.
+- ✅ **El estado por defecto declara la fuente por IDENTIDAD, no por nombre.** `src: 1`
+  y no `'Bangers'`: el desplegable se puebla con identidades numéricas, así que una
+  referencia por nombre visible no encuentra su opción y el desplegable queda
+  mostrando la primera entrada de la lista (otra fuente). `controls.js::sincronizar`
+  resuelve la referencia a identidad antes de buscar la opción, y si no puede
+  representarla deja el desplegable vacío en vez de mentir (FR-031, FR-033).
+- ✅ **El catálogo manda en la identidad.** `fontRegistry` es un espejo: al resolver
+  por nombre, si el catálogo tiene la familia se usa **solo** el catálogo; el registro
+  se consulta únicamente si el catálogo no tiene ninguna. Con el catálogo pendiente
+  **no se inventan identidades** (era la regresión que dejaba toda fuente ambigua:
+  `titulo ambiguo (1,100001)`), y al llegar el catálogo se descartan las identidades
+  provisionales de las familias que él provee (R-C1.5–R-C1.8).
+- ✅ **La galería nombra su identidad por tipo de entrada.** Las del catálogo usan
+  `fontId` y las subidas en la sesión `fontKey`; el preview debe leer el campo que
+  corresponda. Ninguna entrada usa `id` (FR-034).
 - ✅ **El estado de carga de una fuente es explícito y reintentable.** Estados
   *no solicitada / pendiente / disponible / fallida* con causa consultable
   (`FontLoader.getFontState` / `getFontFailure`). Un fallo **no** marca la fuente como

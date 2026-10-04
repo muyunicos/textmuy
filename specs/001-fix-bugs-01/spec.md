@@ -338,6 +338,28 @@ regresión documentada en `checklists/requirements.md` bornó de aquí.
 - **FR-030**: El render MUST NOT descargar tipografías que el estilo no declara, ni
   recursos de imagen que el estilo no usa.
 
+### Requisitos de sincronía de la identidad en la interfaz
+
+Añadidos tras el reporte del administrador: el desplegable mostraba una fuente
+distinta de la del proyecto al abrir, y el preview de la galería no aplicaba nada.
+Ambos son incumplimientos de FR-010.
+
+- **FR-031**: El desplegable de fuentes MUST resolverse contra la identidad que el
+  proyecto declara. Si el proyecto guarda una referencia antigua por nombre visible,
+  el sistema MUST resolverla a su identidad antes de buscar la opción, para que el
+  selector MUST NOT quedar sin selección válida.
+- **FR-032**: El estado por defecto del editor MUST usar la forma canónica de
+  identidad, de modo que el desplegable MUST NOT requerir una migración aparte para
+  mostrar la fuente inicial.
+- **FR-033**: Cuando el desplegable no pueda representar la fuente declarada —porque
+  el catálogo aún no llegó o la fuente no existe—, el sistema MUST NOT dejar que el
+  navegador muestre una entrada arbitraria como si fuera la fuente elegida: la
+  ausencia MUST ser visible o el desplegable MUST quedar vacío.
+- **FR-034**: La previsualización de la galería de fuentes MUST resolver la
+  identidad de la fuente explorada con el mismo criterio que el resto del módulo, con
+  independencia del campo que use internamente cada tipo de entrada de la galería.
+  Una previsualización que no puede resolver MUST NOT aplicarse en silencio.
+
 ### Key Entities
 
 - **Fuente**: tipografía disponible para el administrador. Atributos: identidad de
@@ -404,6 +426,12 @@ regresión documentada en `checklists/requirements.md` bornó de aquí.
 - **SC-015**: El tiempo total de un render con tipografía y N recursos de imagen no
   crece de forma acumulativa con N: duplicar los recursos no duplica el tiempo total
   (medido sobre el mismo preset con una y con cuatro imágenes).
+- **SC-016**: Al abrir el editor, el desplegable muestra la fuente que el proyecto
+  declara, no una entrada arbitraria. Cero casos en los que el desplegable y el
+  texto del lienzo muestren fuentes distintas.
+- **SC-017**: Tocar cualquier fuente en la galería la aplica al lienzo en el 100% de
+  los casos, tanto si es del catálogo como si fue subida en la sesión. Cero
+  previsualizaciones que no apliquen nada.
 
 ## Assumptions
 

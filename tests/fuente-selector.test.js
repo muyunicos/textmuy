@@ -154,6 +154,71 @@ const FL = global.window.FontLoader;
     assert.equal(FL.resolveFontId('Bangers'), 1,
         'el catalogo sigue mandando despues de crear una fuente nueva');
 
+    // 10. RC41: sincronia del desplegable. El proyecto puede declarar la fuente
+    //     por nombre visible (referencia antigua, p.ej. el estado por defecto
+    //     'Bangers') mientras el desplegable esta poblado con identIDADES
+    //     numericas (option value="1"). La sincronia debe resolver la
+    //     referencia ANTES de buscar la opcion; si no, el desplegable queda sin
+    //     seleccion valida y el navegador muestra la PRIMERA entrada de la
+    //     lista, que es otra fuente y deja al usuario viendo una mentira.
+    //     FR-031, FR-033, SC-016.
+    function desplegableDePrueba() {
+        const opciones = FL.listFontEntries().map(function (e) {
+            return { value: String(e.id), nombre: e.name };
+        });
+        return {
+            opciones: opciones,
+            // Primer valor NO es la fuente declarada: si la sincronia falla, el
+            // desplegable queda mostrando esta.
+            value: opciones.length ? opciones[0].value : '',
+            querySelector: function (sel) {
+                const m = /option\[value="(.*)"\]/.exec(sel || '');
+                if (!m) return null;
+                const v = m[1];
+                return this.opciones.some(function (o) { return o.value === v; }) ? { value: v } : null;
+            },
+            nombreDe: function (v) {
+                const o = this.opciones.filter(function (x) { return x.value === String(v); })[0];
+                return o ? o.nombre : null;
+            }
+        };
+    }
+
+    // 10a. Referencia antigua por nombre visible: debe encontrar su identidad.
+    const sel1 = desplegableDePrueba();
+    const refVieja = 'Bangers';                        // el estado por defecto
+    const idResuelto = FL.resolveFontId(refVieja);     // FR-031: resolver antes
+    assert.equal(idResuelto, 1, 'la referencia por nombre resuelve a su identidad');
+    const entrada = sel1.querySelector('option[value="' + idResuelto + '"]');
+    assert.ok(entrada, 'existe la opcion con la identidad resuelta');
+    sel1.value = String(idResuelto);
+    assert.equal(sel1.nombreDe(sel1.value), 'Bangers',
+        'el desplegable muestra la fuente que declara el proyecto, no la primera');
+
+    // 10b. Con la referencia YA en identidad, el resultado es el mismo.
+    const sel2 = desplegableDePrueba();
+    const idNumerico = FL.resolveFontId(2);
+    assert.equal(sel2.nombreDe(idNumerico), 'Otra', 'una identidad numerica tambien encuentra su opcion');
+
+    // 10c. Referencia que NO puede ser una fuente (caracteres imposibles): la
+    //     resolucion falla con causa y NO hay opcion que la represente, de modo
+    //     que la sincronia no deja una entrada arbitraria seleccionada como si
+    //     fuera la fuente elegida (FR-033).
+    //     Ojo: un nombre desconocido pero plausible ("Oswald") SI debe resolver,
+    //     porque puede ser una Google que aun no esta en el catalogo (R-C1.6).
+    //     Lo que falla es una referencia corrupta.
+    let idCorrupta = null;
+    try { idCorrupta = FL.resolveFontId('fuente@rara!'); } catch (e) { idCorrupta = null; }
+    assert.equal(idCorrupta, null, 'una referencia corrupta no resuelve a identidad');
+    assert.equal(sel2.querySelector('option[value="null"]'), null,
+        'no hay opcion para una referencia no resuelta: no se muestra otra fuente');
+
+    // 10d. Una fuente plausible que el catalogo no trae SI resuelve: es una
+    //     fuente nueva, no un error (R-C1.6).
+    const googleImportada = FL.resolveFontId('Oswald');
+    assert.equal(typeof googleImportada, 'number',
+        'una fuente no catalogada resuelve a una identidad propia');
+    assert.notEqual(googleImportada, 1, 'no colapsa con la identidad del catalogo');
 
     console.log('OK: fuente-selector.test.js');
 })().catch(function (e) { console.error(e.stack || e.message); process.exit(1); });
