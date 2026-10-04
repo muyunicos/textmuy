@@ -1878,8 +1878,18 @@ fieldset legend label {
    natural de esa celda (x0.9), asi la miniatura se muestra a ~1x (sin
    upscales grandes). Antes el 1/1 fijo aplastaba el tile de fuentes (180x30)
    a ~62x10 px. */
-.tt-galpanel-list { flex: 1; overflow-y: auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--tt-gal-col, 90px) * 0.9)), 1fr)); gap: 6px; align-content: flex-start; padding: 2px; }
-.tt-galpanel-tile { position: relative; width: 100%; aspect-ratio: var(--tt-gal-ratio, 1 / 1); min-width: 0; min-height: 0; border: 2px solid transparent; border-radius: var(--tt-radius-sm, 4px); background: var(--tt-bg, #0e0e0e); cursor: pointer; padding: 0; overflow: hidden; }
+/* RC46 / spec 009 (T030): la rejilla pasa de GRID a FLEX. Con `display:grid` +
+   `grid-auto-rows:auto`, el track de la fila NO tiene en cuenta el
+   `aspect-ratio` del tile: en la galeria de tipografias la fila media 6 px
+   (canvas con height:100% sobre una altura indeterminada no aporta nada) y el
+   tile 29 px, de modo que cada celda se solapaba con la siguiente y le robaba
+   el clic (Playwright: "intercepts pointer events"). La galeria era
+   inclicable. En flex, la altura de cada linea SI sale del aspect-ratio del
+   item, asi que el alto es completo (SC-006) y las celdas no se pisan.
+   El ancho de columna sigue saliendo de `--tt-gal-col` (x0.9 para que entren
+   2 columnas de tipografias en el panel de ~380 px). */
+.tt-galpanel-list { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 2px; }
+.tt-galpanel-tile { position: relative; flex: 0 0 calc(var(--tt-gal-col, 90px) * 0.9); width: calc(var(--tt-gal-col, 90px) * 0.9); aspect-ratio: var(--tt-gal-ratio, 1 / 1); height: auto; min-width: 0; min-height: 0; border: 2px solid transparent; border-radius: var(--tt-radius-sm, 4px); background: var(--tt-bg, #0e0e0e); cursor: pointer; padding: 0; overflow: hidden; }
 .tt-galpanel[data-ambito="img"] { --tt-gal-col: 90px; --tt-gal-ratio: 1 / 1; }
 .tt-galpanel[data-ambito="presets"] { --tt-gal-col: 180px; --tt-gal-ratio: 2 / 1; }
 .tt-galpanel[data-ambito="fonts"] { --tt-gal-col: 162px; --tt-gal-ratio: 6 / 1; }
