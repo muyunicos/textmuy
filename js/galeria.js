@@ -1,4 +1,4 @@
-﻿/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
+/* ===== TEXTMUY GALERIA - panel acoplado izquierda =====
  * API: window.TextMuyGaleria.abrir(fuente, aplicar, seccion, opciones)
  *   fuente: 'fondos'|'iconos'|'varios' (catalogo img.json + inventario del puente)
  *           | 'presets' (presets.json + sprite del ambito)

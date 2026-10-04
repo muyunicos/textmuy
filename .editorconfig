@@ -1,0 +1,40 @@
+# TextMuy - convenciones de texto del repositorio.
+# Mismas reglas que .gitattributes: UTF-8 sin BOM y LF en todo.
+# Ver docs/entorno-desarrollo.md (diagnostico de entorno 2026-10-03).
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# JavaScript: 2 espacios, comillas simples, punto y coma (ver AGENTS.md).
+[*.js]
+indent_size = 2
+quote_type = single
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+# CSS: 2 espacios.
+[*.css]
+indent_size = 2
+
+# HTML: 2 espacios (el HTML del modulo es plano, sin build).
+[*.html]
+indent_size = 2
+
+# Markdown: los espacios al final se conservan a proposito (hard breaks).
+[*.md]
+trim_trailing_whitespace = false
+
+# JSON: 2 espacios.
+[*.json]
+indent_size = 2
+
+# PowerShell de Spec Kit: los .ps1 son generados por el CLI; no editar a mano.
+[*.ps1]
+indent_size = 4

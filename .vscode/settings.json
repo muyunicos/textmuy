@@ -1,5 +1,30 @@
 {
   // Entorno de desarrollo: terminal integrada en PowerShell (VS Code usa pwsh si esta
   // instalado). La heredan la terminal de VS Code y Cline. Ver docs/entorno-desarrollo.md.
-  "terminal.integrated.defaultProfile.windows": "PowerShell"
+  //
+  // NOTA: el ajuste del terminal EXTERNO de VS Code
+  // ("terminal.external.windowsExec": "C:\\Windows\\System32\\bash.exe") NO se fija aqui
+  // a proposito: ese archivo no existe en esta maquina y es un ajuste global del
+  // usuario, no del repo. Ver docs/entorno-desarrollo.md seccion 4.
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // Codificacion y finales de linea: UTF-8 sin BOM y LF en todo el modulo
+  // (mismo criterio que .gitattributes y .editorconfig).
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "files.trimFinalNewlines": true,
+
+  // No confiar en la deteccion automatica: utf-8 debe declararse siempre.
+  // utf8 (sin BOM) es el unico valor aceptable; utf8bom esta prohibido.
+  "[powershell]": {
+    "files.encoding": "utf8"
+  },
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false
+  },
+  "[javascript]": {
+    "files.trimTrailingWhitespace": false
+  }
 }

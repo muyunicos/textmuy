@@ -1,4 +1,4 @@
-﻿/* ===== TEXTSTUDIO CONTROLS - UI Event Handlers ===== */
+/* ===== TEXTSTUDIO CONTROLS - UI Event Handlers ===== */
 
 (function() {
     'use strict';

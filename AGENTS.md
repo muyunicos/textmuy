@@ -60,6 +60,8 @@ texto + preset en un **PNG transparente** del tamaño exacto.
 textmuy/
 ├── AGENTS.md              <- ESTE archivo (contexto obligatorio)
 ├── README.md              <- Ficha de desarrollo (entorno, Spec Kit, pruebas)
+├── .gitattributes         <- EOL (LF) y binarios del repo (evita el worktree MIXTO)
+├── .editorconfig          <- UTF-8 sin BOM + LF para todos los editores
 ├── index.html             <- Editor completo (UI; iframe de la pestaña "Estilos de Texto")
 ├── render-core.html       <- Motor de render headless (~220 KB sin UI: fonts + effects +
 │                             editor + export + api); iframe off-screen del plugin
@@ -90,7 +92,7 @@ textmuy/
                               controls-init, galeria-items, invalidacion, sprite-canonico,
                               rc-bump, render-dependencias, fuente-compuesta,
                               fuente-carga-estados, fuente-selector, preset-roundtrip,
-                              integridad-archivos)
+                              integridad-archivos, entorno)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
 ```
 
@@ -439,6 +441,37 @@ VS Code + extensión **Cline**. La integración de **Spec Kit** es `cline` (pred
 - 🚫 **Sin aprobación explícita**: no modificar bases de datos, credenciales ni servicios
   externos, y no desplegar/publicar sin aprobación del usuario.
 
+### 8.1 Diagnóstico 2026-10-03: por qué "se rompía el código" sin error real
+
+Un barrido completo (historial + suites + `.specify`) **NO encontró un solo script
+bash** en el módulo y las 22 suites originales estaban **verdes**. Los "roturas" eran
+**defectos de configuración del entorno**, no de lógica. Quedan así:
+
+| # | Hallazgo | Estado | Guardia |
+|---|---|---|---|
+| 1 | El único `bash` del PATH es `C:\Program Files\Wiimm\WIT\bash.exe` (cygwin de Wiimm, **no** Git Bash) y `C:\Windows\System32\bash.exe` de VS Code **no existe** | Documentado | `tests/entorno.test.js` |
+| 2 | `core.autocrlf=true` (global) **sin `.gitattributes`** → worktree MIXTO (`w/mixed`, `w/crlf`) y diffs fantasma | **Corregido** | `tests/entorno.test.js` |
+| 3 | BOM UTF-8 en `js/controls.js` y `js/galeria.js` (los demás sin BOM) | **Corregido** | `tests/entorno.test.js` |
+| 4 | `[Console]::OutputEncoding` = `ibm850` (CP850) → mojibake en salida de herramientas | **Corregido** | perfil de pwsh (§8) |
+| 5 | PowerShell instalado como **MSIX/Store** → `Get-Command pwsh` devuelve una ruta de `WindowsApps` protegida | **Falso positivo descartado** | `docs/entorno-desarrollo.md` §2.3 |
+
+⚠️ **Falso positivo corregido (2026-10-03)**: el MSIX de PowerShell **funciona**. La ruta
+`C:\Program Files\WindowsApps\...\pwsh.exe` da `Test-Path = True` desde otra sesión,
+`Get-Acl` resuelve y Node la ejecuta. `WindowsApps` es una carpeta protegida que engaña a
+algunas herramientas. **No reinstalar PowerShell como MSI**: `winget` además lo rechaza por
+conflicto con el paquete MSIX instalado. El ruido `:\Program Files\WindowsApps\...\pwsh.exe\`
+en la salida del runner **no** es un fallo del comando ejecutado.
+
+🔴 **REGLA DURA — bash es un agujero negro en esta máquina.** `bash` resuelve a un cygwin
+ajeno (`warning: could not find /tmp`) que NO es el shell del proyecto y rompe rutas. Todo
+el módulo es **PowerShell (`ps`)**: Spec Kit, `.specify/scripts/powershell/*.ps1` y los
+tests. **Nunca** invocar `bash`, `sh`, `wsl` ni `curl`; para fetching usar `Invoke-WebRequest`
+y `Get-Content`. Si un `.sh` aparece en el repo, `tests/entorno.test.js` lo rechaza.
+
+✅ **Convenciones de texto del repo (`.gitattributes` + `.editorconfig` + `.vscode`)**: todo
+el texto es **UTF-8 sin BOM** y **LF**. Estan versionados para que el estado no vuelva a
+derivar. `git ls-files --eol` debe mostrar siempre `i/lf w/lf`.
+
 **Spec Kit**: los workflows `.clinerules/workflows/speckit-*.md` ejecutan
 `.specify/scripts/powershell/*.ps1` desde la raíz del módulo (integración `cline`, scripts
 `ps`). A diferencia del repo del plugin, aquí `.specify/` y `.clinerules/` SÍ están
@@ -470,7 +503,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 22 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
+Hay 23 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
 opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados externamente
 (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con motor/miniaturas
 simulados, no sustituye la prueba en WordPress.
@@ -499,6 +532,8 @@ node tests/fuente-compuesta.test.js   # familia compuesta entrecomillada (RC39)
 node tests/fuente-carga-estados.test.js  # estados de carga explicitos + reintento (RC39)
 node tests/fuente-selector.test.js    # selector sin duplicados, toda entrada funciona (RC39)
 node tests/integridad-archivos.test.js   # sin caracteres corruptos + version RC documentada
+node tests/entorno.test.js           # entorno: cero scripts bash, .gitattributes/.editorconfig,
+                                      # todo el texto UTF-8 sin BOM y LF (RC46)
 node tests/render-dependencias.test.js   # dependencias del render en paralelo (RC41)
 node tests/rc-bump.test.js
 
@@ -524,10 +559,14 @@ Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullNam
 - ✅ OBLIGATORIO: trabajar en **PowerShell 7 (`pwsh`)** desde la raíz del módulo; ante un
   fallo, verificar shell, directorio, PATH y herramientas antes de cambiar el entorno
   (§8, `docs/entorno-desarrollo.md`).
+- ✅ OBLIGATORIO: escribir archivos como **UTF-8 sin BOM** y con **LF**. No reintroducir
+  CRLF ni BOM; `tests/entorno.test.js` lo verifica en cada corrida (§8.1).
 - ✅ Mensajes e interfaz en español (sin tildes en código puro para evitar problemas de
   encoding).
 - ✅ Las rutas, catalogos y archivos son datos del plugin: NO hardcodear rutas, NO
   escribir catalogos y NO asumir handlers; usar el puente (`urls.*`) y el motor (`op=`).
+- ❌ NO DEBES: usar `bash`, `sh`, `wsl` ni `curl` en esta máquina (§8.1: `bash` resuelve a
+  un cygwin ajeno y roto). Todo es PowerShell; para fetching, `Invoke-WebRequest`.
 - ❌ NO DEBES: usar `localStorage` para presets/imágenes/fuentes.
 - ❌ NO DEBES: introducir fallbacks client-side ni reactivar el modo standalone.
 - ❌ NO DEBES: editar los vendors de `utils/`.

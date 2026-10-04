@@ -43,6 +43,46 @@ Get-Command pwsh, specify, uv, node, git | Select-Object Name, Source
 specify check
 ```
 
+### 2.1 Prohibición absoluta de bash (diagnóstico 2026-10-03)
+
+🔴 **En esta máquina `bash` es un agujero negro.** Verificado:
+
+| Qué | Resultado |
+|---|---|
+| `Get-Command bash` | `C:\Program Files\Wiimm\WIT\bash.exe` — cygwin de **Wiimm** (Wii Modding Tool), NO Git Bash |
+| `bash --version` | `GNU bash 4.4.12 (x86_64-unknown-cygwin)` + `warning: could not find /tmp` |
+| `Test-Path C:\Windows\System32\bash.exe` | `False` (el `terminal.external.windowsExec` de VS Code apunta a un archivo **inexistente**) |
+| Scripts `.sh` en el módulo | **0**. Spec Kit usa `ps` (PowerShell). |
+
+**Nunca** invocar `bash`, `sh`, `wsl` ni `curl`. Para fetching usar
+`Invoke-WebRequest` / `Get-Content`. `tests/entorno.test.js` falla si aparece un `.sh`.
+
+### 2.2 Defectos de entorno conocidos (y su estado)
+
+| Defecto | Síntoma | Estado / arreglo |
+|---|---|---|
+| `core.autocrlf=true` (global) sin `.gitattributes` | Worktree MIXTO (`w/mixed`, `w/crlf`) y **diffs fantasma** | **Corregido**: `.gitattributes` con `* text=auto eol=lf` |
+| BOM UTF-8 en `js/controls.js`, `js/galeria.js` | Primer carácter invisible; parseo inconsistente | **Corregido**: eliminados |
+| `[Console]::OutputEncoding` = `ibm850` (CP850) | Mojibake en salida de CLIs (ej. ASCII art de `specify check`) | **Corregido**: perfil de pwsh (§4.1) |
+| PowerShell instalado como **MSIX/Store** | `Get-Command pwsh` devuelve `...\WindowsApps\...\pwsh.exe` | **Sin impacto** (ver §2.3): la ruta existe y funciona |
+
+### 2.3 Sobre el PowerShell MSIX/Store (falso positivo descartado)
+
+`pwsh` está instalado como paquete MSIX, así que `Get-Command pwsh` devuelve
+`C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.6.0_x64__8weifyb3d8bbwe\pwsh.exe`.
+Esa carpeta `WindowsApps` es **protegida** y hace que herramientas de bajo nivel la
+reporten como inexistente. Se verificó que **NO es un problema real**:
+
+```powershell
+Test-Path 'C:\Program Files\WindowsApps\...\pwsh.exe'   # True (desde otra sesion pwsh)
+Get-Acl 'C:\Program Files\WindowsApps\...\pwsh.exe'     # NT AUTHORITY\SYSTEM (accesible)
+```
+
+Node la ejecuta sin problema (`child_process.execFileSync` → OK). El ruido
+`:\Program Files\WindowsApps\...\pwsh.exe\` en la salida del runner **no** es un fallo del
+comando ejecutado. **No reinstalar PowerShell como MSI**: no aporta nada y `winget` además
+lo rechaza por conflicto con el paquete MSIX ya instalado.
+
 ## 3. Spec Kit (SDD) en este repositorio
 
 - Integración **predeterminada y única**: `cline`.
@@ -92,6 +132,29 @@ $PSVersionTable.PSVersion      # 7.x
 (Get-Process -Id $PID).Path    # ...\pwsh.exe
 Get-Location                   # raíz del módulo
 ```
+
+### 4.1 Codificación de la consola (aplicado)
+
+El defecto 4 de §2.2 (`[Console]::OutputEncoding` = `ibm850`) se corrigió con un **perfil de
+PowerShell** en `C:\Users\Jonatan\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
+(fuera del repo: es configuración personal de la máquina):
+
+```powershell
+$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+```
+
+Verificación (esperado: `utf-8`):
+
+```powershell
+pwsh -NoProfile -Command '[Console]::OutputEncoding.WebName'
+```
+
+> Nota: el archivo existe pero `Test-Path $PROFILE` puede dar `False` si el directorio de
+> documentos está redirigido (OneDrive). Verificar con `pwsh -NoProfile -Command ...`.
+
+> Además, y ya versionado en el repo: `.gitattributes` + `.editorconfig` +
+> `.vscode/settings.json` garantizan que **los archivos** sean UTF-8 sin BOM y LF. El perfil
+> arregla la **salida de consola**, que es un asunto de la máquina.
 
 ## 5. Diagnóstico ante fallos (orden obligatorio)
 

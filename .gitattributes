@@ -1,0 +1,38 @@
+# TextMuy: normalizacion de finales de linea y encoding en todo el repositorio.
+#
+# MOTIVO (diagnostico 2026-10-03): core.autocrlf=true venia del config global de
+# Git sin .gitattributes, por lo que el worktree quedo MIXTO (git ls-files --eol
+# mostraba w/mixed en css/style.css, w/crlf en js/main.js, w/lf en el resto).
+# Ese estado produce diffs fantasma que hacen creer que se rompio codigo.
+#
+# Regla: en el repositorio TODO es UTF-8 sin BOM y LF. Los .min de js/utils/
+# quedan normalizados como el resto (no se editan, solo se fijan su EOL).
+# Los .webp/.png binarios se declaran explicitamente para que Git no los toque.
+
+* text=auto eol=lf
+
+# Documentacion y fuentes del modulo: UTF-8 sin BOM (BOM rompe el chequeo de
+# integridad y ensucia el primer caracter en algunos editores).
+*.js      text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf
+*.md      text eol=lf
+*.json    text eol=lf
+*.txt     text eol=lf
+
+# Sprites y hojas de imagen: binarios, sin normalizacion de texto.
+*.webp    binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+
+# Tipos de fuente subidos por el administrador: binarios.
+*.ttf     binary
+*.otf     binary
+*.woff    binary
+*.woff2   binary
+
+# Presets .txm: son JSON del plugin, se guardan desde el navegador.
+*.txm     text eol=lf
