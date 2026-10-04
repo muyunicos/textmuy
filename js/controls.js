@@ -123,12 +123,16 @@
         document.addEventListener('textmuy:line-target-updated', function() {
             if (window.GradientPicker && window.GradientPicker.init) {
                 window.GradientPicker.init();
-        // Mostrar/ocultar la barra unica + gating de grupos globales.
-        document.addEventListener('textmuy:line-target-updated', applyLineTargetGating);
-        applyLineTargetGating();
-
             }
         });
+
+        // 002-text-tab US2 (research R2): el gating de la barra y de los grupos
+        // globales se registra y se aplica AQUI, en el arranque, y no dentro del
+        // listener de arriba. Antes vivia anidado en ese listener, que nunca se
+        // dispara al abrir: la barra "Style target" quedaba con hidden=true
+        // hasta que el usuario cambiaba de pestana (FR-002).
+        document.addEventListener('textmuy:line-target-updated', applyLineTargetGating);
+        applyLineTargetGating();
     }
 
     // Bind canvas size inputs with bidirectional logic

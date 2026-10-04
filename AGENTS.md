@@ -86,14 +86,19 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 22 tests Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 29 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
                               rc-bump, render-dependencias, fuente-compuesta,
                               fuente-carga-estados, fuente-selector, preset-roundtrip,
-                              integridad-archivos, entorno)
+                              integridad-archivos, entorno, hoja-generacion,
+                              fuentes-filtros-footer, fuentes-preview-us3,
+                              curva-snapshot, curva-sin-webgl, barra-line-target)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
+                              + text-tab.browser.js (spec 002, pendiente de escribir)
+└── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
+                              research, data-model, contracts, quickstart, tasks)
 ```
 
 ## 3. Flujo de trabajo
@@ -166,7 +171,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC47**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC48**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -352,6 +357,45 @@ El interruptor (`Invertir`, chico, arriba a la derecha) vive **solo** en la gale
 de fuentes y arranca encendido; en imágenes y presets **no** se invierte porque sus
 tiles son renders reales y darlos vuelta se vería raro. Sin persistencia (ni
 `localStorage` ni `wp_options`): es una preferencia de sesión.
+
+### 7.7 RC48 — spec 002-text-tab: Bloque A (curva y barra de lineas)
+
+Entrega inicial del feature `specs/002-text-tab` (pestana TEXT). Se ejecuta en
+cuatro bloques (A-D) para que cada uno sea verificable por separado; el Bloque A
+no depende de la geometria unica y por eso va primero.
+
+- ✅ **La curva ya no borra el texto** (US1, research R1). `curveWebGL` copiaba
+  el resultado a un canvas 2D **después** de `loseContext()`: el contexto muerto
+  dejaba el resultado vacío (medido: 0 px de tinta con ángulo 120, el texto
+  desaparecía). Ahora el orden es dibujar → **copiar a 2D** → perder el contexto
+  → devolver la copia, que es 2D y autocontenido. El `loseContext()` se conserva
+  (límite de ~16 contextos GPU) pero sobre el canvas ya descartable.
+- ✅ **La ruta de salida no degrada** (R-C2.1, constitución II).
+  `DistortEngine.curve(capa, angulo, {requireWebGL})` devuelve `null` en vez de
+  caer al fallback 2D, y `editor.js` (con `state.headlessRender`, que solo se
+  activa en `renderToCanvas`) **rechaza con causa** `curva:webgl:no_disponible`
+  en vez de devolver el texto recto. El **editor visible conserva el fallback 2D**
+  (R-C2.2): sin WebGL sigue se puede previsualizar.
+- ✅ **La barra "Style target" se ve al abrir** (US2, research R2). El registro y
+  la llamada inicial de `applyLineTargetGating` estaban **anidados** dentro del
+  listener de `textmuy:line-target-updated` que re-sincroniza los gradient
+  pickers; ese evento nunca se dispara al arrancar, así que la barra quedaba
+  `hidden=true` hasta que el usuario cambiaba de pestaña (medido). Ahora se
+  registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
+
+**Estado del feature**: Bloque A cerrado (US1 + US2). Pendientes: Bloque B
+(geometría única: área útil con padding contra el lado menor y mínimo
+garantizado, avances por línea con L1 inerte), Bloque C (encaje final siempre) y
+Bloque D (modelo de líneas completo: `lines.inherit`, `sizing` por línea,
+claves 1-based, anti-ciclos, fuente por línea). Las tareas están en
+`specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
+`specs/002-text-tab/quickstart.md`.
+
+⚠️ **Gobernanza adelantada al código**: la constitución ya está en **v3.2.0**
+(`.txm` `version:2`, claves 1-based, alcance por línea ampliado, sin migración),
+pero el módulo sigue escribiendo el formato viejo hasta el Bloque D. Los `.txm`
+con el formato de líneas anterior quedan inválidos al aplicar el nuevo, **por
+diseño y sin lector** (constitución VII v3.2.0): no es un bug a arreglar.
 
 ### 7.6 Estado verificado (RC46, lab local)
 
@@ -634,10 +678,15 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 23 suites Node (verdes el 2026-10-03 con Node 22.20.0 sobre pwsh 7.6.6). La prueba
-opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados externamente
-(variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con motor/miniaturas
-simulados, no sustituye la prueba en WordPress.
+Hay 29 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
+externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
+motor/miniaturas simulados, no sustituye la prueba en WordPress.
+
+**Spec 002-text-tab (pestana TEXT)**: la guia completa de validacion esta en
+`specs/002-text-tab/quickstart.md` (logica en Node, pixeles en Chrome con puente
+simulado, y recorrido integrado en la pestana del plugin). Las tareas, con su
+orden y dependencias, estan en `specs/002-text-tab/tasks.md`.
 
 
 ```powershell
@@ -667,6 +716,9 @@ node tests/entorno.test.js           # entorno: cero scripts bash, .gitattribute
                                       # todo el texto UTF-8 sin BOM y LF (RC46)
 node tests/render-dependencias.test.js   # dependencias del render en paralelo (RC41)
 node tests/rc-bump.test.js
+node tests/curva-snapshot.test.js      # US1: snapshot a 2D ANTES de loseContext + espejo por signo
+node tests/curva-sin-webgl.test.js     # US1: la API rechaza con causa; el editor conserva el fallback 2D
+node tests/barra-line-target.test.js   # US2: la barra Style target se ve al abrir (gating por pestana)
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

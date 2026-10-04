@@ -146,10 +146,19 @@
             return result;
         }
 
-        curve(canvas, angle) {
+        /**
+         * Curva la capa. `options.requireWebGL` (ruta headless) devuelve null
+         * en vez de degradar al fallback 2D cuando WebGL no esta disponible
+         * (002-text-tab US1, contracts/curva.md R-C2.1); el editor visible
+         * conserva el fallback (R-C2.2).
+         */
+        curve(canvas, angle, options) {
             const geometry = getArcGeometry(canvas.width, canvas.height, angle);
             if (!geometry.curved) return canvas;
-            return this.curveWebGL(canvas, geometry) || this.curveCanvas(canvas, geometry);
+            const viaGL = this.curveWebGL(canvas, geometry);
+            if (viaGL) return viaGL;
+            if (options && options.requireWebGL) return null;
+            return this.curveCanvas(canvas, geometry);
         }
 
         curveWebGL(source, geometry) {
@@ -236,9 +245,22 @@
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                // 002-text-tab US1 (P1, research R1): el snapshot va ANTES de
+                // perder el contexto. Antes se llamaba loseContext() y se
+                // devolvia el canvas WebGL: el contexto muerto dejaba el
+                // resultado VACIO (medido: 0 px de tinta con angulo 120, el
+                // texto desaparecia por completo). Con la copia a 2D primero,
+                // lo devuelto es autocontenido (R-C1.2) y el limite de
+                // contextos GPU (~16) se sigue respetando (R-C1.3).
+                const snapshot = document.createElement('canvas');
+                snapshot.width = geometry.width;
+                snapshot.height = geometry.height;
+                snapshot.getContext('2d').drawImage(output, 0, 0);
+
                 const loseCtx = gl.getExtension('WEBGL_lose_context');
                 if (loseCtx) loseCtx.loseContext();
-                return output;
+                return snapshot;
             } catch (_) {
                 return null;
             }

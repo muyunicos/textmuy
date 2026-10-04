@@ -36,8 +36,8 @@ delta estricto, la resolucion en tres pasos y el rechazo con causa de ciclos.
 
 **Purpose**: dejar el repo en condiciones de recibir el cambio.
 
-- [ ] T001 Normalizar a UTF-8 sin BOM y LF los artefactos de `specs/002-text-tab/` (los seis `.md` estaban en CRLF y rompian `tests/entorno.test.js`)
-- [ ] T002 [P] Confirmar la puerta de suites antes de tocar codigo: `Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName }` (las 26 suites deben estar en `OK`)
+- [x] T001 Normalizar a UTF-8 sin BOM y LF los artefactos de `specs/002-text-tab/` (los seis `.md` estaban en CRLF y rompian `tests/entorno.test.js`)
+- [x] T002 [P] Confirmar la puerta de suites antes de tocar codigo: `Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName }` (las 26 suites deben estar en `OK`)
 - [ ] T003 Registrar en `AGENTS.md` el feature `002-text-tab` y su estado (seccion de.features y de testing), hoy ausente pese a existir el spec
 - [ ] T004 [P] Documentar en `AGENTS.md` la decision de ejecucion en bloques A-D y que la rotten de la pestana TEXT no toca catalogos, puente ni motor de recursos
 
@@ -76,15 +76,15 @@ comprobar que el texto vuelve recto e identico.
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Suite `tests/curva-snapshot.test.js`: fijar el orden dibujar -> copiar a 2D -> perder contexto -> devolver la copia, que el canvas devuelto es 2D y autocontenido, y que el angulo 0 no crea contexto GL (R-C1.1 a R-C1.4)
-- [ ] T013 [P] [US1] Suite `tests/curva-sin-webgl.test.js`: fijar que la ruta headless rechaza con causa sin WebGL y que el editor visible conserva el fallback 2D (R-C2.1, R-C2.2, constitucion II)
+- [x] T012 [P] [US1] Suite `tests/curva-snapshot.test.js`: fijar el orden dibujar -> copiar a 2D -> perder contexto -> devolver la copia, que el canvas devuelto es 2D y autocontenido, y que el angulo 0 no crea contexto GL (R-C1.1 a R-C1.4)
+- [x] T013 [P] [US1] Suite `tests/curva-sin-webgl.test.js`: fijar que la ruta headless rechaza con causa sin WebGL y que el editor visible conserva el fallback 2D (R-C2.1, R-C2.2, constitucion II)
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] En `js/effects/distort-engine.js`, copiar el resultado WebGL a un canvas 2D **antes** de `loseContext()` y devolver la copia (hoy `loseContext()` borra el resultado: 0 px de tinta con angulo 120)
-- [ ] T015 [US1] En `js/effects/distort-engine.js`, via rapida de angulo 0: devolver la capa sin tocar, sin crear contexto WebGL (R-C1.4)
-- [ ] T016 [US1] En `js/editor.js`, propagar la causa cuando la curva no puede calcularse en la ruta de render headless, en vez de degradar al fallback 2D (R-C2.1)
-- [ ] T017 [US1] `node --check` de `js/effects/distort-engine.js` y `js/editor.js`; suites de T012 y T013 en verde
+- [x] T014 [US1] En `js/effects/distort-engine.js`, copiar el resultado WebGL a un canvas 2D **antes** de `loseContext()` y devolver la copia (hoy `loseContext()` borra el resultado: 0 px de tinta con angulo 120)
+- [x] T015 [US1] En `js/effects/distort-engine.js`, via rapida de angulo 0: devolver la capa sin tocar, sin crear contexto WebGL (R-C1.4)
+- [x] T016 [US1] En `js/editor.js`, propagar la causa cuando la curva no puede calcularse en la ruta de render headless, en vez de degradar al fallback 2D (R-C2.1)
+- [x] T017 [US1] `node --check` de `js/effects/distort-engine.js` y `js/editor.js`; suites de T012 y T013 en verde
 
 **Checkpoint**: US1 verificable por si sola (curva visible en ambos signos,
 paridad con el motor).
@@ -104,13 +104,13 @@ BACKGROUND/DOWNLOAD y comprobar que se oculta.
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Suite `tests/barra-line-target.test.js`: fijar que el registro de `applyLineTargetGating` no esta anidado dentro del listener de `textmuy:line-target-updated`, que el gating corre al arrancar, y el criterio de pestana (visible en text/custom/icon, oculta en background/save)
+- [x] T018 [P] [US2] Suite `tests/barra-line-target.test.js`: fijar que el registro de `applyLineTargetGating` no esta anidado dentro del listener de `textmuy:line-target-updated`, que el gating corre al arrancar, y el criterio de pestana (visible en text/custom/icon, oculta en background/save)
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] En `js/controls.js`, sacar el registro de `applyLineTargetGating` y su llamada inicial del listener de `GradientPicker` y llevarlos al nivel de `bindControls()` (hoy la barra nace con `hidden=true` y solo aparece al cambiar de pestana)
-- [ ] T020 [US2] Verificar el gating de `[data-global-only]` (grupo Canvas Size) en el mismo arranque: visible en All, oculto en L1/L2/L3
-- [ ] T021 [US2] `node --check` de `js/controls.js`; suite de T018 en verde
+- [x] T019 [US2] En `js/controls.js`, sacar el registro de `applyLineTargetGating` y su llamada inicial del listener de `GradientPicker` y llevarlos al nivel de `bindControls()` (hoy la barra nace con `hidden=true` y solo aparece al cambiar de pestana)
+- [x] T020 [US2] Verificar el gating de `[data-global-only]` (grupo Canvas Size) en el mismo arranque: visible en All, oculto en L1/L2/L3
+- [x] T021 [US2] `node --check` de `js/controls.js`; suite de T018 en verde
 
 **Checkpoint**: US2 verificable por si sola (barra visible sin interaccion).
 

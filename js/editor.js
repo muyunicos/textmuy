@@ -432,6 +432,11 @@
         iconImg: null,
         bgImg: null,
         transparentOutput: false,
+        // 002-text-tab US1: true solo en el render a canvas de salida (PNG/PDF).
+        // Alli la curva y la rotacion exigen WebGL y rechazan con causa en vez
+        // de degradar (contracts/curva.md R-C2.1). El editor visible mantiene
+        // el fallback 2D (R-C2.2).
+        headlessRender: false,
         textureImages: {}, // loaded texture images by src
         textureOrder: [],  // LRU order (oldest first)
         textureBytes: 0,   // estimated cached bytes
@@ -1083,8 +1088,21 @@
             if (!state.distortEngine) state.distortEngine = new DistortEngine();
             const croppedLayer = state.distortEngine.trimTransparent(textLayer);
             if (croppedLayer) {
-                composedLayer = state.distortEngine.curve(croppedLayer, arcAngle);
-                hasTrimmedContent = true;
+                // 002-text-tab US1 (R-C2.1): en la ruta de salida (render a
+                // canvas para PNG/PDF) la curva NO degrada al fallback 2D: si
+                // WebGL no puede calcularla se rechaza con causa en vez de
+                // devolver el texto recto o un resultado distinto al del editor
+                // (constitucion II). El editor visible mantiene el fallback
+                // (R-C2.2).
+                const curved = state.distortEngine.curve(croppedLayer, arcAngle, { requireWebGL: state.headlessRender });
+                if (curved) {
+                    composedLayer = curved;
+                    hasTrimmedContent = true;
+                } else if (state.headlessRender) {
+                    state.isRendering = false;
+                    releaseCanvas(textLayer);
+                    throw new Error('curva:webgl:no_disponible (la curva del texto exige WebGL en la ruta de render)');
+                }
             }
         }
 
@@ -4202,7 +4220,8 @@
         const previous = {
             canvas: state.canvas, ctx: state.ctx, settings: state.settings,
             isRendering: state.isRendering,
-            transparentOutput: state.transparentOutput
+            transparentOutput: state.transparentOutput,
+            headlessRender: state.headlessRender
         };
         try {
             state.canvas = canvas;
@@ -4210,6 +4229,9 @@
             state.settings = settings;
             state.isRendering = false;
             state.transparentOutput = Boolean(options && options.transparent);
+            // 002-text-tab US1: este es el render de salida. La curva no puede
+            // degradar al fallback 2D aqui (R-C2.1).
+            state.headlessRender = true;
             
             // For export, use 100% zoom (1x) — independent of the visual zoom
             // so the exported PNG always has the base resolution.
@@ -4226,6 +4248,7 @@
             state.settings = previous.settings;
             state.isRendering = previous.isRendering;
             state.transparentOutput = previous.transparentOutput;
+            state.headlessRender = previous.headlessRender;
         }
         return canvas;
     }
