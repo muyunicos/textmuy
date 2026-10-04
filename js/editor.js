@@ -746,13 +746,98 @@
         return normalizarValorFuente(familia).length > 0 && actual.indexOf(normalizarValorFuente(familia)) !== -1;
     }
 
+    // ===== GEOMETRIA UNICA DEL BLOQUE (002-text-tab, contracts/geometria.md) =====
+    // Un UNICO calculo del area util y un UNICO modelo de bloque, compartidos por
+    // el ajuste y por todos los motores de dibujo: lo calculado es lo pintado.
+
+    // Proporcion minima del lado menor que el area util conserva SIEMPRE. Con
+    // margen al maximo el texto se achica pero nunca desaparece (R-G1.4, FR-003).
+    const MIN_AVAIL_RATIO = 0.12;
+
+    /**
+     * Area util = lienzo menos el margen. El margen se mide contra el LADO MENOR
+     * (con un lienzo apaisado medirlo contra el ancho lo hacia desaparecer
+     * antes de tiempo) y se topa para que el area util nunca llegue a cero ni
+     * negativa. Es el unico sitio donde se calcula (R-G1.4, R-G1.1).
+     */
+    function areaUtil(s, canvasWidth, canvasHeight) {
+        const w = Math.max(1, Number(canvasWidth) || 1);
+        const h = Math.max(1, Number(canvasHeight) || 1);
+        const raw = s && s.canvas && s.canvas.padding !== undefined ? Number(s.canvas.padding) : 0;
+        // El slider llega a 50%; un margen corrupto se trata como el maximo.
+        const ratio = Math.max(0, Math.min(0.5, isFinite(raw) ? raw : 0));
+        const minor = Math.min(w, h);
+        const padMax = minor * (1 - MIN_AVAIL_RATIO) / 2;
+        const pad = Math.max(0, Math.min(minor * ratio, padMax));
+        return {
+            pad: pad,
+            width: Math.max(1, w - pad * 2),
+            height: Math.max(1, h - pad * 2)
+        };
+    }
+
+    /**
+     * Geometria de bloque: baselines por tinta y avances acumulados por linea.
+     *
+     * - L1 ANCLA el bloque (su `lineHeight` se guarda pero no la mueve: no tiene
+     *   linea arriba, FR-021).
+     * - la linea i>1 baja `lineHeight * tamano[i-1]` respecto de la anterior, con
+     *   el tamano de SU linea: nunca se superponen (R-G1.2, R-G1.3).
+     * - el anclaje se calcula con el interlineado de referencia (1), asi el
+     *   bloque sale centrado igual que antes y L1 queda quieta para cualquier
+     *   Line height (FR-007, FR-008).
+     *
+     * `sizes` es el tamano por linea (state.lineFontPx); si falta, `fontSizePx`
+     * para todas.
+     */
+    function blockLayout(ctx, lines, s, sizes, fontSizePx) {
+        const n = lines.length;
+        const lh = (s && s.lineHeight !== undefined && s.lineHeight !== null) ? Number(s.lineHeight) : 1;
+        const px = [];
+        const ascent = [];
+        const descent = [];
+        const widths = [];
+        let maxLineWidth = 0;
+        for (let i = 0; i < n; i++) {
+            const size = (sizes && sizes[i] !== undefined && sizes[i] !== null)
+                ? Number(sizes[i])
+                : (fontSizePx !== undefined ? Number(fontSizePx) : 0);
+            px.push(size);
+            setTextFont(ctx, s, size);
+            const m = ctx.measureText('Ag');
+            const a = m.actualBoundingBoxAscent || size * 0.8;
+            const d = m.actualBoundingBoxDescent || size * 0.2;
+            ascent.push(a);
+            descent.push(d);
+            const w = measureTextWidth(ctx, lines[i], s && s.letterSpacing, size);
+            widths.push(w);
+            if (w > maxLineWidth) maxLineWidth = w;
+        }
+        // Altura de referencia (interlineado 1): el bloque queda centrado como
+        // hasta ahora y es INDEPENDIENTE del Line height actual.
+        let refHeight = ascent[0] + descent[0];
+        for (let i = 1; i < n; i++) refHeight += px[i - 1];
+        const firstBaseline = -refHeight / 2 + ascent[0];
+        const baselines = [firstBaseline];
+        for (let i = 1; i < n; i++) baselines.push(baselines[i - 1] + lh * px[i - 1]);
+        const top = baselines[0] - ascent[0];
+        const bottom = baselines[n - 1] + descent[n - 1];
+        return {
+            px: px, ascent: ascent, descent: descent, widths: widths,
+            baselines: baselines, firstBaseline: firstBaseline,
+            lineHeight: lh, maxLineWidth: maxLineWidth,
+            top: top, bottom: bottom, height: bottom - top
+        };
+    }
+
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
         const fontWeight = s.font.weight || 'normal';
         const familia = familiaDeFuente(s);
-        const padding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
-        const availW = canvasWidth - padding * 2;
-        const availH = canvasHeight - padding * 2;
+        // Un solo calculo del area util (R-G1.4).
+        const area = areaUtil(s, canvasWidth, canvasHeight);
+        const availW = area.width;
+        const availH = area.height;
 
         let lo = 8;
         let hi = Math.max(8, Math.ceil(Math.max(canvasWidth, canvasHeight)));
@@ -769,6 +854,8 @@
                 if (w > maxLineWidth) maxLineWidth = w;
             }
 
+            // Geometria unica: la altura del bloque sale del mismo modelo que
+            // usa el dibujado (R-G1.1), no de una cuenta aparte.
             const metrics = ctx.measureText('Ag');
             const ascent = metrics.actualBoundingBoxAscent || mid * 0.8;
             const descent = metrics.actualBoundingBoxDescent || mid * 0.2;
@@ -941,9 +1028,10 @@
         // Max Font Size is based on one character and the canvas's limiting
         // axis: height for horizontal canvases, width for vertical ones.
         // Auto-fit can still reduce that cap when the complete text needs it.
-        const fontSizePadding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
-        const availableWidth = Math.max(1, canvasWidth - fontSizePadding * 2);
-        const availableHeight = Math.max(1, canvasHeight - fontSizePadding * 2);
+        // El area util sale del helper unico (R-G1.4).
+        const util = areaUtil(s, canvasWidth, canvasHeight);
+        const availableWidth = util.width;
+        const availableHeight = util.height;
         const singleCharacterReference = canvasWidth >= canvasHeight ? availableHeight : availableWidth;
         const maxFontPercentage = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
         const maxFontSizePx = singleCharacterReference * maxFontPercentage;
@@ -992,19 +1080,24 @@
         const rotationValue = Math.abs(s.rotate || 0) * Math.PI / 180;
         const arcAngle = safeGet(s, 'distort.arc.angle', 0);
         const offscreenGutter = 4;
-        const textMetrics = ctx.measureText('Ag');
-        const textAscent = textMetrics.actualBoundingBoxAscent || fontSizePx * 0.8;
-        const textDescent = textMetrics.actualBoundingBoxDescent || fontSizePx * 0.2;
-        const lineAdvancePx = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
-        let textBlockWidth = 0;
-        for (let lw = 0; lw < lines.length; lw++) {
-            const w = measureTextWidth(ctx, lines[lw], s.letterSpacing, fontSizePx);
-            if (w > textBlockWidth) textBlockWidth = w;
-        }
-        const textBlockHeight = textAscent + textDescent + (lines.length - 1) * lineAdvancePx;
+        // La capa fuente se dimensiona con la MISMA geometria que se pinta
+        // (blockLayout): si el calculo del alto se hiciera aparte, el bloque
+        // quedaria desalineado o recortado (R-G1.1).
+        //
+        // El bloque con Line height > 1 crece hacia abajo desde L1 (que queda
+        // fija, FR-008), asi que la capa se dimensiona por el SEMIALTO MAYOR
+        // entre arriba y abajo: el origen sigue en el centro y entra todo el
+        // texto. Con Line height 1 coincide con el tamano de siempre.
+        const blockGeo = blockLayout(ctx, lines, s, state.lineFontPx, fontSizePx);
+        const textBlockWidth = blockGeo.maxLineWidth;
+        const blockHalfAbove = Math.max(0, -blockGeo.top);
+        const blockHalfBelow = Math.max(0, blockGeo.bottom);
+        const extraH = calcExtraHeight(s, fontSizePx);
+        const half = Math.ceil(Math.max(blockHalfAbove, blockHalfBelow) + extraH / 2 + offscreenGutter);
+        const textBlockHeight = half * 2;
         const offscreenSide = Math.ceil(Math.hypot(canvasWidth, canvasHeight)) + offscreenGutter * 2;
         const sourceWidth = Math.ceil(textBlockWidth + calcExtraWidth(s, fontSizePx)) + offscreenGutter * 2;
-        const sourceHeight = Math.ceil(textBlockHeight + calcExtraHeight(s, fontSizePx)) + offscreenGutter * 2;
+        const sourceHeight = textBlockHeight;
         const needsExpandedTextLayer = rotationValue > 0.0001 || Math.abs(arcAngle) >= 0.1;
         const textLayerWidth = needsExpandedTextLayer
             ? Math.max(canvasWidth, sourceWidth, rotationValue > 0.0001 ? offscreenSide : 0)
@@ -1130,11 +1223,10 @@
         const rotationSin = Math.abs(Math.sin(rotationValue));
         const finalWidth = rotateLayer.width * rotationCos + rotateLayer.height * rotationSin;
         const finalHeight = rotateLayer.width * rotationSin + rotateLayer.height * rotationCos;
-        const canvasPadding = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
-        const availableContentWidth = Math.max(1, canvasWidth - canvasPadding * 2);
-        const availableContentHeight = Math.max(1, canvasHeight - canvasPadding * 2);
+        const finalAvailableWidth = availableWidth;
+        const finalAvailableHeight = availableHeight;
         const finalScale = hasTrimmedContent
-            ? Math.min(1, availableContentWidth / finalWidth, availableContentHeight / finalHeight)
+            ? Math.min(1, finalAvailableWidth / finalWidth, finalAvailableHeight / finalHeight)
             : 1;
 
         ctx.save();
@@ -1785,26 +1877,23 @@
 
     // letter/word/line units: each unit cycles through the layer styles and
     // is painted edge to edge of its own box.
+    // 002-text-tab: la baseline de cada linea sale del modelo UNICO de bloque
+    // (blockLayout), no de `firstBaseline + i * lineAdvance`: con tamanos por
+    // linea distintos y L1 anclada, esas dos formulas ya no coinciden (R-G1.3).
     function drawFillUnits(ctx, text, lines, fontSizePx, s, repeat, styles, lineFilter) {
-        const blockMetrics = getTextBlockMetrics(ctx, lines, fontSizePx, s);
+        const geo = blockLayout(ctx, lines, s, state.lineFontPx, fontSizePx);
         const spacing = s.letterSpacing * fontSizePx * 0.1;
         const flagActive = !isFlagNeutral(s) || isActive(s, 'lettering.boggle');
-        const measure = ctx.measureText('Ag');
-        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
-        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
+        const ascent = geo.ascent[0];
+        const descent = geo.descent[0];
 
-        const lineWidths = [];
-        let maxLineWidth = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const lw = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            lineWidths.push(lw);
-            if (lw > maxLineWidth) maxLineWidth = lw;
-        }
+        const lineWidths = geo.widths;
+        const maxLineWidth = geo.maxLineWidth;
 
         let unitIndex = 0;
         for (let li = 0; li < lines.length; li++) {
             const line = lines[li];
-            const y = blockMetrics.firstBaseline + li * blockMetrics.lineAdvance;
+            const y = geo.baselines[li];
             let lineStartX = -lineWidths[li] / 2;
             if (s.align === 'left') lineStartX = -maxLineWidth / 2;
             else if (s.align === 'right') lineStartX = maxLineWidth / 2 - lineWidths[li];
@@ -2227,12 +2316,12 @@
         } else {
             x = -textWidth / 2 - iconSize / 2 - fontSizePx * 0.15 + offsetX;
         }
-        // En modo por-linea el icono acompana la baseline de SU linea (no el
-        // centro del bloque): lineAdvance global * indice, igual que drawTextLines.
+        // En modo por-linea el icono acompana la baseline de SU linea: sale del
+        // modelo UNICO de bloque, igual que drawTextLines (R-G1.1).
         y = -iconSize * 0.2 + offsetY;
         if (lineFilter !== undefined && lineFilter !== null && lines.length > 1) {
-            const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
-            y += (lineFilter - (lines.length - 1) / 2) * lineAdvance;
+            const geo = blockLayout(ctx, lines, s, state.lineFontPx, fontSizePx);
+            y += geo.baselines[lineFilter] - geo.baselines[0];
         }
 
         ctx.save();
@@ -2481,64 +2570,34 @@
         return px;
     }
 
-    // Return baseline positions that center the real glyph box at the origin.
-    function getTextBlockMetrics(ctx, lines, fontSizePx, s) {
-        setTextFont(ctx, s, fontSizePx);
-        const measure = ctx.measureText('Ag');
-        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
-        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
-        const lineAdvance = fontSizePx * (s.lineHeight !== undefined ? s.lineHeight : 1);
-        const totalHeight = ascent + descent + (lines.length - 1) * lineAdvance;
-
-        return {
-            lineAdvance: lineAdvance,
-            firstBaseline: -totalHeight / 2 + ascent
-        };
-    }
-
     // Draw text lines helper.
-    // lineFilter: indice de linea (0-based) o null para pintar todas. Los
-    // motores por-linea (drawFill, drawOutline, ...) pintan cada linea con su
-    // config efectiva manteniendo SU baseline global (firstBaseline + i *
-    // lineAdvance del bloque completo), asi el lineHeight/base se conserva y
-    // las lineas nunca se superponen.
+    // 002-text-tab (R-G1.1, R-G1.2, R-G1.3): las lineas se colocan con el modelo de
+// bloque UNICO. L1 ancla el bloque (su lineHeight no la mueve) y cada linea
+// i>1 baja `lineHeight * tamano[i-1]` de la anterior, con el tamano de SU linea:
+// nunca se superponen y una sola linea no se mueve al cambiar el interlineado.
+// lineFilter: indice de linea (0-based) o null para pintar todas. Los motores
+// por-linea (drawFill, drawOutline, ...) pintan cada linea con su config
+// efectiva en SU baseline global, asi el interlineado y la base se conservan.
     function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke, lineFilter) {
-        // Tamano por linea: cada linea se mide y pinta con su propio px
-        // (state.lineFontPx); la Y usa avances acumulados para que lineas de
-        // distinto tamano no se superpongan (la altura de cada linea la da SU
-        // propio tamano x lineHeight global).
-        const perLine = [];
-        let maxLineWidth = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const px = (state.lineFontPx && state.lineFontPx[i] !== undefined) ? state.lineFontPx[i] : fontSizePx;
-            perLine.push(px);
-            setTextFont(ctx, s, px, i);
-            const lineWidth = measureTextWidth(ctx, lines[i], s.letterSpacing, px);
-            if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
+    const geo = blockLayout(ctx, lines, s, state.lineFontPx, fontSizePx);
+    const maxLineWidth = geo.maxLineWidth;
+    const letterSpacingBase = s.letterSpacing;
+    for (let i = 0; i < lines.length; i++) {
+        if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) continue;
+        const line = lines[i];
+        const px = geo.px[i];
+        setTextFont(ctx, s, px, i);
+        const baseline = geo.baselines[i];
+        const letterSpacing = letterSpacingBase * px * 0.1;
+        let xOffset = 0;
+        if (s.align === 'left') {
+            xOffset = -maxLineWidth / 2;
+        } else if (s.align === 'right') {
+            xOffset = maxLineWidth / 2;
         }
-        const lh = (s.lineHeight !== undefined ? s.lineHeight : 1);
-        let totalH = 0;
-        for (let i = 0; i < lines.length; i++) totalH += perLine[i] * lh;
-        let y = -totalH / 2;
-        for (let i = 0; i < lines.length; i++) {
-            if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) { y += perLine[i] * lh; continue; }
-            const line = lines[i];
-            const px = perLine[i];
-            setTextFont(ctx, s, px, i);
-            const m = ctx.measureText('Ag');
-            const ascent = m.actualBoundingBoxAscent || px * 0.8;
-            const baseline = y + ascent;
-            const letterSpacing = s.letterSpacing * px * 0.1;
-            let xOffset = 0;
-            if (s.align === 'left') {
-                xOffset = -maxLineWidth / 2;
-            } else if (s.align === 'right') {
-                xOffset = maxLineWidth / 2;
-            }
-            drawTextWithSpacing(ctx, line, xOffset, baseline, letterSpacing, isStroke, s, px);
-            y += px * lh;
-        }
+        drawTextWithSpacing(ctx, line, xOffset, baseline, letterSpacing, isStroke, s, px);
     }
+}
 
 
     // ===== Flag (bandera) — wave model =====
@@ -2820,28 +2879,19 @@
         });
     }
 
-    // Compute the real bounding box of the text block, centered like the
-    // rendered text (drawTextLines centers every line around the origin).
-    // setTextFont() guarantees the block is measured with the real font even
-    // when this runs before any draw pass (fill is the first pipeline pass on
-    // a fresh export/thumbnail canvas, whose context defaults to 10px
-    // sans-serif). Without it, "no repeat" fills were anchored to a tiny
-    // wrong box, so stretch/fit/fill never spanned the full text frame.
+    // Compute the real bounding box of the text block. La caja sale del MISMO
+// modelo de bloque que usa el dibujado (blockLayout): lo calculado es lo
+// pintado y una caja no puede divergir de las lineas que se dibujan (R-G1.1).
+// setTextFont() garantiza que el bloque se mida con la fuente real incluso
+// cuando esto corre antes de cualquier pasada de dibujado (el relleno es la
+// primera pasada en un canvas de export/miniatura nuevo, cuyo contexto arranca
+// en 10px sans-serif). Sin eso, los rellenos "no repeat" se anclaban a una
+// caja diminuta y equivocada.
     function getTextBlockBox(ctx, s, lines, fontSizePx) {
-        setTextFont(ctx, s, fontSizePx);
-        let width = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const w = measureTextWidth(ctx, lines[i], s.letterSpacing, fontSizePx);
-            if (w > width) width = w;
-        }
-        const measure = ctx.measureText('Ag');
-        const ascent = measure.actualBoundingBoxAscent || fontSizePx * 0.8;
-        const descent = measure.actualBoundingBoxDescent || fontSizePx * 0.2;
-        // Keep lineHeight default in sync with getTextBlockMetrics()/autoFitText()
-        // (1.0) so the block height matches the real line advance on multi-line text.
-        const lineHeight = s.lineHeight !== undefined ? s.lineHeight : 1;
-        const height = ascent + descent + (lines.length - 1) * fontSizePx * lineHeight;
-        return { x: -width / 2, y: -height / 2, width: width, height: height };
+        const sizes = (state.lineFontPx && state.lineFontPx.length === lines.length)
+            ? state.lineFontPx : null;
+        const geo = blockLayout(ctx, lines, s, sizes, fontSizePx);
+        return { x: -geo.maxLineWidth / 2, y: geo.top, width: geo.maxLineWidth, height: geo.height };
     }
 
     // Create a gradient spanning the box along the angle (degrees), edge to edge.
@@ -3206,9 +3256,10 @@
             return getNested(ovs[k], 'font.size') !== undefined;
         });
         if (sizing.ref !== 'line' && !hasSizeOv) return out;
-        const pad = canvasWidth * (s.canvas.padding !== undefined ? s.canvas.padding : 0);
-        const availW = Math.max(1, canvasWidth - pad * 2);
-        const availH = Math.max(1, canvasHeight - pad * 2);
+        // Area util del helper unico (R-G1.4).
+        const area = areaUtil(s, canvasWidth, canvasHeight);
+        const availW = area.width;
+        const availH = area.height;
         const maxPct = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
         const singleRef = canvasWidth >= canvasHeight ? availH : availW;
         const target = getLineTarget();
@@ -4291,6 +4342,10 @@
         getFillLayers: getFillLayers,
         clearTextureCache: clearTextureCache,
         getTextBlockBox: getTextBlockBox,
+    // 002-text-tab: geometria unica expuesta para las suites (area util y
+    // modelo de bloque). El ajuste y el dibujado usan estos mismos helpers.
+    areaUtil: areaUtil,
+    blockLayout: blockLayout,
         flagWaveAt: flagWaveAt,
         flagWaveSlopes: flagWaveSlopes
     };

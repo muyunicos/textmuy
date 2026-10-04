@@ -86,7 +86,7 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 29 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 31 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -94,7 +94,8 @@ textmuy/
                               fuente-carga-estados, fuente-selector, preset-roundtrip,
                               integridad-archivos, entorno, hoja-generacion,
                               fuentes-filtros-footer, fuentes-preview-us3,
-                              curva-snapshot, curva-sin-webgl, barra-line-target)
+                              curva-snapshot, curva-sin-webgl, barra-line-target,
+                              area-util, avance-lineas)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -171,7 +172,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC48**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC49**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -358,7 +359,7 @@ de fuentes y arranca encendido; en imágenes y presets **no** se invierte porque
 tiles son renders reales y darlos vuelta se vería raro. Sin persistencia (ni
 `localStorage` ni `wp_options`): es una preferencia de sesión.
 
-### 7.7 RC48 — spec 002-text-tab: Bloque A (curva y barra de lineas)
+### 7.7 RC48/RC49 — spec 002-text-tab: Bloques A y B
 
 Entrega inicial del feature `specs/002-text-tab` (pestana TEXT). Se ejecuta en
 cuatro bloques (A-D) para que cada uno sea verificable por separado; el Bloque A
@@ -383,13 +384,43 @@ no depende de la geometria unica y por eso va primero.
   `hidden=true` hasta que el usuario cambiaba de pestaña (medido). Ahora se
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
-**Estado del feature**: Bloque A cerrado (US1 + US2). Pendientes: Bloque B
-(geometría única: área útil con padding contra el lado menor y mínimo
-garantizado, avances por línea con L1 inerte), Bloque C (encaje final siempre) y
-Bloque D (modelo de líneas completo: `lines.inherit`, `sizing` por línea,
-claves 1-based, anti-ciclos, fuente por línea). Las tareas están en
-`specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
-`specs/002-text-tab/quickstart.md`.
+**Estado del feature**: Bloques A y B cerrados (US1, US2, US3, US5 + la geometría
+única). Pendientes: Bloque C (encaje final siempre, US4) y Bloque D (modelo de
+líneas completo: `lines.inherit`, `sizing` por línea, claves 1-based,
+anti-ciclos, fuente por línea). Las tareas están en `specs/002-text-tab/tasks.md`
+(T001-T057) y el plan de validación en `specs/002-text-tab/quickstart.md`.
+
+### 7.8 RC49 — Bloque B: la geometría única de bloque (área útil + avances)
+
+El eje del feature: **lo calculado tiene que ser lo pintado**. Antes el área útil
+se calculaba en tres sitios distintos y el modelo de bloque tenía dos fórmulas
+(`n * px * lineHeight` centrado en el ajuste y en el dibujado), así que lo que
+se ajustaba no era lo que se pintaba.
+
+- ✅ **Un solo cálculo del área útil** (`editor.js::areaUtil`). El margen se mide
+  contra el **lado menor** del canvas —no contra el ancho— y se topa para
+  conservar siempre un mínimo del 12% del lado menor. Con un lienzo apaisado
+  (800x200) el margen ya no colapsaba al 13%; con margen al 50% el texto se
+  achica pero **no desaparece** (US3, R-G1.4). Sustituye a los tres cálculos
+  duplicados de `autoFitText`, `render` y `lineFontSizes`.
+- ✅ **Un solo modelo de bloque** (`editor.js::blockLayout`): baselines por tinta,
+  avances acumulados y caja del bloque. Lo usan `drawTextLines`, `drawFillUnits`,
+  `drawIconLine`, `getTextBlockBox` y el dimensionado de la capa fuente. Con
+  `lineHeight = 1` reproduce exactamente la geometría anterior (sin regresión).
+- ✅ **L1 ancla el bloque** (US5, R-G1.2, FR-021): el anclaje se calcula con el
+  interlineado de referencia, así la primera línea **no se mueve** al mover Line
+  height y el bloque crece hacia abajo; con una sola línea la posición y el
+  tamaño son invariantes en todo el rango (FR-007). La línea *i* baja
+  `lineHeight * tamaño[i-1]`, o sea el avance lo da el tamaño **de la línea de
+  arriba**: con tamaños por línea distintos nunca se superponen (R-G1.3).
+- ✅ **La capa fuente sigue al bloque**: con interlineado > 1 se dimensiona por
+  el semialto mayor, de modo que entra todo el texto y el origen sigue en el
+  centro (esto es lo que evita el recorte al abrir la línea, y es la precondición
+  del encaje final del Bloque C).
+- **Purga**: `getTextBlockMetrics` se eliminó al quedar sin consumidores (VII: sin
+  rutas dobles). Las dos suites nuevas (`area-util`, `avance-lineas`) fijan el
+  contrato y además renderizan de verdad para comprobar que lo pintado sale del
+  modelo, no solo que el helper sea correcto.
 
 ⚠️ **Gobernanza adelantada al código**: la constitución ya está en **v3.2.0**
 (`.txm` `version:2`, claves 1-based, alcance por línea ampliado, sin migración),
@@ -678,7 +709,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 29 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 31 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -719,6 +750,8 @@ node tests/rc-bump.test.js
 node tests/curva-snapshot.test.js      # US1: snapshot a 2D ANTES de loseContext + espejo por signo
 node tests/curva-sin-webgl.test.js     # US1: la API rechaza con causa; el editor conserva el fallback 2D
 node tests/barra-line-target.test.js   # US2: la barra Style target se ve al abrir (gating por pestana)
+node tests/area-util.test.js        # US3: padding contra el lado menor + area util minima garantizada
+node tests/avance-lineas.test.js    # US5: L1 ancla el bloque, avance por linea, sin solapes
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

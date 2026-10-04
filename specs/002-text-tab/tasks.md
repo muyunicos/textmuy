@@ -50,11 +50,11 @@ delta estricto, la resolucion en tres pasos y el rechazo con causa de ciclos.
 **Purpose**: la geometria unica de bloque. Sin ella, US3/US4/US5 no se
 pueden probar de forma aislada porque las tres comparten el mismo modelo.
 
-- [ ] T005 [P] Suite `tests/area-util.test.js`: fijar que el area util se calcula **una sola vez** (padding contra el lado menor del canvas + area util minima) y que el margen al maximo deja texto visible (FR-003, FR-004, R-G1.4)
-- [ ] T006 [P] Suite `tests/avance-lineas.test.js`: fijar que cada linea i>1 se coloca a `lineHeight * tamano[i-1]` de la anterior, que L1 ancla el bloque y que una sola linea es invariante ante Line height (FR-007, FR-008, FR-021, R-G1.2)
+- [x] T005 [P] Suite `tests/area-util.test.js`: fijar que el area util se calcula **una sola vez** (padding contra el lado menor del canvas + area util minima) y que el margen al maximo deja texto visible (FR-003, FR-004, R-G1.4)
+- [x] T006 [P] Suite `tests/avance-lineas.test.js`: fijar que cada linea i>1 se coloca a `lineHeight * tamano[i-1]` de la anterior, que L1 ancla el bloque y que una sola linea es invariante ante Line height (FR-007, FR-008, FR-021, R-G1.2)
 - [ ] T007 Suite `tests/encaje-final.test.js`: fijar que el encaje final se aplica siempre (con y sin rotacion/recorte), que solo reduce y que no altera `settings.canvas.width/height` (FR-005, R-G2.1 a R-G2.4)
-- [ ] T008 Implementar el helper unico de area util en `js/editor.js` (padding contra lado menor + minimo garantizado) y reemplazar los tres calculos duplicados de `autoFitText` (~745), `render` (~939, ~1115) y `lineFontSizes` (~3191)
-- [ ] T009 Implementar el modelo unico de bloque en `js/editor.js`: origen, avances acumulados por linea y baselines por tinta compartido por `autoFitText`, `getTextBlockMetrics` (~2467), `drawTextLines` (~2487), `getTextBlockBox` (~2812) y `lineFontSizes` (~3182)
+- [x] T008 Implementar el helper unico de area util en `js/editor.js` (padding contra lado menor + minimo garantizado) y reemplazar los tres calculos duplicados de `autoFitText` (~745), `render` (~939, ~1115) y `lineFontSizes` (~3191)
+- [x] T009 Implementar el modelo unico de bloque en `js/editor.js`: origen, avances acumulados por linea y baselines por tinta compartido por `autoFitText`, `getTextBlockMetrics` (~2467), `drawTextLines` (~2487), `getTextBlockBox` (~2812) y `lineFontSizes` (~3182)
 - [ ] T010 Implementar el encaje final siempre en `js/editor.js` como una pasada de escala sobre la capa ya compuesta, con margen de seguridad de pocos pixeles y limite `<= 1`
 - [ ] T011 `node --check` de `js/editor.js` y suite completa en verde
 
@@ -128,13 +128,13 @@ que el texto sigue visible; bajarlo a cero y comprobar que recupera su tamano.
 
 ### Tests for User Story 3
 
-- [ ] T022 [US3] Suite `tests/margen.test.js`: fijar que con margen al maximo el area util no llega a cero ni negativa, que el texto sigue presente, que en canvas apaisado el margen no colapsa antes de tiempo y que volver a cero restaura el tamano (FR-003, FR-004)
+- [x] T022 [US3] Suite `tests/margen.test.js`: fijar que con margen al maximo el area util no llega a cero ni negativa, que el texto sigue presente, que en canvas apaisado el margen no colapsa antes de tiempo y que volver a cero restaura el tamano (FR-003, FR-004)
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] En `js/editor.js`, calcular el padding efectivo contra el **lado menor** del canvas y topearlo para preservar un area util minima (hoy `padding = canvasWidth * margin` sin tope: en 800x200 muere con ~13%)
-- [ ] T024 [US3] Verificar que la suite `tests/area-util.test.js` (T005) sigue en verde con el calculo unico compartido por ajuste y dibujo
-- [ ] T025 [US3] `node --check` de `js/editor.js`; suite de T022 en verde
+- [x] T023 [US3] En `js/editor.js`, calcular el padding efectivo contra el **lado menor** del canvas y topearlo para preservar un area util minima (hoy `padding = canvasWidth * margin` sin tope: en 800x200 muere con ~13%)
+- [x] T024 [US3] Verificar que la suite `tests/area-util.test.js` (T005) sigue en verde con el calculo unico compartido por ajuste y dibujo
+- [x] T025 [US3] `node --check` de `js/editor.js`; suite de T022 en verde
 
 **Checkpoint**: US3 verificable por si sola (margen al maximo sin lienzo vacio).
 
@@ -179,13 +179,13 @@ cambia la distancia entre ellas.
 
 ### Tests for User Story 5
 
-- [ ] T031 [US5] Suite `tests/line-height.test.js`: fijar la invariancia de una sola linea, que con dos lineas L1 queda fija y solo L2 se desplaza al subir, y que al minimo las lineas se juntan sin superponerse ni invertirse (FR-007, FR-008, SC-005)
+- [x] T031 [US5] Suite `tests/line-height.test.js`: fijar la invariancia de una sola linea, que con dos lineas L1 queda fija y solo L2 se desplaza al subir, y que al minimo las lineas se juntan sin superponerse ni invertirse (FR-007, FR-008, SC-005)
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] En `js/editor.js`, aplicar el avance por linea (`lineHeight * tamano[i-1]` debajo de la anterior) en todos los motores que hoy centran `n * tamano * lineHeight` (`getTextBlockMetrics` ~2467, `drawTextLines` ~2487, `getTextBlockBox` ~2812, `autoFitText` ~745)
-- [ ] T033 [US5] En `js/editor.js`, anclar L1 al modelo de bloque: su `lineHeight` se guarda pero no mueve nada (FR-021)
-- [ ] T034 [US5] `node --check` de `js/editor.js`; suites de T006, T031 y las 26 previas en verde
+- [x] T032 [US5] En `js/editor.js`, aplicar el avance por linea (`lineHeight * tamano[i-1]` debajo de la anterior) en todos los motores que hoy centran `n * tamano * lineHeight` (`getTextBlockMetrics` ~2467, `drawTextLines` ~2487, `getTextBlockBox` ~2812, `autoFitText` ~745)
+- [x] T033 [US5] En `js/editor.js`, anclar L1 al modelo de bloque: su `lineHeight` se guarda pero no mueve nada (FR-021)
+- [x] T034 [US5] `node --check` de `js/editor.js`; suites de T006, T031 y las 26 previas en verde
 
 **Checkpoint**: US5 verificable por si sola (una sola linea quieta).
 
