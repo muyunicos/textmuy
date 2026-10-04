@@ -449,9 +449,175 @@
         if (res) invalidarCatalogo(ambito);
         return res;
     }
+    // ===== GENERACION DE LA HOJA (spec 009, US2 / T014-T015) =====
+    // Dos fases, con una sola escritura por ambito y apertura:
+    //   F1 pre-dibuja en memoria las celdas PENDIENTES (las que la hoja vigente
+    //      no cubre). Lleva la cuenta de dibujados y fallos, con progreso.
+    //   F2 persiste UNA sola vez y solo si fallos === 0 (FR-005/FR-008: nunca se
+    //      persiste una hoja con celdas sin dibujar, que las condenaria para
+    //      siempre). Con algun fallo NO se escribe nada y la galeria sigue
+    //      operativa mostrando nombres, con causa visible (I3).
+    // Reentrancia: `generando[ambito]` comparte la promesa; la segunda llamada
+    // (otra galeria o pestana de la misma sesion) espera a la primera en vez de
+    // emitir un segundo POST (I4, SC-009).
+    var generando = {};
+    // Celdas ya dibujadas en memoria por la sesion ("ambito:id" -> canvas): la
+    // celda dibujada no se vuelve a pedir en una apertura posterior.
+    var dibujados = {};
+    function renderDeAmbito(ambito) {
+        // Fuentes: la celda la dibuja el preview (1 archivo o 1 familia por
+        // celda). Delega en fonts.js, que resuelve fisicas y Google.
+        if (ambito === 'fonts' && window.FontLoader && window.FontLoader.renderFontPreview) {
+            return function (it, w, h) {
+                return window.FontLoader.renderFontPreview(
+                    { key: String(it.id), name: it.titulo, online: !!it.online }, w, h, { cargar: true });
+            };
+        }
+        return function () { return null; };
+    }
+    // Items canonicos del ambito: uno por id 1..maxId, con hueco estable
+    // (celda = id-1). El alto de la hoja lo mide el motor contra maxId, asi que
+    // la lista debe abarcar TODOS los ids, no solo los que tienen file.
+    function itemsCanonicos(parsed, base) {
+        var items = [];
+        for (var id = 1; id <= parsed.maxId; id++) {
+            var e = parsed.items[id];
+            if (e && e.file) {
+                var it = { nombre: String(id), id: id, titulo: e.titulo, file: e.file, online: !!e.online };
+                it.url = (!e.online && !/^(https?:)?\/\//i.test(e.file)) ? base + e.file : '';
+                items.push(it);
+            } else {
+                items.push({ nombre: String(id), id: id });
+            }
+        }
+        return items;
+    }
     // Descarta la copia en memoria del catalogo del ambito: obliga a releerlo.
     // Necesario tras reconstruir el sprite, porque el motor certifica el
     // catalogo (thumbs.sprite_firma) recien al persistir la hoja.
+    /**
+     * Asegura la hoja completa del ambito: lee la certificada y, si faltan
+     * celdas, las dibuja (F1) y persiste una vez (F2).
+     * opciones: { onProgress(hechos, pendientes, fallos), renderTile }
+     * Resuelve { estado:'listo'|'generado'|'error', causa, total, dibujados,
+     * fallos }. NUNCA lanza: la UI siempre debe poder pintar el estado con causa.
+     */
+    async function asegurarHojaCompleta(ambito, opciones) {
+        ambito = ambitoCanonico(ambito);
+        opciones = opciones || {};
+        var PM = window.PresetManager;
+        var sinPuente = { estado: 'error', causa: ambito + ':hoja:sin_puente', total: 0, dibujados: 0, fallos: 0 };
+        if (!PM || !PM.getBridge || !PM.getBridge()) return sinPuente;
+        // I4: si hay una generacion en curso para el ambito, se espera a esa
+        // (segunda galeria o segunda pestana: 1 solo POST, SC-009).
+        if (generando[ambito]) return generando[ambito];
+        var tarea = _asegurarHojaCompleta(ambito, opciones);
+        generando[ambito] = tarea;
+        try {
+            return await tarea;
+        } finally {
+            delete generando[ambito];
+        }
+    }
+    async function _asegurarHojaCompleta(ambito, opciones) {
+        var base = spriteBaseDe(ambito);
+        if (!base) return { estado: 'error', causa: ambito + ':hoja:sin_puente', total: 0, dibujados: 0, fallos: 0 };
+        var parsed = null;
+        try { parsed = await loadCatalogo(ambito); } catch (e) {
+            return { estado: 'error', causa: (e && e.message) || String(e), total: 0, dibujados: 0, fallos: 0 };
+        }
+        if (!parsed || !parsed.items) {
+            return { estado: 'error', causa: ambito + ':hoja:catalogo:ausente', total: 0, dibujados: 0, fallos: 0 };
+        }
+        var thumbs = parsed.thumbs || {};
+        if (!(thumbs.w > 0) || !(thumbs.h > 0) || !(thumbs.c > 0)) {
+            return { estado: 'listo', total: 0, dibujados: 0, fallos: 0 };
+        }
+        if (!window.ThumbEngine || !window.ThumbEngine.ensureSprite) {
+            return { estado: 'error', causa: ambito + ':hoja:motor:ausente', total: 0, dibujados: 0, fallos: 0 };
+        }
+        var items = itemsCanonicos(parsed, base);
+        // I1: las celdas que la hoja certificada ya cubre NO se vuelven a pedir.
+        var certified = null;
+        try { certified = await ensureSpriteCanonico(ambito); } catch (_) { certified = null; }
+        var pendientes = [];
+        for (var i = 0; i < items.length; i++) {
+            var it2 = items[i];
+            if (!it2.file) continue; // hueco estable: no se dibuja
+            if (certified && window.TextMuyCatalog.celdaDeSprite(
+                certified.spriteImage, certified.canon, it2.id)) continue;
+            var cache = dibujados[ambito + ':' + it2.id];
+            if (cache) { it2.canvasListo = cache; continue; }
+            pendientes.push(it2);
+        }
+        var total = items.length;
+        if (!pendientes.length) return { estado: 'listo', total: total, dibujados: total, fallos: 0 };
+        var render = opciones.renderTile || renderDeAmbito(ambito);
+        var fallos = 0, hechos = 0;
+        // F1: dibuja en memoria; cada celda descarga SOLO su fuente (I5).
+        for (var p = 0; p < pendientes.length; p++) {
+            var it3 = pendientes[p];
+            var ok = null;
+            try { ok = await render(it3, thumbs.w | 0, thumbs.h | 0); } catch (_) { ok = null; }
+            if (ok) {
+                it3.canvasListo = ok;
+                dibujados[ambito + ':' + it3.id] = ok;
+            } else {
+                fallos++;
+            }
+            hechos++;
+            if (typeof opciones.onProgress === 'function') {
+                try { opciones.onProgress(hechos, pendientes.length, fallos); } catch (_) {}
+            }
+        }
+        // F2: una sola escritura, solo si no fallo ninguna celda (I2/I3).
+        if (fallos > 0) {
+            return {
+                estado: 'error',
+                causa: ambito + ':hoja:celdas:' + fallos + ':pendientes',
+                total: total, dibujados: hechos - fallos, fallos: fallos
+            };
+        }
+        var res = null;
+        try {
+            res = await window.ThumbEngine.ensureSprite({
+                scope: ambito,
+                items: items,
+                ancho: thumbs.w | 0,
+                alto: thumbs.h | 0,
+                columnas: thumbs.c | 0,
+                pad: ambito === 'img',
+                baseUrl: base,
+                firma: parsed.firma,
+                render: function (it, w, h) {
+                    // Devuelve el canvas ya hecho por F1; sin esto ThumbEngine
+                    // volveria a pedir la fuente y F1 seria inutil.
+                    if (it && it.canvasListo) return it.canvasListo;
+                    return render(it, w, h);
+                }
+            });
+        } catch (e) {
+            return { estado: 'error', causa: (e && e.message) || String(e), total: total, dibujados: hechos, fallos: fallos };
+        }
+        if (!res) {
+            return { estado: 'error', causa: ambito + ':hoja:motor:rechazo', total: total, dibujados: hechos, fallos: fallos };
+        }
+        invalidarCatalogo(ambito);
+        invalidarSpriteCanonico(ambito);
+        return { estado: 'generado', total: total, dibujados: hechos, fallos: 0 };
+    }
+
+    // Descarta las celdas dibujadas en memoria. Con ambito, solo las suyas; sin
+    // ambito, todas. Lo usan las galerias al invalidar la hoja tras una mutacion
+    // y los tests al reiniciar el escenario.
+    function invalidarDibujados(ambito) {
+        if (!ambito) { dibujados = {}; return; }
+        ambito = ambitoCanonico(ambito);
+        Object.keys(dibujados).forEach(function (k) {
+            if (k.indexOf(ambito + ':') === 0) delete dibujados[k];
+        });
+    }
+
     function invalidarCatalogo(ambito) {
         ambito = ambitoCanonico(ambito);
         var base = spriteBaseDe(ambito);
@@ -479,8 +645,10 @@
         urlDeImgRef: urlDeImgRef,
         prepareImgRefs: prepareImgRefs,
         invalidarCatalogo: invalidarCatalogo,
+        invalidarDibujados: invalidarDibujados,
         ensureSpriteCanonico: ensureSpriteCanonico,
         reconstruirSpriteCanonico: reconstruirSpriteCanonico,
+        asegurarHojaCompleta: asegurarHojaCompleta,
         invalidarSpriteCanonico: invalidarSpriteCanonico,
         drawTileCanonico: drawTileCanonico,
         clearPresetCache: clearPresetCache

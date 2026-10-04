@@ -166,7 +166,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC45**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC46**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -242,6 +242,40 @@ especificadas en `specs/001-fix-bugs-01/` (spec, plan, research, contracts).
 - **Suites nuevas** (Node, sin navegador): `tests/fuente-composta.test.js`,
   `tests/fuente-carga-estados.test.js`, `tests/fuente-selector.test.js`,
   `tests/preset-roundtrip.test.js`. Total: 20 suites. Todas verdes.
+
+### 7.3 Decisiones RC46 (spec 009 `galerias-sprite-unificado`, US1+US2)
+
+Implementación de `specs/009-galerias-sprite-unificado` (plugin), fases Phase 2
+(certificación) y Phase 3+4 (lectura y generación). **Causa raíz del bug de
+miniaturas**: `PMU_Uploads::sprite()` solo certificaba `img` (dentro de
+`if ($ambito === 'img')`), de modo que las hojas de `fonts` y `tm-presets` se
+persistían sin `thumbs.sprite_firma` y la lectura canónica las rechazaba siempre:
+presets y fuentes mostraban el nombre del elemento en cada recarga y la hoja
+generada se perdía. El botón "Generar miniaturas" subía la hoja y el motor la
+descartaba: por eso "no hacía nada".
+
+- ✅ **La certificación se generaliza a todo ámbito catalogado CON firma no vacía**
+  (`inc/class-pmu-uploads.php::sprite()`). La condición NO es `AMBITOS_GALERIA`:
+  `mockups` no manda firma (no usa `ThumbEngine` ni la ruta canónica) y debe
+  seguir por la rama simple. Verificado en `tests/certificacion_hoja.php`.
+- ✅ **`guardar_catalogo()` invalida `thumbs.sprite_firma` en todo ámbito con
+  catálogo** (antes solo `img`): un alta/baja/editar deja la hoja vieja
+  marcada como no vigente y la próxima apertura la regenera.
+- ✅ **Núcleo de generación en dos fases** (`api.js::asegurarHojaCompleta`):
+  **F1** dibuja en memoria solo las celdas pendientes (1 descarga por celda, nunca
+  el conjunto) y **F2** persiste **exactamente una vez y solo si `fallos === 0`**
+  (FR-008: nunca una hoja con celdas sin dibujar). Progreso `N/M` al usuario.
+- ✅ **Reentrancia por ámbito** (`generando[ambito]`): la segunda galería o
+  pestaña espera a la primera en vez de emitir un segundo `POST op=sprite`.
+- ✅ **Los items van `1..maxId` con huecos estables** (celda = `id-1`): el motor
+  mide el ALTO de la hoja contra `maxId`, no contra `count(items)`.
+- ✅ **`catalog.js::geometriaTiles` devuelve el ratio reducido con MCD**
+  (`180x30 → 6 / 1`), de modo que coincide con los defaults por `data-ambito`
+  del CSS; `w`/`h` crudos se conservan para el cálculo del alto (SC-006).
+- ⚠️ **Pendiente (no implementado en RC46)**: US3 (preview real de la celda
+  elegida y su persistencia) y US4 (celdas completas sin recorte). El botón
+  "Generar miniaturas" / "Miniaturas" se retiran cuando la autogeneración esté
+  conectada a las tres galerías (T018/T019).
 
 ### 7.2 Decisiones RC44/RC45 — arranque sin puente (bugfix)
 

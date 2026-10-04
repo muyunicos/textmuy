@@ -187,17 +187,27 @@
      * para paneles muy chicos o muy grandes). Con eso la celda se muestra a
      * ~1x de su tamano natural (sin upscales grandes) y ninguna galeria
      * hardcodea ratios. thumbs ausentes/invalidos -> null: la galeria deja los
-     * defaults del CSS. */
+     * defaults del CSS.
+     *
+     * RC46 / spec 009 (T029): el ratio sale REDUCIDO con maximo comun divisor
+     * (180x30 -> `6 / 1`, 100x100 -> `1 / 1`, 200x100 -> `2 / 1`). Antes viajaba
+     * literal (`180 / 30`): el valor es equivalente para `aspect-ratio`, pero el
+     * literal coincidente con los defaults de `data-ambito` en style.css
+     * (6/1, 1/1, 2/1) es lo que hace comparables ambos caminos y legible el
+     * valor en las pruebas de geometria. `w`/`h` crudos se conservan para el
+     * calculo de alto (SC-006: alto = round(ancho * h / w)). */
     function geometriaTiles(thumbs) {
         var w = (thumbs && thumbs.w) | 0, h = (thumbs && thumbs.h) | 0;
         if (!(w > 0) || !(h > 0)) return null;
+        var g = gcd(w, h);
         return {
             w: w,
             h: h,
-            ratio: w + ' / ' + h,
+            ratio: (w / g) + ' / ' + (h / g),
             col: Math.min(220, Math.max(48, w))
         };
     }
+    function gcd(a, b) { while (b) { var t = b; b = a % b; a = t; } return a > 0 ? a : 1; }
 
     /* Firma canonica del catalogo: dims de reticula + tuplas crudas.
      * DEBE coincidir con PMU_Uploads::sprite ([w,h,c,items]) o el motor
