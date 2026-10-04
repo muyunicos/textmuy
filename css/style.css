@@ -1863,6 +1863,23 @@ fieldset legend label {
 }
 .tt-galpanel[hidden] { display: none; }
 .tt-galpanel-caja { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 10px; }
+/* RC46: interruptor de inversion (solo galeria de fuentes). La hoja se pinta
+   con fondo blanco y texto negro; en el tema oscuro del editor eso deslumbra,
+   asi que se invierte SOLO por presentacion con un filtro CSS: la hoja, el
+   catalogo y su firma no se tocan. No se aplica a imagenes ni presets, cuyos
+   renders son imagenes reales y darlas vuelta se veria raro. */
+.tt-galpanel-invert {
+    margin-left: 6px; flex-shrink: 0; padding: 3px 8px; font-size: 10px;
+    background: transparent; color: var(--tt-text-muted, #999);
+    border: 1px solid var(--tt-border-btn, #555);
+    border-radius: 10px; cursor: pointer;
+}
+.tt-galpanel-invert:hover { color: var(--tt-text, #ccc); border-color: var(--tt-accent, #0089ff); }
+.tt-galpanel-invert[aria-pressed="true"] { color: var(--tt-accent, #0089ff); border-color: var(--tt-accent, #0089ff); }
+.tt-galpanel-invertido .tt-galpanel-tile canvas,
+.tt-galpanel-invertido .tt-galpanel-tile img { filter: invert(1); }
+.tt-galpanel-invertido .tt-galpanel-tile.sel { border-color: var(--tt-accent, #0089ff); }
+
 .tt-galpanel-close { background: none; border: none; color: var(--tt-text, #ccc); font-size: 18px; cursor: pointer; }
 .tt-galpanel-close:hover { color: var(--tt-danger, #ff4444); }
 .tt-galpanel-search { width: 100%; padding: 7px 10px; margin-bottom: 8px; background: var(--tt-bg-panel, #1a1a1a); color: var(--tt-text, #ccc); border: 1px solid var(--tt-border-input, #444); border-radius: var(--tt-radius-sm, 4px); }

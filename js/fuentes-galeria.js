@@ -91,6 +91,10 @@ function crearPanel(){
   '<div class="tt-galpanel-caja">'+
   '<div class="tt-galpanel-toolbar">'+
   '<input type="text" class="tt-galpanel-search" placeholder="Buscar fuente...">'+
+// Interruptor de inversion (solo galeria de fuentes): la hoja de miniaturas
+  // se pinta con fondo blanco y texto negro, que en un tema oscuro deslumbra.
+  // Es solo presentacion: no toca la hoja ni el catalogo.
+   '<button type="button" class="tt-galpanel-invert" aria-pressed="true" title="Invertir los colores de las miniaturas">Invertir</button>'+
   '<button type="button" class="tt-galpanel-close">X</button></div>'+
   '<div class="tt-galpanel-tabs"></div>'+
   '<label class="tt-galpanel-upload">Subir fuente<input type="file" accept=".ttf,.otf,.woff,.woff2" hidden></label>'+
@@ -109,6 +113,22 @@ function crearPanel(){
  document.body.appendChild(ov);
  const search=ov.querySelector('.tt-galpanel-search');
  const closeBtn=ov.querySelector('.tt-galpanel-close');
+ const invertBtn=ov.querySelector('.tt-galpanel-invert');
+ // El filtro vive en la clase del panel: el CSS decide que se invierte.
+ // Solo afecta a la galeria de fuentes (en imagenes/presets los renders son
+ // reales y darlos vuelta se veria raro).
+ let invertir=true;
+ function aplicarInvertir(){
+  if(invertir)ov.classList.add('tt-galpanel-invertido');
+  else ov.classList.remove('tt-galpanel-invertido');
+  invertBtn.setAttribute('aria-pressed',invertir?'true':'false');
+  invertBtn.title=(invertir?'Quitar':'Aplicar')+' la inversion de colores';
+ }
+ aplicarInvertir();
+ invertBtn.addEventListener('click',function(){
+  invertir=!invertir;
+  aplicarInvertir();
+ });
  const tabs=ov.querySelector('.tt-galpanel-tabs');
  const uploadLabel=ov.querySelector('.tt-galpanel-upload');
  const uploadInput=uploadLabel.querySelector('input');

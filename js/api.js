@@ -576,22 +576,34 @@
         // muestra la causa con su Reintentar (T020). Sin este tope un render
         // colgado dejaba `asegurarHojaCompleta` sin resolver nunca.
         var topeMs = opciones.timeoutMs > 0 ? opciones.timeoutMs : 15000;
-        for (var p = 0; p < pendientes.length; p++) {
-            var it3 = pendientes[p];
-            var ok = null;
-            try { ok = await conTope(render(it3, thumbs.w | 0, thumbs.h | 0), topeMs); }
-            catch (_) { ok = null; }
-            if (ok) {
-                it3.canvasListo = ok;
-                dibujados[ambito + ':' + it3.id] = ok;
-            } else {
-                fallos++;
-            }
-            hechos++;
-            if (typeof opciones.onProgress === 'function') {
-                try { opciones.onProgress(hechos, pendientes.length, fallos); } catch (_) {}
+        // Concurrencia acotada (contrato del spec 009: <=4 peticiones a la vez).
+        // En secuencial, generar la hoja de `img` (128 originales) o de `fonts`
+        // (57 familias Google) tardaba lo que la suma de todas: con 4 en
+        // paralelo el tiempo total baja al MAXIMO por grupo, no a la suma.
+        var limiteConc = opciones.concurrencia > 0 ? opciones.concurrencia : 4;
+        var cursor = 0;
+        async function worker(){
+            while (cursor < pendientes.length) {
+                var idx = cursor++;
+                var it = pendientes[idx];
+                var ok = null;
+                try { ok = await conTope(render(it, thumbs.w | 0, thumbs.h | 0), topeMs); }
+                catch (_) { ok = null; }
+                if (ok) {
+                    it.canvasListo = ok;
+                    dibujados[ambito + ':' + it.id] = ok;
+                } else {
+                    fallos++;
+                }
+                hechos++;
+                if (typeof opciones.onProgress === 'function') {
+                    try { opciones.onProgress(hechos, pendientes.length, fallos); } catch (_) {}
+                }
             }
         }
+        var workers = [];
+        for (var w = 0; w < Math.min(limiteConc, pendientes.length); w++) workers.push(worker());
+        await Promise.all(workers);
         // F2: una sola escritura, solo si no fallo ninguna celda (I2/I3).
         if (fallos > 0) {
             return {

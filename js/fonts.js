@@ -1007,9 +1007,22 @@ var existente = idsPorNombreRegistro(familia)[0];
         var esOnline = !!(fontItem && fontItem.online) || (catalogFonts[fontKey] && catalogFonts[fontKey].online);
         var cssReal = '16px "' + fontName + '", sans-serif';
 
-        // Online Google: preview con fuente del sistema (rapido, sin red/links).
+        // Online Google: se descarga 1 familia y se dibuja SU TIPOGRAFIA (US3 del spec
+        // 009 / SC-005). Antes se dibujaba con '14px sans-serif' y las 57
+        // familias Google salian todas iguales: la hoja no tenia por que
+        // distinguirlas, era un placeholder disfrazado. Ahora:
+        //  - 1 peticion `css2?family={Nombre}` (sin pesos y sin text=, como pide
+        //    el contrato) + sus woff2, via `asegurarGoogle`, que ya espera
+        //    al <link> antes de pedir la cara (si no, document.fonts.load()
+        //    resuelve con 0 y la familia queda 'fallida').
+        //  - Si la familia no llega, se degrada al nombre con la fuente del
+        //    sistema: la celda nunca queda vacia ni rompe la hoja.
         if (esOnline) {
-            return Promise.resolve(dibujarPreviewFuente(fontName, '14px sans-serif', ancho, alto, '#666666'));
+            return loadFont(fontKey).then(function () {
+                return dibujarPreviewFuente(fontName, cssReal, ancho, alto, '#222222');
+            }).catch(function () {
+                return dibujarPreviewFuente(fontName, '14px sans-serif', ancho, alto, '#666666');
+            });
         }
         // Preview sin carga: cero red (placeholder de la galeria).
         if (opts.cargar === false) {

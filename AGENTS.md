@@ -166,7 +166,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC46**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC47**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -272,8 +272,10 @@ descartaba: por eso "no hacía nada".
 - ✅ **`catalog.js::geometriaTiles` devuelve el ratio reducido con MCD**
   (`180x30 → 6 / 1`), de modo que coincide con los defaults por `data-ambito`
   del CSS; `w`/`h` crudos se conservan para el cálculo del alto (SC-006).
-- ⚠️ **Pendiente**: solo **US3** (persistir la preview real de la celda elegida).
-  US4 (celdas completas) está hecha: ver el punto siguiente.
+- ⚠️ **US3 cerrado en RC47**: las 57 familias Google ahora se dibujan con **su
+  tipografía real** (ver 7.5). Antes se dibujaban con `sans-serif` y salían todas
+  iguales. Queda solo pendiente, si algún día, persistir la preview de una celda
+  aislada sin regenerar la hoja entera (no hace falta: el núcleo la regenera).
 
 ### 7.4 Decisiones RC46 — galerías usables (US4 + Bloque C)
 
@@ -326,6 +328,30 @@ que producción arrastraba igual:
 - ✅ **Las galerías pintan antes de generar** (estado `listando` del spec 009). En
   presets el listado esperaba a `cargarPresetSprite()`, que ahora *genera* la
   hoja: un render lento dejaba la galería en **0 tiles**.
+- ✅ **US3 — las miniaturas de Google ya usan su tipografía real.** La rama
+  `esOnline` de `renderFontPreview` devolvía `dibujarPreview(..., '14px
+  sans-serif')` **sin tocar la red**: las 57 familias salían con la fuente del
+  sistema y todas las celdas eran el mismo render (las 15 físicas sí pasaban por
+  `loadFont`, y por eso se veían bien). Ahora descarga la familia y dibuja con ella
+  (`cssReal`), degradando al nombre si la familia no llega. Medido: **72 celdas →
+  72 renders con hash de píxeles distinto**, 56 peticiones `css2` + 57 woff2 y
+  **1 solo POST** (30 s la primera vez; la segunda apertura 0 POST y 0 descargas).
+  Esto solo era posible **después** de arreglar la carrera del punto anterior: sin
+  `asegurarGoogle` confiable, las 57 familias habrían fallado en lote.
+- ✅ **F1 con concurrencia acotada (≤4, `opciones.concurrencia`)**: generar la
+  hoja de `img` (128 originales) o de `fonts` (57 familias) en secuencial tardaba
+  la **suma** de todas; con 4 en paralelo el total baja al **máximo** por grupo.
+
+### 7.5b RC47 — miniaturas invertidas en la galería de fuentes
+
+La hoja se pinta con **fondo blanco y texto negro** (`dibujarPreviewFuente`), que en
+el tema oscuro del editor deslumbra. Se invierte **solo por presentación** con un
+`filter: invert(1)` en `.tt-galpanel-invertido .tt-galpanel-tile canvas|img`: la
+hoja, el catálogo y su firma **no se tocan**, así que no requiere regenerar nada.
+El interruptor (`Invertir`, chico, arriba a la derecha) vive **solo** en la galería
+de fuentes y arranca encendido; en imágenes y presets **no** se invierte porque sus
+tiles son renders reales y darlos vuelta se vería raro. Sin persistencia (ni
+`localStorage` ni `wp_options`): es una preferencia de sesión.
 
 ### 7.6 Estado verificado (RC46, lab local)
 
