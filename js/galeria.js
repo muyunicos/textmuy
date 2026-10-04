@@ -448,7 +448,11 @@ function crearPanel(){
    catSel.appendChild(o);catSel.hidden=true;
   }else{catSel.hidden=true;}
   nameIn.disabled=!(esSv||esCat);
-  saveBtn.hidden=true;
+  // RC46: el boton Save se gobierna por `hayCambios()` en vez de quedar siempre oculto.
+  // Antes anulaba un flujo que YA existia en el handler (copiar un recurso
+  // del catalogo al servidor con otro nombre) y que `nameIn`+input habilitan al
+  // teclear: mismo sintoma que el footer muerto de la galeria de fuentes.
+  saveBtn.hidden=!hayCambios();
   delBtn.hidden=!esSv;
   status.textContent=avisoEstado|| (it?(it.enUso?'En uso por presets':''):'Selecciona un elemento');
  }

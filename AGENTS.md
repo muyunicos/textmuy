@@ -272,10 +272,81 @@ descartaba: por eso "no hacía nada".
 - ✅ **`catalog.js::geometriaTiles` devuelve el ratio reducido con MCD**
   (`180x30 → 6 / 1`), de modo que coincide con los defaults por `data-ambito`
   del CSS; `w`/`h` crudos se conservan para el cálculo del alto (SC-006).
-- ⚠️ **Pendiente (no implementado en RC46)**: US3 (preview real de la celda
-  elegida y su persistencia) y US4 (celdas completas sin recorte). El botón
-  "Generar miniaturas" / "Miniaturas" se retiran cuando la autogeneración esté
-  conectada a las tres galerías (T018/T019).
+- ⚠️ **Pendiente**: solo **US3** (persistir la preview real de la celda elegida).
+  US4 (celdas completas) está hecha: ver el punto siguiente.
+
+### 7.4 Decisiones RC46 — galerías usables (US4 + Bloque C)
+
+Cerrados con medición en navegador (WordPress local, WP 7.1.2 + SQLite + Playwright),
+no solo con tests unitarios. Tres bugs que eran **independientes del spec 009** y
+que producción arrastraba igual:
+
+- ✅ **Las celdas se solapaban y la galería era inclicable.** Con `display:grid` +
+  `grid-auto-rows:auto` el track de la fila **ignora el `aspect-ratio`** del tile
+  (el canvas usa `height:100%` sobre una altura indeterminada y no aporta nada):
+  en tipografías la fila medía **6 px** y el tile **29 px**, así que cada celda
+  pisaba la siguiente y le interceptaba el clic. `align-items:start` NO alcanza.
+  La rejilla pasó a **flex**, donde la altura de cada línea sí sale del
+  `aspect-ratio`. Medido: **0 solapamientos** en 72 celdas de tipografías y 155 de
+  imágenes; 20/20 clics correctos; tile 162×27 con ratio `6 / 1` exacto. El ancho
+  de columna sigue saliendo de `--tt-gal-col` (×0.9 para que entren 2 columnas).
+- ✅ **Los filtros por categoría no filtraban** (`custom/display/gaming/...`):
+  las pestañas se derivaban de la lista **ya filtrada** y el clic llamaba `render()`
+  (que no vuelve a filtrar). Ahora el listado completo vive en `itemsBase`, las
+  pestañas salen de ahí y el clic **recarga**. Verificado contra `fonts.json`:
+  todas 72 · custom 15 · display 10 · gaming 1 · handwriting 18 · serif 11.
+- ✅ **El pie de la galería de fuentes estaba muerto.** El gate era
+  `tipo==='server'`, que **nunca se cumplía**: `cargar()` deduplica las físicas
+  del registro contra `fonts.json`, así que las 15 fuentes `MUY-*` entran como
+  `tipo:'catalogo'`. Por eso `+ Categoría`, el select de categoría, **Save** y
+  **Delete** no hacían nada y las físicas se anunciaban como *"Google Fonts (solo
+  lectura)"*. Ahora manda **`esEditable()`**: una fuente es editable si tiene
+  **físico** en el servidor, y el dato que lo distingue es **`online`**.
+  Para dar de baja se agrega **`FontLoader.deleteFontFromCatalog(id)`** (op=baja
+  con el archivo de `fonts.json`): `deleteCustomFont` solo servía para las subidas
+  de la sesión y devolvía `false` en silencio. Una familia Google no se borra.
+
+### 7.5 RC46 — dos bugs de carga que rompían la generación en producción
+
+- 🔴 **Carrera en `fonts.js::asegurarGoogle`**: se inyectaba el `<link>` de Google
+  y se llamaba `document.fonts.load()` **en el mismo tick**. Si la hoja de estilo
+  todavía no estaba parseada, `load()` resuelve con **0 caras** y la fuente queda
+  `fallida` con *"no se pudo cargar de Google"* — sin reintento útil, porque
+  `googleLinksInjected` ya la daba por puesta. Medido: inyectar+`load` en el mismo
+  tick → **0 caras**; inyectar, **esperar al `<link>`** y luego `load` → **1 cara**.
+  Consecuencia real: **ningún preset con fuente Google tenía miniatura**, y el
+  fallo era intermitente también en producción.
+- 🔴 **`img` sin renderer por defecto** en F1: devolvía `null` (se asumía que
+  `ThumbEngine` resolvía el original por su cuenta), pero F1 invoca el render
+  directamente → las **128 celdas de `img` contaban como fallo** y la hoja jamás se
+  persistía. Ahora pide el original de la celda y lo entrega como `Image`.
+- ✅ **F1 tiene tope por celda** (`conTope`, 15 s por defecto): un render colgado
+  ya no congela la galería; cuenta como fallo de esa celda y, con ella, la hoja no
+  se persiste (I3) y la UI muestra la causa con su **Reintentar** (T020).
+- ✅ **Las galerías pintan antes de generar** (estado `listando` del spec 009). En
+  presets el listado esperaba a `cargarPresetSprite()`, que ahora *genera* la
+  hoja: un render lento dejaba la galería en **0 tiles**.
+
+### 7.6 Estado verificado (RC46, lab local)
+
+WordPress 7.1.2 + SQLite en `C:\wp-lab\wordpress`, con copia de `uploads/pmu/`
+(72 fuentes · 128 imágenes · 1 preset) y Playwright:
+
+| Galería | Celdas con miniatura | POST | Descargas de contenido |
+|---|---|---|---|
+| Fuentes | 72 / 72 | 0 | 0 |
+| Estilos (presets) | 1 / 1 | 0 | 0 |
+| Imágenes | 155 canvas | 0 | 0 |
+
+Hojas persistidas y **certificadas**: `fonts` 35,3 KB · `img` 252 KB ·
+`tm-presets` 3,7 KB. Suites: **25** en verde (2 nuevas: `hoja-generacion`,
+`fuentes-filtros-footer`).
+
+⚠️ **T004 del `tasks.md` del spec 009 está mal y se aplicó corregido**: decía
+certificar "todo ámbito de `AMBITOS_GALERIA`", lo que habría roto `mockups` (no
+manda firma → el motor rechazaría con `desactualizado` y le crearía el catálogo
+vacío). Su propio `contracts/motor-sprite.md` ya decía bien `fonts | img |
+tm-presets`. La condición correcta es **"ámbito con catálogo ∧ firma no vacía"**.
 
 ### 7.2 Decisiones RC44/RC45 — arranque sin puente (bugfix)
 
