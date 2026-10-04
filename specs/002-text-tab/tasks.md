@@ -52,7 +52,7 @@ pueden probar de forma aislada porque las tres comparten el mismo modelo.
 
 - [x] T005 [P] Suite `tests/area-util.test.js`: fijar que el area util se calcula **una sola vez** (padding contra el lado menor del canvas + area util minima) y que el margen al maximo deja texto visible (FR-003, FR-004, R-G1.4)
 - [x] T006 [P] Suite `tests/avance-lineas.test.js`: fijar que cada linea i>1 se coloca a `lineHeight * tamano[i-1]` de la anterior, que L1 ancla el bloque y que una sola linea es invariante ante Line height (FR-007, FR-008, FR-021, R-G1.2)
-- [ ] T007 Suite `tests/encaje-final.test.js`: fijar que el encaje final se aplica siempre (con y sin rotacion/recorte), que solo reduce y que no altera `settings.canvas.width/height` (FR-005, R-G2.1 a R-G2.4)
+- [x] T007 Suite `tests/encaje-final.test.js`: fijar que el encaje final se aplica siempre (con y sin rotacion/recorte), que solo reduce y que no altera `settings.canvas.width/height` (FR-005, R-G2.1 a R-G2.4)
 - [x] T008 Implementar el helper unico de area util en `js/editor.js` (padding contra lado menor + minimo garantizado) y reemplazar los tres calculos duplicados de `autoFitText` (~745), `render` (~939, ~1115) y `lineFontSizes` (~3191)
 - [x] T009 Implementar el modelo unico de bloque en `js/editor.js`: origen, avances acumulados por linea y baselines por tinta compartido por `autoFitText`, `getTextBlockMetrics` (~2467), `drawTextLines` (~2487), `getTextBlockBox` (~2812) y `lineFontSizes` (~3182)
 - [ ] T010 Implementar el encaje final siempre en `js/editor.js` como una pasada de escala sobre la capa ya compuesta, con margen de seguridad de pocos pixeles y limite `<= 1`
@@ -153,14 +153,14 @@ mover cada control de layout.
 
 ### Tests for User Story 4
 
-- [ ] T026 [P] [US4] Suite `tests/geometria-bloque.test.js`: fijar que ajuste y dibujo comparten origen, avances y baselines (una sola definicion), y que con tamanos por linea distintos las Y usan avances acumulados sin superposicion (R-G1.1, R-G1.3)
+- [x] T026 [P] [US4] Suite `tests/geometria-bloque.test.js`: fijar que ajuste y dibujo comparten origen, avances y baselines (una sola definicion), y que con tamanos por linea distintos las Y usan avances acumulados sin superposicion (R-G1.1, R-G1.3)
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] En `js/editor.js`, sustituir el centrado duplicado del ajuste y de cada motor de dibujo por el modelo unico de bloque (hoy el ajuste y el dibujo usan formulas distintas de centrado: "tinta en la columna 479 y 50+ px en la fila 0")
-- [ ] T028 [US4] En `js/editor.js`, aplicar el encaje final **siempre** tras componer la capa (con y sin curva/rotacion), con margen de seguridad de pocos pixeles y limite `<= 1` (hoy solo corre en el camino con recorte, por eso la rotacion "enmascaraba" el desborde)
-- [ ] T029 [US4] En `js/editor.js`, aplicar el encaje en el camino de render headless igual que en el visible, sin alterar `settings.canvas.width/height` (paridad FR-020)
-- [ ] T030 [US4] `node --check` de `js/editor.js`; suites de T007, T026 y las 26 previas en verde
+- [x] T027 [US4] En `js/editor.js`, sustituir el centrado duplicado del ajuste y de cada motor de dibujo por el modelo unico de bloque (hoy el ajuste y el dibujo usan formulas distintas de centrado: "tinta en la columna 479 y 50+ px en la fila 0")
+- [x] T028 [US4] En `js/editor.js`, aplicar el encaje final **siempre** tras componer la capa (con y sin curva/rotacion), con margen de seguridad de pocos pixeles y limite `<= 1` (hoy solo corre en el camino con recorte, por eso la rotacion "enmascaraba" el desborde)
+- [x] T029 [US4] En `js/editor.js`, aplicar el encaje en el camino de render headless igual que en el visible, sin alterar `settings.canvas.width/height` (paridad FR-020)
+- [x] T030 [US4] `node --check` de `js/editor.js`; suites de T007, T026 y las 26 previas en verde
 
 **Checkpoint**: US4 verificable por si sola (cero tinta en los bordes).
 

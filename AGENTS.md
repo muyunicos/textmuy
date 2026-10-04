@@ -86,7 +86,7 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 31 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 32 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -95,7 +95,7 @@ textmuy/
                               integridad-archivos, entorno, hoja-generacion,
                               fuentes-filtros-footer, fuentes-preview-us3,
                               curva-snapshot, curva-sin-webgl, barra-line-target,
-                              area-util, avance-lineas)
+                              area-util, avance-lineas, encaje-final)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -172,7 +172,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC49**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC50**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -384,11 +384,35 @@ no depende de la geometria unica y por eso va primero.
   `hidden=true` hasta que el usuario cambiaba de pestaña (medido). Ahora se
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
-**Estado del feature**: Bloques A y B cerrados (US1, US2, US3, US5 + la geometría
-única). Pendientes: Bloque C (encaje final siempre, US4) y Bloque D (modelo de
-líneas completo: `lines.inherit`, `sizing` por línea, claves 1-based,
-anti-ciclos, fuente por línea). Las tareas están en `specs/002-text-tab/tasks.md`
-(T001-T057) y el plan de validación en `specs/002-text-tab/quickstart.md`.
+**Estado del feature**: Bloques A, B y C cerrados (US1, US2, US3, US4, US5 + la
+geometría única). Pendiente: Bloque D (modelo de líneas completo:
+`lines.inherit`, `sizing` por línea, claves 1-based, anti-ciclos, fuente por
+línea), que además cambia el formato `.txm` a `version:2`. Las tareas están en
+`specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
+`specs/002-text-tab/quickstart.md`.
+
+### 7.9 RC50 — Bloque C: el encaje final se aplica siempre (US4)
+
+El encaje final ya existía, pero **solo corría en el camino con recorte** (curva o
+rotación). Por eso la rotación "enmascaraba" el desborde: con cualquier otra
+combinación de layout la capa completa se volcaba en el lienzo y el texto se
+salía del margen pedido (medido: tinta en la columna 479 y 50+ px en la fila 0).
+
+- ✅ **El recorte y el encaje son incondicionales** (`editor.js::render`). La capa
+  compuesta se recorta por su tinta real siempre y se escala a la caja
+  disponible con el gutter de antialiasing como margen de seguridad (R-G2.1).
+- ✅ **El encaje solo reduce** (`Math.min(1, ...)`): con un lienzo enorme el texto
+  no crece para ocupar el espacio (R-G2.2, no compite con el ajuste).
+- ✅ **El tamaño de salida no se toca**: `settings.canvas.width/height` siguen
+  siendo la única fuente de verdad; el encaje es interno (R-G2.3, constitución II).
+- ✅ **Un solo camino** para editor y motor: el encaje vive en `render()`, que es
+  el mismo código en el editor visible y en `renderToCanvas` (paridad FR-020).
+- **Prueba**: `tests/encaje-final.test.js` **no mira el código**: reproduce la
+  matriz de transformación del contexto (`translate`/`scale`/`rotate`/`drawImage`)
+  y comprueba que la caja que de verdad se dibuja cabe en el área útil, en 13
+  combinaciones (texto largo, multilínea, rotación ±, margen 0,1/0,3/0,5,
+  interlineado amplio, lienzo apaisado, vertical y apaisado con margen). Antes del
+  arreglo fallaba en `margen al maximo` (`se sale por la izquierda: 0.0 < 132.0`).
 
 ### 7.8 RC49 — Bloque B: la geometría única de bloque (área útil + avances)
 
@@ -709,7 +733,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 31 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 32 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -752,6 +776,7 @@ node tests/curva-sin-webgl.test.js     # US1: la API rechaza con causa; el edito
 node tests/barra-line-target.test.js   # US2: la barra Style target se ve al abrir (gating por pestana)
 node tests/area-util.test.js        # US3: padding contra el lado menor + area util minima garantizada
 node tests/avance-lineas.test.js    # US5: L1 ancla el bloque, avance por linea, sin solapes
+node tests/encaje-final.test.js     # US4: el encaje final SIEMPRE; la caja dibujada entra en el area util
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

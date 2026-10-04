@@ -1199,14 +1199,18 @@
             }
         }
 
-        // Rotation is deliberately final, applied after the curve so the
-        // order matches the reference editor.  The final canvas remains
-        // fixed.  To avoid clipping the rotated text against the canvas
-        // edges, the empty transparent border of the composed layer is
-        // trimmed before rotating, so rotation is centered on the actual
-        // content instead of the full-canvas transparent box.
+        // Rotation is deliberately final, applied after the curve so the order matches
+        // the reference editor. The final canvas remains fixed. To avoid clipping the
+        // rotated text against the canvas edges, the empty transparent border of the
+        // composed layer is trimmed before rotating, so rotation is centered on the
+        // actual content instead of the full-canvas transparent box.
+//
+        // 002-text-tab US4 (R-G2.1): el recorte y el encaje se aplican SIEMPRE, no solo
+        // cuando hubo curva o rotacion. Antes el encaje vivia en el camino con recorte,
+        // por eso la rotacion enmascaraba el desborde y con el resto de combinaciones
+        // el texto se salia del margen pedido (FR-005).
         let rotateLayer = composedLayer;
-        if (rotationValue > 0.0001 && typeof DistortEngine !== 'undefined') {
+        if (typeof DistortEngine !== 'undefined') {
             if (!state.distortEngine) state.distortEngine = new DistortEngine();
             const trimmedLayer = state.distortEngine.trimTransparent(composedLayer);
             if (trimmedLayer) {
@@ -1215,18 +1219,16 @@
             }
         }
 
-        // Curving and trimming add their own antialiasing gutter, which is
-        // not present in the pre-render estimate used by autoFitText(). Fit
-        // the actual final layer as a last step so a rotated curve cannot be
-        // clipped by the fixed output canvas.
+        // Fit the ACTUAL final layer as a last step, with or without curve/rotation, so
+        // no combination of layout can push ink into the border (FR-005, SC-004). The
+// trim keeps a small antialiasing gutter that becomes the safety margin.
         const rotationCos = Math.abs(Math.cos(rotationValue));
         const rotationSin = Math.abs(Math.sin(rotationValue));
         const finalWidth = rotateLayer.width * rotationCos + rotateLayer.height * rotationSin;
         const finalHeight = rotateLayer.width * rotationSin + rotateLayer.height * rotationCos;
-        const finalAvailableWidth = availableWidth;
-        const finalAvailableHeight = availableHeight;
+        // R-G2.2: el encaje solo reduce, nunca amplia: no compite con el ajuste.
         const finalScale = hasTrimmedContent
-            ? Math.min(1, finalAvailableWidth / finalWidth, finalAvailableHeight / finalHeight)
+            ? Math.min(1, availableWidth / Math.max(1, finalWidth), availableHeight / Math.max(1, finalHeight))
             : 1;
 
         ctx.save();
