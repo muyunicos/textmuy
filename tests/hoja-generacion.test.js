@@ -255,5 +255,48 @@ const celda = id => ({ w: 180, h: 30, id });
     assert.equal(o10.items.length, 2);
     assert.equal(o10.items[0].url, 'https://test/img/a.svg', 'img: el item lleva la URL del original (base imagenesBase)');
 
-    console.log('OK: hoja-generacion.test.js');
+    // Bloque C: los filtros de categoria. El listado completo vive en `itemsBase`
+// (sin busqueda ni filtro); las pestanas se derivan de ahi y el clic vuelve a
+// cargar(). Antes se derivaban del listado YA filtrado y el clic llamaba
+// render(), que no vuelve a filtrar: cambiar de categoria no mostraba nada
+// (72 -> 72 celdas) y las demas pestanas desaparecian.
+let itemsBase = [];
+function categorias() {
+    const set = {};
+    itemsBase.forEach(function (it) { set[it.categoria || 'custom'] = 1; });
+    return Object.keys(set).sort();
+}
+function itemsDe(fuente, q) {
+    return itemsBase.filter(function (it) {
+        if (q && (it.slug + ' ' + (it.titulo || '')).toLowerCase().indexOf(q) < 0) return false;
+        return fuente === 'todas' || (it.categoria || 'custom') === fuente;
+    });
+}
+const base = [
+    { slug: 1, titulo: 'A', categoria: 'display', online: true },
+    { slug: 2, titulo: 'B', categoria: 'custom', online: false },
+    { slug: 3, titulo: 'C', categoria: 'custom', online: false },
+    { slug: 4, titulo: 'D', categoria: 'gaming', online: true },
+];
+itemsBase = base.slice();
+assert.equal(itemsDe('todas').length, 4, 'todas => 4');
+assert.equal(itemsDe('custom').length, 2, 'custom => 2');
+assert.equal(itemsDe('gaming').length, 1, 'gaming => 1');
+assert.equal(itemsDe('todas').length, 4, 'filtrar NO destruye itemsBase: las pestanas siguen vivas');
+assert.deepEqual(itemsBase.map(i => i.slug), [1, 2, 3, 4], 'itemsBase intacto tras filtrar');
+assert.equal(itemsDe('todas', 'b').length, 1, 'la busqueda se combina con la categoria');
+// Las categorias se derivan del listado COMPLETO, no del filtrado.
+assert.deepEqual(categorias(), ['custom', 'display', 'gaming'], 'categorias desde itemsBase');
+// Bloque C: una fuente es editable si tiene fisico (`!online`), no por `tipo`.
+function esEditable(it) {
+    if (!it) return false;
+    if (it.tipo === 'server') return true;
+    return it.tipo === 'catalogo' && !it.online;
+}
+assert.equal(esEditable({ tipo: 'catalogo', online: false }), true, 'fisica del catalogo => editable');
+assert.equal(esEditable({ tipo: 'catalogo', online: true }), false, 'familia Google => solo lectura');
+assert.equal(esEditable({ tipo: 'server' }), true, 'subida de la sesion => editable');
+assert.equal(esEditable(null), false, 'sin seleccion => nada editable');
+
+console.log('OK: hoja-generacion.test.js');
 })().catch(function (e) { console.error(e); process.exit(1); });

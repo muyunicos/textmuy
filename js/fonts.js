@@ -884,6 +884,48 @@ var existente = idsPorNombreRegistro(familia)[0];
      * de confirmar e invalidar las caches. NUNCA rechaza: false ante fallos,
      * true cuando el motor confirma la baja.
      */
+    /**
+     * Baja REAL de una fuente IDENTIFICADA POR SU ID DE CATALOGO (op=baja,
+     * scope=fonts). Es la ruta que usa la galeria: desde RC39 la identidad de
+     * una fuente es su id numerico de `fonts.json`, y las fisicas del catalogo
+     * NO tienen entrada en `fontRegistry` (por eso `deleteCustomFont` solo
+     * servia para las subidas de la sesion y el boton Delete quedaba muerto).
+     * Una familia Google (file sin extension = `online`) no se borra: no hay
+     * fisico en el servidor. Devuelve Promise<boolean> y nunca rechaza.
+     */
+    function deleteFontFromCatalog(id) {
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        if (!(bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor)) {
+            return Promise.resolve(false);
+        }
+        var entry = catalogFonts[id] || fontsById[id] || null;
+        var archivo = entry && entry.file;
+        if (!archivo || entry.online || !FONT_EXT_RE.test(archivo)) {
+            return Promise.resolve(false); // Google: no hay fisico que borrar
+        }
+        var fd = new FormData();
+        fd.append('op', 'baja');
+        fd.append('_wpnonce', bridge.nonces.motor);
+        fd.append('scope', 'fonts');
+        fd.append('file', archivo);
+        return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) {
+                return r.json().then(function (res) { return { ok: r.ok, res: res }; });
+            }).then(function (o) {
+                if (!o.ok || !o.res || !o.res.success) return false;
+                // La identidad desaparece: sale del indice canonico y de cualquier
+                // entrada del registro que apuntara al mismo archivo.
+                delete fontsById[id];
+                Object.keys(fontRegistry).forEach(function (k) {
+                    if (fontRegistry[k] && fontRegistry[k].serverFile === archivo) delete fontRegistry[k];
+                });
+                delete loadedFonts[id];
+                delete fontStates[id];
+                return true;
+            })
+            .catch(function () { return false; });
+    }
+
     function deleteCustomFont(key) {
         var font = fontRegistry[key];
         var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
@@ -1112,6 +1154,9 @@ var existente = idsPorNombreRegistro(familia)[0];
         registerTextStudioFont: registerTextStudioFont,
         uploadCustomFont: uploadCustomFont,
         deleteCustomFont: deleteCustomFont,
+        // RC46/Bloque C: baja por identidad de catalogo (las fisicas de
+        // fonts.json no tienen entrada en el registro).
+        deleteFontFromCatalog: deleteFontFromCatalog,
         unregisterCustomFont: unregisterCustomFont,
         renderFontPreview: renderFontPreview,
         ensureFontsSprite: ensureFontsSprite,

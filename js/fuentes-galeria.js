@@ -125,9 +125,15 @@ function crearPanel(){
  let seleccionado=null;
  let fuenteActual='todas';
  let aplicarActual=null;
+ // RC46 / Bloque C: las pestanas se derivan de la lista SIN filtrar y el clic
+ // vuelve a `cargar()` (no a `render()`). Antes: (a) `cargar()` filtraba `items`
+ // ANTES de armar las pestanas, asi que al elegir una categoria las demas
+ // desaparecian; y (b) el clic llamaba `render()`, que no vuelve a filtrar, asi
+ // que al cambiar de categoria no se veia NADA (72 -> 72 celdas).
+ let itemsBase=[];   // listado completo (sin busqueda ni filtro de categoria)
  function categorias(){
   const set={};
-  items.forEach(function(it){set[it.categoria||'custom']=1;});
+  itemsBase.forEach(function(it){set[it.categoria||'custom']=1;});
   return Object.keys(set).sort();
  }
  function montarTabs(){
@@ -136,12 +142,12 @@ function crearPanel(){
    const b=el('tt-galpanel-tab','button',f==='todas'?'todas':f);
    b.type='button';
    if(f===fuenteActual)b.classList.add('on');
-   b.addEventListener('click',function(){fuenteActual=f;render();});
+   b.addEventListener('click',function(){fuenteActual=f;cargar();});
    tabs.appendChild(b);
   });
  }
  function cargar(){
-  items=[];seleccionado=null;avisoCatalogo='';
+  itemsBase=[];items=[];seleccionado=null;avisoCatalogo='';
   // Catalogo unico numerico (fonts.json): ids ok con titulo/cats.
   // Invalid -> salto + warn + contador (higiene de listado, Const VI).
   // Free (tombstone) -> ocultas.
@@ -164,7 +170,7 @@ function crearPanel(){
     archivosCat[ent.file]=true;
     const tit=ent&&ent.titulo?ent.titulo:('#'+id);
     const online=!!ent.online;
-    items.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online,fontId:id});
+    itemsBase.push({slug:id,titulo:tit,src:'',categoria:c,enUso:false,tipo:'catalogo',online:online,fontId:id});
    });
   });
   if(FL()&&FL().listServerFonts){
@@ -173,10 +179,14 @@ function crearPanel(){
     // sesion vive en el registry (serverFile) Y en el catalogo (id); sin esto
     // salia DOS veces en la lista (una como catalogo y otra como server).
     if(f.nombre&&archivosCat[f.nombre])return;
-    items.push({slug:f.key,titulo:f.titulo||f.nombre,src:f.url||'',categoria:f.categoria||'custom',enUso:false,tipo:'server',serverFile:f.nombre,fontKey:f.key});
+    itemsBase.push({slug:f.key,titulo:f.titulo||f.nombre,src:f.url||'',categoria:f.categoria||'custom',enUso:false,tipo:'server',serverFile:f.nombre,fontKey:f.key});
    });
   }
   const q=(search.value||'').toLowerCase();
+  // Bloque C: se filtra DESDE itemsBase (el listado completo), no desde `items`
+ // (que ya venia filtrado): asi las pestanas siempre se derivan del total y
+ // cambiar de categoria no depende del estado anterior.
+  items=itemsBase.slice();
   if(q)items=items.filter(function(i){return (i.slug+' '+(i.titulo||'')).toLowerCase().indexOf(q)>=0;});
   if(fuenteActual!=='todas')items=items.filter(function(i){return (i.categoria||'custom')===fuenteActual;});
   montarTabs();
@@ -251,11 +261,35 @@ function crearPanel(){
   actualizarBotonHojas();
  }
 
+ // RC46 / Bloque C: una fuente es EDITABLE si tiene FISICO en el servidor. El
+ // gate anterior era `tipo==='server'`, que NUNCA se cumplia: `cargar()`
+ // deduplica las fisicas del registro contra `fonts.json`, asi que las 15
+ // fuentes MUY-* entran como `tipo:'catalogo'` y ninguna quedaba editable. El
+ // dato que si distingue el caso es `online` (familia Google, sin fisico) del
+ // resto, que son fisicas del administrador.
+ function esEditable(it){
+  if(!it)return false;
+  if(it.tipo==='server')return true;
+  return it.tipo==='catalogo'&&!it.online;
+ }
+ // Entrada de `fonts.json` de un item de galeria (trae `file`, que el item de
+ // galeria no lleva) para poder renombrar/borrar por identidad real.
+ function entradaDeCatalogo(it){
+  if(!it||it.fontId==null)return null;
+  try{return (FL()&&FL().getCatalogFonts()||{})[it.fontId]||null;}catch(_){return null;}
+ }
+ // Item que entiende `PresetManager.moverFuente`, que exige `item.id`.
+ function itemParaMover(it){
+  const ent=entradaDeCatalogo(it);
+  if(it.tipo==='server')return it;
+  if(ent)return {id:it.fontId,serverFile:ent.file,slug:it.slug,titulo:it.titulo,fontId:it.fontId};
+  return null;
+ }
  function rfFooter(){
   const it=seleccionado;
-  const esSv=!!(it&&it.tipo==='server');
+  const editable=esEditable(it);
   nameIn.value=it?it.titulo:'';
-  nameIn.disabled=!esSv;
+  nameIn.disabled=!editable;
   catSel.innerHTML='';
   categorias().forEach(function(c){
    const o=document.createElement('option');
@@ -268,11 +302,11 @@ function crearPanel(){
    catSel.appendChild(o);
   }
   if(it)catSel.value=it.categoria;
-  catSel.disabled=!esSv;
-  newCatBtn.disabled=!esSv;
-  saveBtn.hidden=!esSv;
-  delBtn.hidden=!esSv;
-  status.textContent=it?(it.tipo==='catalogo'?'Google Fonts (solo lectura)':''):'Selecciona una fuente';
+  catSel.disabled=!editable;
+  newCatBtn.disabled=!editable;
+  saveBtn.hidden=!editable;
+  delBtn.hidden=!editable;
+  status.textContent=it?(it.online?'Google Fonts (solo lectura)':''):'Selecciona una fuente';
  }
  // RC39 (001-fix-bugs-01): la fuente explorada se aplica al LIENZO de
  // inmediato, sin pasar por "Select" (FR-007). Es una previsualizacion
@@ -383,13 +417,13 @@ function crearPanel(){
 
  saveBtn.addEventListener('click',function(){
   const it=seleccionado;
-  if(!it||it.tipo!=='server'||!PM())return;
+  if(!esEditable(it)||!PM())return;
   const nn=(nameIn.value.trim()||it.titulo).trim();
   const nc=(catSel.value||it.categoria||'custom').trim()||'custom';
   if(nn===it.titulo&&nc===it.categoria){status.textContent='Sin cambios.';return;}
   status.textContent='Guardando...';
   if(PM().moverFuente){
-   PM().moverFuente(it,nn,nc).then(function(){
+   PM().moverFuente(itemParaMover(it),nn,nc).then(function(){
     status.textContent='Guardado.';saveBtn.hidden=true;
     // moverFuente ya invalido la hoja (op=editar); falta releer el catalogo
     // del modulo (titulo/categoria viejos) ANTES de listar.
@@ -401,20 +435,25 @@ function crearPanel(){
  });
  delBtn.addEventListener('click',function(){
   const it=seleccionado;
-  if(!it||it.tipo!=='server')return;
+  if(!esEditable(it))return;
   if(!confirm('Borrar "'+it.titulo+'"?'))return;
-  if(!FL()||!FL().deleteCustomFont)return;
+  if(!FL()||!(FL().deleteCustomFont||FL().deleteFontFromCatalog))return;
   status.textContent='Borrando...';
-  // deleteCustomFont resuelve DESPUES de que el motor confirme la baja: recien
-  // entonces la relectura de fonts.json deja de traer la tupla borrada.
-  Promise.resolve(FL().deleteCustomFont(it.fontKey)).then(function(ok){
+  // Bloque C: la baja va por IDENTIDAD de catalogo (op=baja con el archivo de
+  // fonts.json). `deleteCustomFont` solo servia para las subidas de la sesion:
+  // las fisicas del catalogo no tienen entrada en el registro, asi que el
+  // boton Delete no podia funcionar y devolvia false en silencio.
+  const tarea=(it.tipo==='server')
+   ? FL().deleteCustomFont(it.fontKey)
+   : FL().deleteFontFromCatalog(it.fontId);
+  Promise.resolve(tarea).then(function(ok){
    if(!ok){status.textContent='No se pudo borrar.';return null;}
    status.textContent='Borrado.';seleccionado=null;
    return recargarTrasMutacion(cargar);
   }).catch(function(e){status.textContent=e.message;});
  });
  newCatBtn.addEventListener('click',function(){
-  if(!seleccionado||seleccionado.tipo!=='server')return;
+  if(!esEditable(seleccionado))return;
   nuevaCategoria();
  });
  // T020 (spec 009): Reintentar, visible SOLO tras un error de generacion. Ya no
