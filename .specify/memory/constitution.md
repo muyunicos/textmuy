@@ -71,10 +71,25 @@ IV). Este repo MUST NOT versionar datos.
 El preset guarda absolutamente TODAS las opciones que cambia el
 usuario y NINGUNA de las que no cambian: `settings` MUST ser el DELTA
 estricto contra los defaults (`diffSettings` / `settingsFromDelta`).
-Formato unico `.txm`: `{format:'textmuy-project', version:1, name,
-settings}`. Nombres sanitizados `[a-z0-9_-]`. `settings.lines`
-(All/L1/L2/L3) MUST respetar `isGlobalOnlyPath`: rutas globales
-nunca entran a overrides. Referencias a recursos: las imagenes por `id`
+Formato unico `.txm`: `{format:'textmuy-project', version:2, name,
+settings}`. Nombres sanitizados `[a-z0-9_-]`.
+
+**Alcance por linea (v3.2.0)**: `settings.lines` describe las lineas
+direccionables (L1/L2/L3) con claves **1-based** (`line["1"]` = L1). El
+alcance por linea cubre **todo estilo y layout por linea** (tipografia,
+tamano, alineacion, espaciados, rotacion, curva, rellenos, contornos,
+sombras, relieves, brillos, letterings e icono). Quedan FUERA unicamente
+Canvas Size, el contenedor del sistema de lineas y las rutas de
+descarga/procesado; el texto es global por definicion. Cada linea resuelve
+su estilo en tres pasos fijos: heredar (de ALL u otra linea) -> mezclar sus
+ajustes propios (delta disperso) -> dimensionar por su regla de tamano
+(porcentaje sobre la referencia ya resuelta). La UI MUST hacer imposibles
+los ciclos de herencia y dimensionamiento por ocultamiento transitivo por
+ambas aristas; un ciclo que llegue por archivo editado a mano MUST
+rechazarse con causa dejando la vista intacta. Lo configurado para lineas
+inexistentes MUST conservarse y reactivarse al reaparecer.
+
+Referencias a recursos: las imagenes por `id`
 numerico del catalogo; la fuente (`settings.font.src`) como STRING (titulo
 del catalogo o spec Google) o su `id` numerico (el editor escribe el valor
 del picker y `FontLoader` lo resuelve por titulo).
@@ -147,6 +162,15 @@ operacion/archivo; la redundancia se elimina, no se documenta. El
 codigo se escribe limpio desde el inicio: no se acumula "temporal"
 que se limpia despues.
 
+**Sin lectores del formato anterior (v3.2.0)**: cuando un cambio de
+formato ocurre en un entorno sin datos previos (declarado
+explicitamente por el usuario), la ausencia de migracion NO es una
+excepcion: es la aplicacion directa de este principio. El formato
+nuevo reemplaza, no convive, y un archivo con formato de lineas
+desconocido MUST rechazarse con causa dejando la vista intacta, igual
+que cualquier delta invalido. Escribir codigo de migracion para cero
+casos reales seria codigo muerto desde el dia uno.
+
 ## Restricciones Tecnicas y de Integracion
 
 Stack: Canvas 2D + WebGL en vanilla JS, sin frameworks; unico CSS
@@ -195,7 +219,40 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 3.1.2 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-10-01
+**Version**: 3.2.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-10-04
+
+## Sync Impact Report (v3.2.0, 2026-10-04)
+
+- **Bump**: MINOR — se redefine el alcance por linea y la version del formato
+  `.txm` (feature `specs/002-text-tab`, pestana TEXT).
+- **Modificado**: IV — el formato pasa a `version:2`; `settings.lines` usa claves
+  **1-based** (`line["1"]` = L1) y el alcance por linea se amplia de las rutas de
+  estilo a **todo estilo y layout por linea**, dejando fuera solo Canvas Size, el
+  contenedor del sistema de lineas y las rutas de descarga/procesado (el texto es
+  global por definicion). Se fija la resolucion en tres pasos (heredar -> mezclar lo
+  propio -> dimensionar por porcentaje sobre la referencia resuelta), los ciclos
+  MUST ser imposibles en UI por ocultamiento transitivo por ambas aristas y
+  rechazarse con causa si llegan por archivo editado a mano, y lo configurado para
+  lineas inexistentes MUST conservarse. VII — se registra que, en entorno declarado
+  sin datos previos, la entrega NO incluye migracion ni lectores del formato
+  anterior: es aplicacion del principio, no excepcion.
+- **Eliminado**: la mencion a `isGlobalOnlyPath` como regla de formato (la funcion
+  desaparece del estado: sin rutas globales de layout/fuente).
+- **Sin cambio en**: I, II, III, V, VI. El delta estricto se mantiene: solo viaja lo
+  que difiere de los defaults.
+- **Impacto en el plugin**: ninguno en el contrato. El plugin no lee `settings.lines`
+  ni valida la version del `.txm` (el delta viaja opaco dentro de `renderBatch`), asi
+  que puede desplegarse el modulo sin tocar el plugin. Requisito operativo: el
+  editor MUST avisar con Ctrl+F5 tras el bump `?v=RCn`, porque los `.txm` con formato
+  de lineas viejo dejan de ser validos por diseno (no hay lector).
+- **Estado**: la gobernanza se adelanta a la implementacion (aprobada con el
+  usuario al cerrar el plan). Hasta que el Bloque D de `specs/002-text-tab` aterrice
+  en `js/editor.js` y `js/preset-manager.js`, el modulo sigue escribiendo
+  `version:1` con `lines.sizing` global y claves 0-based: esos `.txm` quedan
+  invalidos al aplicar el formato nuevo, por diseno y sin lector (VII).
+- **Origen**: `specs/002-text-tab` (spec, plan, research R6/R8/R10, data-model,
+  contracts/lineas.md) acordado con el usuario, con causas raiz medidas en
+  laboratorio con Chrome + Playwright sobre el iframe real del plugin.
 
 ## Sync Impact Report (v3.1.2, 2026-10-01)
 
