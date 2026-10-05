@@ -252,9 +252,18 @@ const t3 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 1000, 8
 assert.ok(t3[0] < 100, 'L1 con tope propio queda por debajo (got ' + t3[0] + ')');
 assert.ok(t3[1] >= 100, 'L2 sin tope propio NO se ve afectada (got ' + t3[1] + ')');
 
-// El valor es siempre un porcentaje relativo: con otro lienzo, otro resultado,
-// pero nunca un px fijo (el canvas es dinamico: 500 px o 5000 px).
-const t4 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 2000, 1600, conTopeAlto, 100);
-assert.ok(t4[0] !== t3[0], 'duplicar el lienzo cambia el resultado: es relativo al canvas');
+// El tope por linea manda SOLO sobre esa linea: es una fraccion de SU PROPIO
+// tamano base, no del lado del lienzo. Antes se media contra el lado del lienzo
+// (320 px), asi que un tope del 50% (=160) nunca llegaba a afectar un tamano de
+// 115 y el control no hacia nada (medido en el laboratorio).
+assert.equal(t3[0], 10, 'L1 al 10% queda en el 10% de su tamano base (got ' + t3[0] + ')');
+assert.equal(t3[1], 100, 'L2 sin tope propio NO se ve afectada (got ' + t3[1] + ')');
+assert.equal(t3[2], 100, 'L3 tampoco (got ' + t3[2] + ')');
+
+// Y sigue siendo RELATIVO: duplicar el tamano base duplica el tope. Nunca un px
+// fijo, porque el lienzo es dinamico (500 px o 5000 px).
+const t4 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 1000, 800, conTopeAlto, 200);
+assert.equal(t4[0], 20, 'con base 200 el tope del 10% da 20, no un px fijo (got ' + t4[0] + ')');
+assert.equal(t4[1], 200, 'y L2 sigue sin tope propio (got ' + t4[1] + ')');
 
 console.log('lineas resolucion: OK - heredar -> mezclar -> dimensionar, claves 1-based, target no filtra');

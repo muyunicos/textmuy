@@ -3584,16 +3584,20 @@ function clone(obj) {
         const lh = 1;
 
         // Pasada 1: tamano propio o porcentaje sobre el tamano del ajuste.
+        // `px` parte SIEMPRE de `fontSizePx` (el tamaño que el ajuste le dio a
+        // esta linea), NUNCA del `font.size` guardado: ese valor es un default
+        // (100) que no significa nada hasta que el ajuste lo recalcula, y usarlo
+        // como punto de partida descuadraba todo.
         for (let li = 1; li <= direccionables; li++) {
             const resuelta = resolveLine(s, li, {});
-            let px = resuelta && resuelta.font ? Number(resuelta.font.size) : NaN;
             const sz = sizingOf(s, li);
             // Tope de ESA linea: con una linea activa, "Max Font Size" deja de
-            // ser global y manda sobre ella. Sigue siendo un porcentaje relativo
-            // al lienzo (nunca px fijos: el canvas es dinamico).
+            // ser global y manda sobre ella. Se mide sobre el tamaño base de la
+            // linea (relativo, nunca px fijos: el lienzo es dinamico).
             const pctLinea = (resuelta && resuelta.canvas && resuelta.canvas.maxFontSize !== undefined)
                 ? Math.max(0, Math.min(100, Number(resuelta.canvas.maxFontSize) || 100)) / 100
                 : maxPctBase;
+            let px = fontSizePx;
             if (tienePxPropio(s, li)) {
                 px = Number((lineEntry(s, li) || {}).font.size);
             } else if (sz && sz.ref === 'canvas') {
@@ -3601,8 +3605,10 @@ function clone(obj) {
             } else if (sz && sz.ref === 'linea') {
                 px = fontSizePx;   // la cascada se resuelve en la pasada 2
             }
+            // El tope limita ESA linea a una fraccion de su propio tamaño base.
+            const tope = fontSizePx * pctLinea;
             if (Number.isFinite(px) && px > 0) {
-                out[li - 1] = Math.max(8, Math.round(Math.min(px, singleRef * pctLinea)));
+                out[li - 1] = Math.max(8, Math.round(Math.min(px, tope)));
             }
         }
 
