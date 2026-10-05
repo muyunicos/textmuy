@@ -3249,13 +3249,16 @@
                 if (k === 'sizing' || k === 'inherit') return;  // metadatos del sistema
                 const v = d[k];
                 const full = prefix ? prefix + '.' + k : k;
-                if (isGlobalPath(full)) return;
                 if (v && typeof v === 'object' && !Array.isArray(v)) {
+                    // Se BAJA al subarbol: la decision es por HOJA, porque un
+                    // grupo puede ser global y contener una excepcion (canvas es
+                    // global, canvas.maxFontSize no lo es).
                     if (!node[k] || typeof node[k] !== 'object' || Array.isArray(node[k])) node[k] = {};
                     apply(node[k], v, full);
-                } else {
-                    node[k] = clone(v);
+                    return;
                 }
+                if (isGlobalPath(full)) return;
+                node[k] = clone(v);
             });
         })(out, delta, '');
         return out;
@@ -3549,7 +3552,11 @@
         let hayReglas = false;
         for (let li = 1; li <= direccionables; li++) {
             const e = lineEntry(s, li);
-            if (e && (e.sizing || (e.font && Number(e.font.size) > 0))) { hayReglas = true; break; }
+            if (!e) continue;
+            // Un tope de tamano por linea tambien es una regla del sistema de
+            // lineas: sin esto se saldia por la via rapida y el tope se ignoraba.
+            const conTope = e.canvas && e.canvas.maxFontSize !== undefined;
+            if (e.sizing || conTope || (e.font && Number(e.font.size) > 0)) { hayReglas = true; break; }
         }
         if (!hayReglas) return out;
 

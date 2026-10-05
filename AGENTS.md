@@ -175,7 +175,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC56**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC57**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -389,7 +389,7 @@ no depende de la geometria unica y por eso va primero.
 
 **Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
 
-### 7.15 RC56 — el texto es una MUESTRA, no el contenido
+### 7.15 RC56/RC57 — el texto es una MUESTRA, no el contenido
 
 Aclaracion del objetivo de la herramienta (2026-10-04): **el editor sirve para
 DISEÑAR un estilo**. El texto del cuadro es una muestra; lo que viaja al PDF es
@@ -406,8 +406,11 @@ y en general DISTINTO del que se uso para disenar. Tres correcciones:
   botones L1/L2/L3 nunca se desactivan, y es lo correcto: se esta disenando como
   se vera un texto de tres lineas aunque ahora haya uno escrito.
 - **"Max Font Size (1 character)" declara que es global** (chispeta `global` con
-  tooltip). Es global por contrato (`canvas` nunca es por linea,
-  contracts/lineas.md 4) y sin marcarlo, tocarlo con L3 activa parecia un fallo.
+  tooltip) **solo en All**. Con una linea activa el mismo control manda sobre ESA
+  linea (RC57, `canvas.maxFontSize` es la unica excepcion de la tabla global) y
+  se compara contra lo que diga `Sizing ref:`. **El valor siempre es un porcentaje
+  relativo, nunca pixeles fijos**: el lienzo es dinamico (500 px o 5000 px) y el
+  texto debe seguir al tamano que necesite el cliente (decision del usuario).
 - **Prueba nueva `tests/estilo-tema.test.js`**: diseña un estilo compuesto
   (fuente por linea, outline, depth 3D, herencia) con un texto de muestra y lo
   aplica a OTROS textos, que es el caso real: una linea larga, tres lineas, cuatro

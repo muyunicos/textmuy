@@ -74,7 +74,7 @@ real, para que el contrato y el codigo digan lo mismo:
 | Ruta | Motivo |
 |---|---|
 | `text` | El texto es global por definicion (FR-016). |
-| `canvas.*` | Canvas Size es la unica fuente de verdad del tamano de salida. |
+| `canvas.*` | Canvas Size es la unica fuente de verdad del tamano de salida. **Excepcion**: `canvas.maxFontSize` es global en All pero con una linea activa manda sobre ESA linea (decision del usuario, 2026-10-04). |
 | `lines` | El contenedor del sistema de lineas. |
 | descarga / procesado | Rutas de salida. |
 | `lineHeight` | **Decision del usuario (2026-10-04):** sigue siendo global del bloque. Habia pasado a ser por linea y chocaba con FR-021 (el de L1 no mueve nada): un control visible que a veces no hace nada es peor que uno global que se comporta siempre igual. El dato por linea solo existe si alguien lo escribe a mano. |
@@ -91,3 +91,10 @@ real, para que el contrato y el codigo digan lo mismo:
   el mismo criterio de delta disperso del resto (R-L1.3).
 - **R-L4.3**: `lineHeight` global no impide el avance por linea: el avance lo da
   `lineHeight * tamano[i-1]` (contracts/geometria.md R-G1.2).
+- **R-L4.4**: `canvas.maxFontSize` es la UNICA excepcion de la tabla global. En
+  All manda sobre el texto completo; con una linea activa manda sobre ESA linea.
+  El valor es **siempre un porcentaje relativo** (del lado limitante del lienzo,
+  o del tamano de la linea de referencia segun `Sizing ref:`), **nunca pixeles
+  fijos**: el lienzo es dinamico (500 px o 5000 px) y el texto debe seguir al
+  tamano que necesite el cliente. Con `Sizing ref: <Lx> · ancho` el tamano lo
+  decide el ancho de la referencia y el control queda sin efecto.

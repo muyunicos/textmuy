@@ -258,7 +258,36 @@
             inhSel.setAttribute('data-line-inherit-active', padre ? '1' : '0');
             if (inhLabel) inhLabel.hidden = !isLine;
         }
+
+        // --- "Max Font Size": global en All, de la linea activa con L1/L2/L3 ---------
+// Con una linea activa el control manda sobre ESA linea y la referencia
+// elegida en "Sizing ref:" decide a que se compara:
+    //   Canvas -> porcentaje del lado limitante del lienzo (relativo, no px)
+//   Lx ->   porcentaje del tamano de Lx
+//   ancho -> el tamano lo manda el ancho de la referencia (el control se apaga)
+// El valor SIEMPRE es relativo: el canvas es dinamico (500 px o 5000 px).
+    const maxLabel = document.getElementById('tt-max-font-size-label-text');
+    const maxHint = document.getElementById('tt-max-font-size-hint');
+    const maxInput = document.getElementById('tt-canvas-max-font-size-input');
+    if (maxLabel) maxLabel.textContent = isLine ? ('Max Font Size (' + target + ')') : 'Max Font Size (1 character)';
+    if (maxHint) {
+        maxHint.hidden = isLine;
+        if (!isLine) {
+            maxHint.setAttribute('title', 'Tope del texto completo: afecta a todas las lineas');
+        }
     }
+    if (maxInput) {
+        const porAncho = isLine && ref === 'linea' && mode === 'width';
+        // Con referencia "ancho" el tamano lo decide el ancho de la referencia.
+        if (porAncho) {
+            maxInput.disabled = true;
+            maxInput.setAttribute('title', 'El tamano lo fija el ancho de la linea de referencia');
+        } else {
+            maxInput.disabled = false;
+            maxInput.removeAttribute('title');
+        }
+    }
+}
     function bindLineSizingUI() {
             const refSel = document.getElementById('tt-line-sizing-ref-input');
             if (refSel && !refSel.dataset.bound) {
@@ -267,7 +296,8 @@
                     if (!editor) return;
                     const v = String(this.value || 'canvas');
                     if (v === 'canvas') {
-                        // Referencia al lienzo: el tamano pasa a ser absoluto.
+                        // Referencia al lienzo: el tope se mide sobre el lado
+                        // limitante del area util (relativo, no px fijos).
                         editor.setLineSizing({ ref: 'canvas' });
                     } else {
                         const parts = v.split(':');

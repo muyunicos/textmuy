@@ -192,4 +192,60 @@ assert.equal(unicas.length, 3,
     'con estilo por linea deben pintarse LAS TRES lineas (got ' + unicas.length + ' baselines: ' + unicas.join(',') + ')');
 assert.ok(unicas[2] > unicas[1] && unicas[1] > unicas[0], 'y cada una en su baseline');
 
+// --- "Max Font Size": global en All, de la linea activa con L1/L2/L3 --------
+// Decision del usuario (2026-10-04). El valor SIEMPRE es un PORCENTAJE relativo:
+// el canvas es dinamico (500 px o 5000 px) y el texto debe seguir al tamano que
+// necesite el cliente, nunca a pixeles fijos.
+const sMax = base();
+sMax.text = 'UNO\nDOS\nTRES';
+sMax.canvas.maxFontSize = 100;
+assert.equal(TextEditor.isGlobalPath('canvas'), true, 'Canvas Size sigue siendo global');
+assert.equal(TextEditor.isGlobalPath('canvas.width'), true, 'el ancho del lienzo es global');
+assert.equal(TextEditor.isGlobalPath('canvas.height'), true, 'el alto del lienzo es global');
+assert.equal(TextEditor.isGlobalPath('canvas.maxFontSize'), false,
+    'EXCEPCION: el tope de tamano puede ser por linea');
+assert.equal(TextEditor.isGlobalPath('canvas.zoom'), true, 'el zoom es global');
+
+// Con linea activa, un tope por linea NO se pisa con el de la base.
+sMax.lines = {
+    activeTarget: 'all', inherit: {},
+    line: { '2': { canvas: { maxFontSize: 50 } } }
+};
+assert.equal(TextEditor.resolveLine(sMax, 1).canvas.maxFontSize, 100,
+    'L1 sin tope propio usa el global');
+assert.equal(TextEditor.resolveLine(sMax, 2).canvas.maxFontSize, 50,
+    'L2 con tope propio manda sobre el global');
+assert.equal(TextEditor.resolveLine(sMax, 3).canvas.maxFontSize, 100,
+    'L3 sin tope propio vuelve al global');
+
+// Y sin ninguna regla por linea, `lineFontSizes` deja el tamano que le pasa
+// `render()` (que ya viene con el tope GLOBAL aplicado aguas arriba).
+const sinReglas = base();
+sinReglas.text = 'UNO';
+sinReglas.font.size = 100;
+sinReglas.canvas.maxFontSize = 5;
+sinReglas.lines = { activeTarget: 'all', inherit: {}, line: {} };
+const t2 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO'], 1000, 800, sinReglas, 40);
+assert.equal(t2[0], 40, 'sin reglas por linea no se toca el tamano (el global ya lo aplico render())');
+
+// El tope por linea manda sobre la linea y solo sobre ella: L1 con tope 10%
+// queda por debajo de una base sin tope, y L3 (sin tope propio) sigue en su
+// tamano normal.
+const conTopeAlto = base();
+conTopeAlto.text = 'UNO\nDOS\nTRES';
+conTopeAlto.font.size = 100;
+conTopeAlto.canvas.maxFontSize = 100;                 // tope global: no limita
+conTopeAlto.lines = {
+    activeTarget: 'all', inherit: {},
+    line: { '1': { canvas: { maxFontSize: 10 } } }    // L1 al 10% -> tope de 80 px
+};
+const t3 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 1000, 800, conTopeAlto, 100);
+assert.ok(t3[0] < 100, 'L1 con tope propio queda por debajo (got ' + t3[0] + ')');
+assert.ok(t3[1] >= 100, 'L2 sin tope propio NO se ve afectada (got ' + t3[1] + ')');
+
+// El valor es siempre un porcentaje relativo: con otro lienzo, otro resultado,
+// pero nunca un px fijo (el canvas es dinamico: 500 px o 5000 px).
+const t4 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 2000, 1600, conTopeAlto, 100);
+assert.ok(t4[0] !== t3[0], 'duplicar el lienzo cambia el resultado: es relativo al canvas');
+
 console.log('lineas resolucion: OK - heredar -> mezclar -> dimensionar, claves 1-based, target no filtra');
