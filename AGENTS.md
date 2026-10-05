@@ -174,7 +174,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC54**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC55**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -387,6 +387,33 @@ no depende de la geometria unica y por eso va primero.
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
 **Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
+
+### 7.14 RC55 — prueba del EDITOR VISIBLE: solo se pintaba L1
+
+Las mediciones anteriores eran todas del lienzo de SALIDA (`renderToCanvas`).
+Al medir tambien el lienzo **visible** del editor, con capturas, aparecio un
+defecto que ninguna de las 37 suites veia.
+
+- 🔴 **Con estilo por línea solo se pintaba L1.** `forEachLineSetting` pasaba a
+  los motores un array de **una** línea (`[lines[li]]`) junto al indice global
+  `li` como filtro, y en `drawTextLines` ese filtro nunca coincidia para L2/L3:
+  solo se pintaba la primera. Los motores que reciben el array completo
+  (outline, sombras, icono) no lo sufrían; solo el *fill*, que es el que pinta el
+  texto. Era un defecto **preexistente** que con D2 se volvía alcanzable desde la
+  interfaz (antes casi nadie configuraba líneas, y el que lo hacía via un `.txm` guardado a mano).
+  Ahora `forEachLineSetting` pasa texto y array completos con el indice, igual que
+  la rama de bloque.
+- **Cómo se detectó**: midiendo el lienzo visible por COLOR (el editor dibuja el
+  damero de transparencia `#1a1a1a`/`#222`, así que la tinta es todo lo que no
+  sea uno de esos dos tonos). Antes de arreglar: 6.209 px de tinta en 69 filas;
+  después: **23.854 px en 259 filas**, y la captura muestra las tres líneas con
+  tres tipografías distintas.
+- **Regresión fijada** en `tests/lineas-resolucion.test.js`: se registran las
+  baselines realmente pintadas y se exigen tres. Verificado que **falla con el
+  código anterior** (`got 1 baselines`) y pasa con el arreglo.
+- ⚠️ **Medir el editor visible es distinto de medir la salida**: el visible tiene
+  fondo (damero) y la salida es transparente. Un recorrido que mida solo la
+  salida puede dar verde mientras la pantalla muestra otra cosa.
 
 ### 7.13 RC54 — Bloque D3: fuente propia por línea (el corazón de US6)
 

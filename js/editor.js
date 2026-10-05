@@ -1459,7 +1459,12 @@
             // Las lineas no direccionables (4+) resuelven como All.
             const ls = resolveLine(s, li + 1, {});
             ensureFillIds(ls.fill);
-            paint(lines[li], [lines[li]], ls, li);
+            // Se pasa el texto y el array COMPLETOS con el indice de la linea,
+            // igual que la rama de bloque: los motores por-linea filtran con
+            // `lineFilter = li` sobre el bloque entero. Pasar aqui un array de
+            // una sola linea hacia que el filtro no coincidiera nunca y solo
+            // se pintara L1 (medido: con tres lineas solo aparecia la primera).
+            paint(text, lines, ls, li);
         }
     }
 

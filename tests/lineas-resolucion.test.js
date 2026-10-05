@@ -11,8 +11,51 @@
 const assert = require('node:assert/strict');
 
 global.window = {};
+// Contexto 2D minimo que REGISTRA la Y de cada texto pintado: permite
+// comprobar que se pintan TODAS las lineas y cada una en su baseline.
+global.__pintadas = null;
+function makeCtx2D() {
+    const registro = global.__pintadas;
+    const noop = function () {};
+    return {
+        font: '10px sans-serif', textBaseline: '', textAlign: '',
+        fillStyle: '', strokeStyle: '', lineWidth: 0, lineJoin: '', miterLimit: 0,
+        globalAlpha: 1, globalCompositeOperation: '', filter: '',
+        shadowColor: '', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+        save: noop, restore: noop, translate: noop, scale: noop, rotate: noop,
+        clearRect: noop, fillRect: noop, strokeRect: noop, drawImage: noop,
+        fillText: function (ch, x, y) { if (registro) registro.push(y); },
+        strokeText: function (ch, x, y) { if (registro) registro.push(y); },
+        beginPath: noop, moveTo: noop, lineTo: noop,
+        arc: noop, closePath: noop, fill: noop, stroke: noop, clip: noop, rect: noop,
+        quadraticCurveTo: noop, bezierCurveTo: noop, setTransform: noop, putImageData: noop,
+        measureText: function (text) {
+            const m = /(\d+(?:\.\d+)?)px/.exec(this.font || '');
+            const px = m ? parseFloat(m[1]) : 10;
+            return {
+                width: String(text).length * px * 0.55,
+                actualBoundingBoxAscent: px * 0.8,
+                actualBoundingBoxDescent: px * 0.2
+            };
+        },
+        getImageData: function () {
+            const d = new Uint8ClampedArray(4);
+            d[3] = 255;
+            return { data: d, width: 1, height: 1 };
+        },
+        createImageData: function () { return { data: new Uint8ClampedArray(4) }; },
+        createLinearGradient: function () { return { addColorStop: noop }; },
+        createRadialGradient: function () { return { addColorStop: noop }; },
+        createPattern: function () { return null; }
+    };
+}
+
 global.document = {
-    createElement: function () { return { width: 0, height: 0, style: {}, getContext: function () { return {}; } }; },
+    createElement: function () {
+        const c = { width: 0, height: 0, style: {} };
+        c.getContext = function () { return makeCtx2D(); };
+        return c;
+    },
     getElementById: function () { return null; },
     querySelector: function () { return null; },
     querySelectorAll: function () { return []; },
@@ -118,5 +161,35 @@ const r7 = TextEditor.resolveLine(s7, 2);
 assert.equal(r7.align, 'right', 'align por linea');
 assert.equal(r7.letterSpacing, 5, 'letterSpacing por linea');
 assert.equal(TextEditor.resolveLine(s7, 1).align, 'center', 'L1 conserva el align de la base');
+
+// --- El pintado por linea debe pintar TODAS las lineas ------------------------
+// El recorrido integrado en WordPress (Chrome real, capturas) showed que con
+// tres lineas configuradas solo se pintaba L1: `forEachLineSetting` pasaba un
+// array de UNA linea con el indice global como filtro, y en `drawTextLines` el
+// filtro nunca coincidia para L2/L3 (medido: el lienzo mostraba solo "UNO").
+const registro = [];
+global.__pintadas = registro;
+const lienzo = { width: 480, height: 320, style: {}, getContext: function () { return makeCtx2D(); } };
+const sMulti = base();
+sMulti.text = 'UNO\nDOS\nTRES';
+sMulti.canvas.width = 480;
+sMulti.canvas.height = 320;
+sMulti.font = { src: 1, size: 80, weight: 'normal' };
+sMulti.lines = {
+    activeTarget: 'all',
+    inherit: {},
+    line: {
+        '1': { fill: { layers: [{ id: 'A', repeat: 'none', alpha: 1, styles: [{ type: 'color', color: '#ffffff' }] }] } },
+        '2': { fill: { layers: [{ id: 'B', repeat: 'none', alpha: 1, styles: [{ type: 'color', color: '#ffffff' }] }] } },
+        '3': { fill: { layers: [{ id: 'C', repeat: 'none', alpha: 1, styles: [{ type: 'color', color: '#ffffff' }] }] } }
+    }
+};
+TextEditor.renderToCanvas(lienzo, sMulti, { transparent: true });
+const unicas = [];
+registro.forEach(function (y) { if (unicas.indexOf(y) === -1) unicas.push(y); });
+unicas.sort(function (a, b) { return a - b; });
+assert.equal(unicas.length, 3,
+    'con estilo por linea deben pintarse LAS TRES lineas (got ' + unicas.length + ' baselines: ' + unicas.join(',') + ')');
+assert.ok(unicas[2] > unicas[1] && unicas[1] > unicas[0], 'y cada una en su baseline');
 
 console.log('lineas resolucion: OK - heredar -> mezclar -> dimensionar, claves 1-based, target no filtra');
