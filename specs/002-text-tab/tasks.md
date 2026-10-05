@@ -223,7 +223,7 @@ preset, recargar y comprobar que vuelve identico.
 - [x] T043 [US6] En `index.html` y `js/controls.js`, selector de **herencia** por linea (ALL / L1 / L2 / L3) dentro de la barra existente, sin panel nuevo
 - [x] T044 [US6] En `js/controls.js`, el selector de tamano reescribe `pct` con referencia a linea y px absolutos con referencia al canvas, conservando viva la cadena (FR-012)
 - [x] T045 [US6] En `js/controls.js`, ocultar transitivamente por ambas aristas toda opcion que cerraria un ciclo al editar una linea (FR-013)
-- [ ] T046 [US6] En `js/controls.js`, el desplegable de fuentes muestra la fuente del target activo y marcar los overrides propios frente a los heredados (FR-018)
+- [x] T046 [US6] En `js/controls.js`, el desplegable de fuentes muestra la fuente del target activo y marcar los overrides propios frente a los heredados (FR-018)
 
 ### Implementation for User Story 6 - persistencia y render
 
@@ -233,11 +233,11 @@ preset, recargar y comprobar que vuelve identico.
 
 ### Cierre de User Story 6
 
-- [ ] T050 [US6] `node --check` de los cinco JS tocados; suites T035-T038 y las 26 previas en verde
-- [ ] T051 [US6] Bump `?v=RCn` en `index.html` y `render-core.html` (y `css/style.css` en `index.html`) y actualizar `AGENTS.md`
+- [x] T050 [US6] `node --check` de los cinco JS tocados; suites T035-T038 y las 26 previas en verde
+- [x] T051 [US6] Bump `?v=RCn` en `index.html` y `render-core.html` (y `css/style.css` en `index.html`) y actualizar `AGENTS.md`
 
-**Checkpoint**: US6 verificable por si sola (tres lineas con tres estilos,
-round-trip y paridad con el PDF).
+**Checkpoint**: US6 CERRADA. Tres lineas con tres estilos, round-trip y paridad
+con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
 
 ---
 
@@ -245,12 +245,47 @@ round-trip y paridad con el PDF).
 
 **Purpose**: cierre transversal de las seis historias.
 
-- [ ] T052 [P] Suite `tests/text-tab.browser.js` (Playwright, patron de `tests/galerias.browser.js`, puente simulado): medir tinta del lienzo para curva visible en ambos signos, barra visible al abrir, margen al maximo, cero tinta en filas/columnas del borde con y sin rotacion, una sola linea quieta ante Line height, y tres lineas con tres estilos. Es la unica capa que verifica SC-001 a SC-007 en pixeles
-- [ ] T053 [P] Recorrido integrado manual de `quickstart.md` §3 y §4 en la pestana "Estilos de Texto" del WordPress de laboratorio, con Ctrl+F5, incluyendo el PDF de un grupo con texto estilizado (paridad FR-020)
-- [ ] T054 Bump final `?v=RCn` en `index.html`, `render-core.html` y `css/style.css`, y verificar que las dos paginas cargan la misma version
-- [ ] T055 [P] Actualizar `AGENTS.md`: mapa de archivos (nuevas suites), seccion 9 (como probar, con los comandos nuevos) y una seccion de decisiones del feature `002-text-tab` (geometria unica, alcance por linea, formato `.txm` v2, sin migracion)
-- [ ] T056 [P] Actualizar `README.md` con la ficha del feature si corresponde
-- [ ] T057 Puerta final: suite completa en verde, `node --check` de todos los JS, `tests/entorno.test.js` en OK y paridad editor/PDF verificada
+- [x] T052 [P] Suite `tests/text-tab.browser.js` (Playwright, patron de `tests/galerias.browser.js`, puente simulado): medir tinta del lienzo para curva visible en ambos signos, barra visible al abrir, margen al maximo, cero tinta en filas/columnas del borde con y sin rotacion, una sola linea quieta ante Line height, y tres lineas con tres estilos. Es la unica capa que verifica SC-001 a SC-007 en pixeles
+- [x] T053 [P] Recorrido integrado manual de `quickstart.md` §3 y §4 en la pestana "Estilos de Texto" del WordPress de laboratorio, con Ctrl+F5, incluyendo el PDF de un grupo con texto estilizado (paridad FR-020)
+- [x] T054 Bump final `?v=RCn` en `index.html`, `render-core.html` y `css/style.css`, y verificar que las dos paginas cargan la misma version
+- [x] T055 [P] Actualizar `AGENTS.md`: mapa de archivos (nuevas suites), seccion 9 (como probar, con los comandos nuevos) y una seccion de decisiones del feature `002-text-tab` (geometria unica, alcance por linea, formato `.txm` v2, sin migracion)
+- [x] T056 [P] Actualizar `README.md` con la ficha del feature si corresponde
+- [x] T057 Puerta final: suite completa en verde, `node --check` de todos los JS, `tests/entorno.test.js` en OK y paridad editor/PDF verificada
+
+---
+
+## Phase 10: Bloque D4 - rotacion y curva por linea (bloque aparte)
+
+**Por que es un bloque aparte**: hoy `rotate` y `distort` se aplican al **bloque
+compuesto entero, al final** del render. Hacerlos por linea exige **partir el
+pipeline en una capa por linea**: componer cada linea con su estilo ya resuelto,
+aplicarle a cada una su giro o su curva, y recien despues apilar el bloque. Eso
+significa que relleno, contorno, sombra, relieve y texto existan **una vez por
+linea** en vez de una vez por bloque: es un cambio de arquitectura del render, no
+un ajuste de configuracion.
+
+**Por que no se promete ahora**: si solo se sacaran de la tabla de globales, el
+control por linea **aceptaria el valor y no haria nada** (el PDF saldria con el
+mismo angulo en todas las lineas, sin aviso). Es peor que dejarlos globales.
+
+**Que se quiere** (decision del usuario, 2026-10-04), con herencia como el resto:
+
+- Rotacion: `ALL 90 grados` + `L1 +10`, `L2 -10`, `L3 +10` -> `\/`
+- Curva: `ALL 90 grados` + `L1 curva +`, `L2 curva -` -> `()`
+
+**Tareas** (sin numero hasta que se implemente):
+
+- [ ] Suite que fije el orden: la rotacion por linea se aplica ANTES de componer
+      el bloque, y cada linea conserva la suya al apilar.
+- [ ] Partir la composicion en una capa por linea con su estilo resuelto.
+- [ ] Aplicar la rotacion de la linea al pintar su capa.
+- [ ] Aplicar la curva de la linea al pintar su capa.
+- [ ] Sacar `rotate` y `distort` de la tabla global (se vuelven heredables).
+- [ ] UI: el control deja de global y pasa a la linea activa; el rotulo dice
+      para que linea es.
+- [ ] Verificar en el laboratorio los dos ejemplos del usuario (`\/` y `()`) y el
+      round-trip del preset.
+- [ ] Actualizar `contracts/geometria.md`, `AGENTS.md` y el estado del feature.
 
 ---
 

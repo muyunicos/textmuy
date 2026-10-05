@@ -175,7 +175,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC57**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC58**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -388,6 +388,48 @@ no depende de la geometria unica y por eso va primero.
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
 **Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
+
+### 7.16 RC58 — cierre de US6 y bloque D4 (rotación y curva por línea)
+
+Cierra US6 y deja anotado lo que queda aparte, con la decisión y el porqué.
+
+- ✅ **`lineHeight` vuelve a ser POR LÍNEA** (revierte una desviación que se había
+  registrado durante la implementación; el spec FR-016 siempre dijo que todo era
+  por línea). Sale de la tabla global y resuelve por línea como el resto.
+- ✅ **Escala de −100% a +200% con base 0% = ajuste justo**
+  (`avance = (cola_i + asta_{i+1}) * (1 + pct/100)`, R-G1.2). Medido con tres
+  tipografías reales a 90 px (Bangers 69, Permanent Marker 69, Rock Salt 122 de
+  alto):
+  - `-100%` → avance 0: las líneas quedan **encimadas** (el efecto "HOLA" grande
+    atrás con un script delante encima).
+  - `0%` → ajuste justo, sin hueco y **sin solape**: 68 px entre L1 y L2, 102 px
+    entre L2 y L3 (la diferencia es la cola de la de arriba más el asta de la de
+    abajo, que es lo que Rock Salt necesita).
+  - `+200%` → **tres veces** el normal.
+  - Con una sola tipografía el "justo" da el tamaño de línea y `0%` reproduce el
+    comportamiento histórico: los presets existentes no se mueven.
+  - El aire *anterior* a una línea lo controla **esa** línea, así que ir a L3 y
+    subir su Line height separa L3 del resto. L1 queda sin efecto (no hay línea
+    encima, FR-021).
+- ✅ **Una sola fuente de verdad del alcance por línea**: `controls.js` tenía su
+  propia lista de rutas globales, desactualizada (marcaba `align`,
+  `letterSpacing` y `font.src` como globales cuando son por línea, y listaba un
+  `lines.sizing` que ya no existía). Ahora consulta `editor.isGlobalPath`.
+- ⚠️ **`rotate` y `distort` siguen GLOBALES** hasta el bloque D4. Aplican al
+  bloque compuesto entero al final del render. Hacerlos por línea exige **partir
+  el pipeline en una capa por línea** (componer cada línea con su estilo
+  resuelto, aplicarle su giro o su curva, y recién después apilar): relleno,
+  contorno, sombra, relieve y texto pasarían a existir una vez por línea en vez de
+  una vez por bloque. Si solo se sacaran de la tabla global, el control por
+  línea aceptaría el valor y **no haría nada**, sin aviso. Lo que se quiere:
+  `ALL 90° + L1 +10 / L2 −10 / L3 +10` → `\/` y
+  `ALL 90° + L1 curva + / L2 curva −` → `()`. Está documentado como fase
+  aparte (D4) en `tasks.md` con sus tareas.
+- **Pruebas**: `avance-lineas` reescrita a la escala nueva (0% justo, +200%
+  triple, −100% encimadas, y el "justo" midiendo las métricas de **cada** línea
+  del par), `pattern-block-box` igual, y `lineas-resolucion` fijando que
+  `lineHeight` es por línea y `rotate` sigue global. 38 suites en verde y
+  9/9 en el navegador.
 
 ### 7.15 RC56/RC57 — el texto es una MUESTRA, no el contenido
 

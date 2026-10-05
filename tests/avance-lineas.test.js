@@ -203,4 +203,4 @@ assert.ok(pintadoB[1] - pintadoB[0] > pintadoA[1] - pintadoA[0],
 assert.deepEqual(renderBaselines('AA', 0), renderBaselines('AA', 1.5),
     'FR-007 pintado: una sola linea no se mueve con el interlineado');
 
-console.log('avance de lineas: OK - L1 ancla, avance = lineHeight * tamano de la linea de arriba, sin solapes');
+console.log('avance de lineas: OK - 0% = ajuste justo, +200% triple, -100% encimadas');

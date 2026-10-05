@@ -148,9 +148,18 @@ s6.lines = {
 };
 const r6 = TextEditor.resolveLine(s6, 1);
 assert.equal(r6.text, s6.text, 'el texto es global: el delta de linea no lo cambia');
-assert.notEqual(r6.lineHeight, 9, 'lineHeight es global del bloque');
-assert.notEqual(r6.rotate, 45, 'rotate es global hasta el spec de R9');
+assert.equal(r6.lineHeight, 9, 'lineHeight es POR LINEA (FR-016)');
+assert.equal(r6.rotate, s6.rotate, 'rotate sigue global hasta el bloque D4');
 assert.equal(r6.canvas.width, s6.canvas.width, 'Canvas Size es global');
+
+// Line height por linea: L2 manda sin tocar L1 ni L3.
+const sLh = base();
+sLh.text = 'UNO\nDOS\nTRES';
+sLh.lineHeight = 0;
+sLh.lines = { activeTarget: 'all', inherit: {}, line: { '2': { lineHeight: 200 } } };
+assert.equal(TextEditor.resolveLine(sLh, 1).lineHeight, 0, 'L1 usa el valor de la base');
+assert.equal(TextEditor.resolveLine(sLh, 2).lineHeight, 200, 'L2 con valor propio');
+assert.equal(TextEditor.resolveLine(sLh, 3).lineHeight, 0, 'L3 vuelve a la base');
 
 // --- alineacion y espaciado SI pasan a ser por linea -------------------------
 const s7 = base();
