@@ -200,4 +200,13 @@ assert.deepEqual(
     'el encaje es determinista (paridad editor / motor)'
 );
 
+// --- R-G2.1 con margen de seguridad: ni con Margin 0 la tinta toca el borde --
+// El recorrido integrado en WordPress (Chrome real, fuente Bangers del catalogo)
+// fallo con 112 pixeles de tinta en el borde con un texto que llena el ancho:
+// el encaje llegaba hasta el area util exacta y la tinta se colaba en la
+// columna 0. El encaje apunta a un area util reducida en SAFETY por lado.
+comprobarCaso('texto que llena el ancho', { text: 'TEXTO LARGO DE VARIAS LINEAS', w: 480, h: 480 });
+comprobarCaso('multilinea que llena', { text: 'UNO\nDOS\nTRES\nCUATRO', w: 480, h: 480 });
+comprobarCaso('una sola linea maxima', { text: 'MMMMMMMMMM', w: 480, h: 480 });
+
 console.log('encaje final: OK - la caja dibujada entra en el area util en todas las combinaciones');

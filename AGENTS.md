@@ -172,7 +172,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC50**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC51**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -390,6 +390,41 @@ geometría única). Pendiente: Bloque D (modelo de líneas completo:
 línea), que además cambia el formato `.txm` a `version:2`. Las tareas están en
 `specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
 `specs/002-text-tab/quickstart.md`.
+
+### 7.10 RC51 — recorrido integrado US1–US5 (20/20) y dos defectos que Node no veía
+
+Validado en el WordPress de laboratorio (Chrome + Playwright, `C:\wp-lab`,
+`localhost:8091`, iframe real del plugin, puente real, catálogo real con 72
+fuentes y tipografía **Bangers**): **20/20 comprobaciones OK, 0 errores de
+consola**. El recorrido mide la tinta sobre el lienzo de salida
+(`renderToCanvas`, el mismo `render()` del editor) con el fondo desactivado, así
+la cuenta es solo del texto.
+
+El recorrido encontró **dos defectos que las 32 suites de Node no detectaban**:
+
+- 🔴 **El recorte recentraba la capa y deshacía el anclaje de L1.** Al recortar
+  la tinta y volver a centrar la capa, el origen del bloque se desplazaba: con
+  dos líneas, subir el interlineado movía **también la primera** (medido: `y` de
+  154 a 150). Es un conflicto entre US4 (encaje) y US5 (L1 anclada) que solo
+  aparece al combinar ambos. `DistortEngine.trimTransparent` acepta ahora
+  `{centrar: true}` y devuelve el menor rectángulo con **el mismo centro** que el
+  lienzo original, de modo que el origen no se mueve.
+- 🔴 **Con Margin 0 la tinta llegaba al borde.** El encaje apuntaba al área útil
+  exacta, así que un texto que llena el ancho entraba en la columna 0 (medido:
+  **112 píxeles** de tinta en el borde). Ahora el encaje apunta al área útil
+  **reducida en 2 px por lado** (el margen de seguridad de R-G2.1), de modo que
+  ni con Margin 0 hay tinta en filas o columnas del borde.
+
+⚠️ **El laboratorio no traía datos**: `uploads/pmu/` en `C:\wp-lab\wordpress` no
+tenía `fonts/` ni `tm-presets/`, así que el catálogo no cargaba y la prueba de
+paridad fallaba con `fuente:fonts:1:ausente o invalido`. Se copiaron desde el
+repo (`uploads/pmu/fonts` y `tm-presets`, 15 fuentes físicas + `fonts.json`). Sin
+eso el módulo no puede resolver ninguna fuente y el editor cae a la del sistema.
+
+Ambas regresiones quedan fijadas en Node: el recorte centrado en
+`tests/curva-snapshot.test.js` (comprueba que el centro del lienzo queda en el
+centro de la capa recortada) y el margen de seguridad en
+`tests/encaje-final.test.js` (tres casos que llenan el lienzo).
 
 ### 7.9 RC50 — Bloque C: el encaje final se aplica siempre (US4)
 

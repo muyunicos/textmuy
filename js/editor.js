@@ -1212,7 +1212,7 @@
         let rotateLayer = composedLayer;
         if (typeof DistortEngine !== 'undefined') {
             if (!state.distortEngine) state.distortEngine = new DistortEngine();
-            const trimmedLayer = state.distortEngine.trimTransparent(composedLayer);
+            const trimmedLayer = state.distortEngine.trimTransparent(composedLayer, undefined, { centrar: true });
             if (trimmedLayer) {
                 rotateLayer = trimmedLayer;
                 hasTrimmedContent = true;
@@ -1221,14 +1221,20 @@
 
         // Fit the ACTUAL final layer as a last step, with or without curve/rotation, so
         // no combination of layout can push ink into the border (FR-005, SC-004). The
-// trim keeps a small antialiasing gutter that becomes the safety margin.
+        // trim keeps a small antialiasing gutter that becomes the safety margin.
         const rotationCos = Math.abs(Math.cos(rotationValue));
         const rotationSin = Math.abs(Math.sin(rotationValue));
         const finalWidth = rotateLayer.width * rotationCos + rotateLayer.height * rotationSin;
         const finalHeight = rotateLayer.width * rotationSin + rotateLayer.height * rotationCos;
+        // R-G2.1: el encaje apunta a un area util REDUCIDA en el margen de
+        // seguridad, asi ni con Margin 0 la tinta toca el borde del lienzo. Sin
+        // esto un texto que llena el ancho llegaba a la columna 0 y a la ultima.
+        const SAFETY = 2;
+        const fitWidth = Math.max(1, availableWidth - SAFETY * 2);
+        const fitHeight = Math.max(1, availableHeight - SAFETY * 2);
         // R-G2.2: el encaje solo reduce, nunca amplia: no compite con el ajuste.
         const finalScale = hasTrimmedContent
-            ? Math.min(1, availableWidth / Math.max(1, finalWidth), availableHeight / Math.max(1, finalHeight))
+            ? Math.min(1, fitWidth / Math.max(1, finalWidth), fitHeight / Math.max(1, finalHeight))
             : 1;
 
         ctx.save();

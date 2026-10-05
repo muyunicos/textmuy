@@ -104,8 +104,14 @@
             return getArcGeometry(width, height, angle);
         }
 
-        /** Return the non-transparent area while retaining a small antialiasing gutter. */
-        trimTransparent(canvas, padding) {
+        /**
+         * Return the non-transparent area while retaining a small antialiasing
+         * gutter. `options.centrar` devuelve el menor rectángulo con el MISMO
+         * centro que el lienzo original que contiene toda la tinta: sin eso,
+         * recortar y volver a centrar la capa movería el origen del bloque y
+         * L1 dejaría de estar anclada (002-text-tab, US4 vs US5).
+         */
+        trimTransparent(canvas, padding, options) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             let image;
             try {
@@ -134,14 +140,31 @@
 
             if (right < left || bottom < top) return null;
             const gutter = padding === undefined ? 2 : Math.max(0, padding);
-            left = Math.max(0, left - gutter);
-            top = Math.max(0, top - gutter);
-            right = Math.min(canvas.width - 1, right + gutter);
-            bottom = Math.min(canvas.height - 1, bottom + gutter);
+            if (options && options.centrar) {
+                // Caja centrada en el mismo punto que el lienzo original: el
+                // origen del bloque no se desplaza al recortar.
+                const cx = (canvas.width - 1) / 2;
+                const cy = (canvas.height - 1) / 2;
+                const halfW = Math.max(right - cx, cx - left) + gutter;
+                const halfH = Math.max(bottom - cy, cy - top) + gutter;
+                left = Math.max(0, cx - halfW);
+                right = Math.min(canvas.width - 1, cx + halfW);
+                top = Math.max(0, cy - halfH);
+                bottom = Math.min(canvas.height - 1, cy + halfH);
+            } else {
+                left = Math.max(0, left - gutter);
+                top = Math.max(0, top - gutter);
+                right = Math.min(canvas.width - 1, right + gutter);
+                bottom = Math.min(canvas.height - 1, bottom + gutter);
+            }
 
             const result = document.createElement('canvas');
             result.width = right - left + 1;
             result.height = bottom - top + 1;
+            // Offset del recorte dentro del lienzo original: permite al llamador
+            // (y a las pruebas) conservar la posicion del origen del bloque.
+            result.trimLeft = left;
+            result.trimTop = top;
             result.getContext('2d').drawImage(canvas, left, top, result.width, result.height, 0, 0, result.width, result.height);
             return result;
         }

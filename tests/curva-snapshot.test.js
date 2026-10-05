@@ -127,4 +127,50 @@ assert.equal(geoPos.width, geoNeg.width, 'misma anchura en ambos signos');
 assert.equal(geoPos.height, geoNeg.height, 'misma altura en ambos signos');
 assert.notEqual(geoPos.centerAngle, geoNeg.centerAngle, 'los centros son opuestos');
 
+// --- El recorte centrado conserva el origen del bloque (US5 vs US4) ---------
+// El recorrido integrado en WordPress (Chrome real, fuente Bangers del
+// catalogo) mostro que recortar la tinta y volver a centrar la capa movia el
+// origen del bloque: con dos lineas, subir el interlineado desplazaba tambien
+// L1. `centrar` devuelve el menor rectangulo con el MISMO centro que el lienzo.
+function makeCanvasConTinta(w, h, x0, y0, tw, th) {
+    const c = makeCanvas();
+    c.width = w;
+    c.height = h;
+    c.getContext = function (tipo) {
+        if (tipo === '2d') {
+            return {
+                drawImage: function () {},
+                setTransform: function () {}, save: function () {}, restore: function () {},
+                getImageData: function () {
+                    const data = new Uint8ClampedArray(w * h * 4);
+                    for (let y = y0; y < y0 + th; y++) {
+                        for (let x = x0; x < x0 + tw; x++) data[(y * w + x) * 4 + 3] = 255;
+                    }
+                    return { data: data, width: w, height: h };
+                }
+            };
+        }
+        return c._gl || (c._gl = makeGL());
+    };
+    return c;
+}
+
+// Tinta MUY asimetrica: pegada a la esquina inferior derecha del lienzo.
+const W = 400, H = 300;
+const cx = (W - 1) / 2, cy = (H - 1) / 2;
+const asimetrica = makeCanvasConTinta(W, H, 300, 200, 80, 60);
+const normal = engine.trimTransparent(asimetrica, 2);
+assert.ok(normal, 'el recorte normal devuelve una capa');
+assert.equal(normal.trimLeft, 298, 'sin centrar la caja se ajusta a la tinta (y recentra)');
+const centrado = engine.trimTransparent(asimetrica, 2, { centrar: true });
+assert.ok(centrado, 'el recorte centrado devuelve una capa');
+// La propiedad que importa: el origen del lienzo (el centro, donde vive el
+// anclaje del bloque) queda en el CENTRO de la capa recortada.
+assert.equal(centrado.trimLeft + (centrado.width - 1) / 2, cx,
+    'con `centrar` el centro del lienzo queda en el centro de la capa recortada');
+assert.equal(centrado.trimTop + (centrado.height - 1) / 2, cy,
+    'igual en vertical: el origen no se desplaza');
+assert.ok(centrado.width >= 84 && centrado.height >= 64, 'el recorte centrado contiene toda la tinta');
+assert.ok(centrado.width > normal.width, 'la caja centrada crece para preservar el origen');
+
 console.log('curva: OK - snapshot antes de loseContext, canvas 2D, angulo 0 sin GL y espejo por signo');
