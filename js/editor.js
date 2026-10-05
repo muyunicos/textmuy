@@ -461,29 +461,44 @@
         const s = state.settings;
         return s && s.font ? (s.font.src !== undefined ? s.font.src : s.font) : null;
     }
-    // Asegura la fuente declarada y deja el lienzo coherente. No lanza: un
-    // fallo se informa y el editor sigue operativo con lo que ya hay.
+    // Asegura las fuentes que el render necesita: la de la base y una por linea
+    // USADA (002-text-tab D3, research R7). Cada identidad se carga una sola vez
+    // (cache por id de FontLoader) y NO se precarga nada que no se use
+    // (constitucion VI, sin preloadAll).
+    // No lanza: un fallo se informa nombrando la linea y la fuente, y el editor
+    // sigue operativo con lo que ya hay (FR-005, FR-017).
     function asegurarFuenteDeclarada() {
         if (!window.FontLoader || !window.FontLoader.loadFont) return Promise.resolve(null);
-        const ref = fuenteDeclarada();
-        if (ref === undefined || ref === null) return Promise.resolve(null);
-        return Promise.resolve().then(function () {
-            return window.FontLoader.loadFont(ref);
-        }).then(function (familia) {
+        const fuentes = fuentesPorLinea(state.settings);
+        if (!fuentes.length) return Promise.resolve(null);
+        // Se cargan en paralelo: el tiempo es el de la mas lenta, no la suma.
+        return Promise.all(fuentes.map(function (f) {
+            return Promise.resolve().then(function () {
+                return window.FontLoader.loadFont(f.ref);
+            }).then(function (familia) {
+                return { ok: true, familia: familia, f: f };
+            }).catch(function (e) {
+                const causa = (e && e.message) || String(e);
+                const donde = f.linea ? ('linea L' + f.linea + ': ') : '';
+                return { ok: false, causa: donde + causa, f: f };
+            });
+        })).then(function (resultados) {
+            const fallo = resultados.filter(function (r) { return !r.ok; })[0];
+            if (fallo) {
+                // Sin sustitucion: se informa la causa y la fuente declarada
+                // sigue en el estado, para que el selector diga la verdad.
+                avisoFuente = fallo.causa;
+                console.warn('Fuente por linea no disponible: ' + avisoFuente);
+                if (window.TextEditorControls && TextEditorControls.reportFontError) {
+                    TextEditorControls.reportFontError(avisoFuente);
+                }
+                return null;
+            }
             avisoFuente = null;
             if (window.TextEditorControls && TextEditorControls.reportFontError) {
                 TextEditorControls.reportFontError(null);
             }
-            return familia;
-        }).catch(function (e) {
-            // Sin sustitucion: se informa la causa y la fuente declarada sigue
-            // en el estado, para que el selector diga la verdad (FR-001).
-            avisoFuente = (e && e.message) || String(e);
-            console.warn('Fuente declarada no disponible: ' + avisoFuente);
-            if (window.TextEditorControls && TextEditorControls.reportFontError) {
-                TextEditorControls.reportFontError(avisoFuente);
-            }
-            return null;
+            return resultados.map(function (r) { return r.familia; });
         });
     }
     // Repintar cuando la fuente quede disponible. Solo si la fuente que ya
@@ -799,18 +814,25 @@
         const descent = [];
         const widths = [];
         let maxLineWidth = 0;
+        // 002-text-tab D3 (research R7): cada linea se MIDE con SU tipografia.
+        // Medirlo todo con la fuente de la base hacia que las lineas con otra
+        // tipografia ajustaran mal: el ancho medido no era el que se pintaba.
+        const memo = {};
+        const porLinea = hayEstiloPorLinea(s);
         for (let i = 0; i < n; i++) {
             const size = (sizes && sizes[i] !== undefined && sizes[i] !== null)
                 ? Number(sizes[i])
                 : (fontSizePx !== undefined ? Number(fontSizePx) : 0);
             px.push(size);
-            setTextFont(ctx, s, size);
+            const sLinea = porLinea ? resolveLine(s, i + 1, memo) : s;
+            setTextFont(ctx, sLinea, size, i);
             const m = ctx.measureText('Ag');
             const a = m.actualBoundingBoxAscent || size * 0.8;
             const d = m.actualBoundingBoxDescent || size * 0.2;
             ascent.push(a);
             descent.push(d);
-            const w = measureTextWidth(ctx, lines[i], s && s.letterSpacing, size);
+            const ls = (sLinea && sLinea.letterSpacing !== undefined) ? sLinea.letterSpacing : (s.letterSpacing || 0);
+            const w = measureTextWidth(ctx, lines[i], ls, size);
             widths.push(w);
             if (w > maxLineWidth) maxLineWidth = w;
         }
@@ -2594,21 +2616,27 @@
     function drawTextLines(ctx, text, lines, fontSizePx, s, isStroke, lineFilter) {
     const geo = blockLayout(ctx, lines, s, state.lineFontPx, fontSizePx);
     const maxLineWidth = geo.maxLineWidth;
-    const letterSpacingBase = s.letterSpacing;
+    // 002-text-tab D3: cada linea se PINTA con su tipografia resuelta (la fuente,
+    // el espaciado y la alineacion que le tocan), no con los de la base.
+    const memo = {};
+    const porLinea = hayEstiloPorLinea(s);
     for (let i = 0; i < lines.length; i++) {
         if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) continue;
         const line = lines[i];
         const px = geo.px[i];
-        setTextFont(ctx, s, px, i);
+        const sLinea = porLinea ? resolveLine(s, i + 1, memo) : s;
+        setTextFont(ctx, sLinea, px, i);
         const baseline = geo.baselines[i];
-        const letterSpacing = letterSpacingBase * px * 0.1;
+        const lsBase = (sLinea && sLinea.letterSpacing !== undefined) ? sLinea.letterSpacing : s.letterSpacing;
+        const letterSpacing = lsBase * px * 0.1;
+        const align = (sLinea && sLinea.align) ? sLinea.align : s.align;
         let xOffset = 0;
-        if (s.align === 'left') {
+        if (align === 'left') {
             xOffset = -maxLineWidth / 2;
-        } else if (s.align === 'right') {
+        } else if (align === 'right') {
             xOffset = maxLineWidth / 2;
         }
-        drawTextWithSpacing(ctx, line, xOffset, baseline, letterSpacing, isStroke, s, px);
+        drawTextWithSpacing(ctx, line, xOffset, baseline, letterSpacing, isStroke, sLinea, px);
     }
 }
 
@@ -3159,6 +3187,32 @@
             if (!detectarCiclos(prueba)) out.push(c);
         }
         return out;
+    }
+
+    // Fuentes que el render necesita, una por linea USADA (research R7). Cada
+    // entrada nombra su linea para que un fallo pueda decir cual fue (FR-017).
+    // Solo se LISTAN las lineas que existen: nada de precargar todo (constitucion
+    // VI, sin preloadAll). Una linea que hereda no aporta fuente propia: usa la
+    // de la linea de la que hereda.
+    function fuentesPorLinea(s) {
+        const salida = [];
+        const vistos = {};
+        function anotar(ref, linea) {
+            const clave = String(ref);
+            if (ref === undefined || ref === null || ref === '' || vistos[clave]) return;
+            vistos[clave] = true;
+            salida.push({ ref: ref, linea: linea });
+        }
+        const nLineas = String((s && s.text) || '').split('\n').length;
+        const base = (s && s.font) ? s.font.src : undefined;
+        // La fuente de la base siempre se usa (es la de ALL).
+        anotar(base, 0);
+        const limite = Math.min(nLineas, MAX_LINE);
+        for (let li = 1; li <= limite; li++) {
+            const r = resolveLine(s, li, {});
+            anotar(r && r.font ? r.font.src : undefined, li);
+        }
+        return salida;
     }
 
     function clone(obj) {
@@ -4611,6 +4665,7 @@
     resolveLine: resolveLine,
     detectarCiclos: detectarCiclos,
     opcionesValidas: opcionesValidas,
+    fuentesPorLinea: fuentesPorLinea,
     isGlobalPath: isGlobalPath,
     MAX_LINE: MAX_LINE,
     lineFontSizes: lineFontSizes,

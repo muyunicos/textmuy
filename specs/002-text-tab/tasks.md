@@ -228,7 +228,7 @@ preset, recargar y comprobar que vuelve identico.
 ### Implementation for User Story 6 - persistencia y render
 
 - [x] T047 [US6] En `js/preset-manager.js`, `PROJECT_VERSION` a 2, claves de linea 1-based, rechazo con causa de un formato de lineas desconocido y sin lectores del formato anterior (constitucion IV y VII v3.2.0, R10)
-- [ ] T048 [US6] En `js/api.js`, resolver y cargar por linea las fuentes declaradas bajo demanda, una vez por identidad, y nombrar linea y fuente en el fallo sin impedir el resto (FR-017, constitucion VI sin `preloadAll`)
+- [x] T048 [US6] En `js/api.js`, resolver y cargar por linea las fuentes declaradas bajo demanda, una vez por identidad, y nombrar linea y fuente en el fallo sin impedir el resto (FR-017, constitucion VI sin `preloadAll`)
 - [ ] T049 [US6] En `js/editor.js`, partir el pipeline en una capa compuesta por linea para que rotacion y curva por linea se apliquen a cada linea y luego se apilen con la geometria del bloque (R9, ultimo por invasivo)
 
 ### Cierre de User Story 6

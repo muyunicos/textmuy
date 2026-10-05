@@ -86,7 +86,7 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 36 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 37 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -97,7 +97,7 @@ textmuy/
                               curva-snapshot, curva-sin-webgl, barra-line-target,
                               area-util, avance-lineas, encaje-final,
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
-                              lineas-formato)
+                              lineas-formato, fuente-por-linea)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -174,7 +174,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC53**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC54**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -386,12 +386,31 @@ no depende de la geometria unica y por eso va primero.
   `hidden=true` hasta que el usuario cambiaba de pestaña (medido). Ahora se
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
-**Estado del feature**: Bloques A, B y C cerrados (US1, US2, US3, US4, US5 + la
-geometría única). Pendiente: Bloque D (modelo de líneas completo:
-`lines.inherit`, `sizing` por línea, claves 1-based, anti-ciclos, fuente por
-línea), que además cambia el formato `.txm` a `version:2`. Las tareas están en
-`specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
-`specs/002-text-tab/quickstart.md`.
+**Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
+
+### 7.13 RC54 — Bloque D3: fuente propia por línea (el corazón de US6)
+
+Convierte el modelo en tres líneas con tres personalidades. Es el cambio que hace
+que el estilo por línea valga algo: sin esto, tres líneas con tipografía distinta
+se medían todas con la de la base y ajustaban mal.
+
+- ✅ **`editor.fuentesPorLinea(s)`**: el manifiesto de fuentes del render, una
+  entrada por línea **usada** (nada de `preloadAll`: constitución VI). Una línea que
+  hereda no aporta fuente propia; la de la base se lista una sola vez.
+- ✅ **Cada línea se mide con SU tipografía** (`blockLayout` y `drawTextLines`
+  resuelven la línea antes de medir y de pintar). El defecto real era que todo se
+  medía con una sola fuente: el ancho medido no era el que se pintaba.
+- ✅ **El editor carga una fuente por línea** (`asegurarFuenteDeclarada`), en
+  paralelo y con cache por identidad; un fallo **nombra la línea y la fuente**
+  (`linea L2: fonts:2:no disponible`) sin impedir el resto (FR-017).
+- ✅ **La ruta del PDF hace lo propio** (`api.js::ensureFontReady`): una fuente
+  por línea usada, cada una una sola vez, sin precargar. Antes cargaba solo la de
+  la base, así que el PDF salía con la tipografía equivocada en L2/L3.
+- **Verificación**: `tests/fuente-por-linea.test.js` (37 suites en verde) y el
+  recorrido integrado sube de 28 a **32/32** en el laboratorio, con **tres
+  identidades reales del catálogo**: cada línea resuelve una fuente distinta, el
+  manifiesto pide tres, las tres líneas **se miden con tipografías distintas**
+  (anchos 123 / 170 / 297 px) y el PDF sale bien (FR-020).
 
 ### 7.12 RC53 — Bloque D2: la interfaz del sistema de líneas (US6)
 
@@ -835,7 +854,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 36 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 37 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -883,6 +902,7 @@ node tests/lineas-resolucion.test.js # US6: heredar -> mezclar -> dimensionar, c
 node tests/lineas-tamano.test.js     # US6: sizing por linea con cascada de porcentajes
 node tests/lineas-ciclos.test.js      # US6: anti-ciclos por ambas aristas, sin colgarse
 node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas ausentes conservadas
+node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga por identidad, fallo nombrado
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

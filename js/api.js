@@ -180,28 +180,51 @@
     }
 
     /**
-     * Garantiza que la familia del settings este cargada ANTES de renderizar.
+     * Garantiza que las familias del preset esten cargadas ANTES de renderizar.
      *
      * RC39 (001-fix-bugs-01): una fuente que no se puede cargar REECHA con
      * causa `fonts:<id>:<motivo>`. Antes el fallo se tragaba con un
      * `catch` vacio y el render seguia con la tipografia del sistema: en el
      * PDF eso es una sustitucion silenciosa, prohibida por la constitucion VI
      * y por FR-005.
+     *
+     * 002-text-tab D3 (research R7, FR-017): se carga UNA fuente por linea
+     * USADA, cada una una sola vez (cache por id de FontLoader) y sin
+     * precargar nada que no se use. Un fallo nombra la linea y la fuente.
      */
     async function ensureFontReady(settings) {
-        var key = resolveFontKey(settings.font);
-        if (window.FontLoader && window.FontLoader.loadFont) {
-            // Se deja propagar: el render del PDF no puede salir con una
-            // tipografia que el usuario no eligio.
-            await window.FontLoader.loadFont(key);
-        }
-        if (document.fonts && document.fonts.load) {
-            var family = (window.FontLoader && window.FontLoader.getFontName) ? window.FontLoader.getFontName(key) : key;
-            var weight = (settings.font && settings.font.weight) || 'normal';
-            // document.fonts.load no lanza si la familia no existe: solo se
-            // espera a que el navegador termine de bajarla.
-            try { await document.fonts.load(weight + ' 64px "' + family + '"'); } catch (_) {}
-        }
+        const lista = (window.TextEditor && window.TextEditor.fuentesPorLinea)
+            ? window.TextEditor.fuentesPorLinea(settings)
+            : [{ ref: resolveFontKey(settings.font), linea: 0 }];
+        const pendientes = lista.filter(function (f) { return f.ref !== undefined && f.ref !== null; });
+        if (!pendientes.length) return;
+        // En paralelo: el tiempo es el de la mas lenta, no la suma.
+        await Promise.all(pendientes.map(function (f) {
+            return Promise.resolve()
+                .then(function () { return window.FontLoader.loadFont(f.ref); })
+                .then(function (familia) { return { ok: true, f: f, familia: familia }; })
+                .catch(function (e) {
+                    const causa = (e && e.message) || String(e);
+                    const donde = f.linea ? ('linea L' + f.linea + ': ') : '';
+                    return { ok: false, f: f, causa: donde + causa };
+                });
+        })).then(function (resultados) {
+            const fallo = resultados.filter(function (r) { return !r.ok; })[0];
+            if (fallo) throw new Error(fallo.causa);
+            return resultados.map(function (r) { return r.familia; });
+        }).then(async function () {
+            if (document.fonts && document.fonts.load) {
+                // document.fonts.load no lanza si la familia no existe: solo se
+                // espera a que el navegador termine de bajarla.
+                await Promise.all(pendientes.map(function (f) {
+                    const family = (window.FontLoader && window.FontLoader.getFontName)
+                        ? window.FontLoader.getFontName(f.ref) : f.ref;
+                    const weight = (settings.font && settings.font.weight) || 'normal';
+                    try { return document.fonts.load(weight + ' 64px "' + family + '"'); }
+                    catch (_) { return Promise.resolve(); }
+                }));
+            }
+        });
     }
 
     /**
