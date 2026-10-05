@@ -240,9 +240,10 @@ AGENTS.md (operativa); esta constitucion (gobernanza).
   desaparece del estado: sin rutas globales de layout/fuente).
 - **Sin cambio en**: I, II, III, V, VI. El delta estricto se mantiene: solo viaja lo
   que difiere de los defaults.
-- **Impacto en el plugin**: ninguno en el contrato. El plugin no lee `settings.lines`
-  ni valida la version del `.txm` (el delta viaja opaco dentro de `renderBatch`), asi
-  que puede desplegarse el modulo sin tocar el plugin. Requisito operativo: el
+- **Impacto en el plugin**: acotado. El plugin no lee `settings.lines`
+  (el delta viaja opaco dentro de `renderBatch`), pero SI valida la version del `.txm`
+  en `op=alta` (`inc/class-pmu-uploads.php::alta`): acepta 1 y 2 (lista cerrada). Un
+  modulo que suba otra version exige actualizar el plugin. Requisito operativo: el
   editor MUST avisar con Ctrl+F5 tras el bump `?v=RCn`, porque los `.txm` con formato
   de lineas viejo dejan de ser validos por diseno (no hay lector).
 - **Estado**: la gobernanza se adelanta a la implementacion (aprobada con el
