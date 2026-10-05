@@ -274,6 +274,15 @@ como preset, recargar y comprobar que vuelve identico.
   contornos, sombras, relieves, brillos, letterings e icono); MUST quedar
   fuera unicamente Canvas Size, el contenedor del sistema de lineas y las
   rutas de descarga/procesado; el texto es global por definicion.
+
+  **Desviacion registrada (2026-10-04, durante la implementacion)**: el alcance
+  real es el de `contracts/lineas.md` §4. Tres ajustes quedan GLOBALES ademas de
+  los tres originales: `lineHeight` (decision del usuario: un control global
+  que se comporta siempre igual es mejor que uno por linea que a veces no mueve
+  nada, FR-021), y `rotate` + `distort` (extraidos a un spec aparte: partir el
+  pipeline en capas por linea es el cambio mas invasivo del feature y su
+  beneficio es marginal). El resto, incluido `align` y `letterSpacing`, pasa a
+  ser por linea como estaba previsto.
 - **FR-017**: Cada linea MUST cargar y medir con su propia tipografia; un
   fallo MUST nombrar la linea y la fuente sin impedir el resto.
 - **FR-018**: El desplegable de fuentes MUST mostrar la fuente del target

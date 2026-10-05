@@ -134,13 +134,18 @@ function ajuste(settings, ruta, valor) {
     assert.equal(trasMulti.fill.layers[1].styles[0].color, '#222222', 'el color de la 2a capa');
 
     // 4. FR-015: estilos por linea y destino activo.
+    // 002-text-tab D1: el formato de lineas es v2, con claves 1-BASED en
+    // `lines.line` y la herencia en `lines.inherit` (el `overrides` 0-based y el
+    // `sizing` global del formato v1 se rechazan: constitucion VII v3.2.0).
     const conLineas = defaults();
     conLineas.lines.activeTarget = 'L2';
-    conLineas.lines.overrides = { '1': { font: { size: 20 } }, '2': { font: { size: 30, weight: 'bold' } } };
+    conLineas.lines.inherit = { '3': 'L2' };
+    conLineas.lines.line = { '1': { font: { size: 20 } }, '2': { font: { size: 30, weight: 'bold' } } };
     const trasLineas = ED.loadPreset(PM.settingsFromDelta(PM.diffSettings(defaults(), conLineas)), defaults());
     assert.equal(trasLineas.lines.activeTarget, 'L2', 'el destino activo se aplica');
-    assert.equal(trasLineas.lines.overrides['1'].font.size, 20, 'el override de L1');
-    assert.equal(trasLineas.lines.overrides['2'].font.weight, 'bold', 'el override de L2');
+    assert.equal(trasLineas.lines.line['1'].font.size, 20, 'el estilo propio de L1 (clave 1-based)');
+    assert.equal(trasLineas.lines.line['2'].font.weight, 'bold', 'el de L2');
+    assert.equal(trasLineas.lines.inherit['3'], 'L2', 'la herencia de L3 a L2');
 
     // 5. R-P1.3: la carga es idempotente.
     const una = ED.loadPreset(PM.settingsFromDelta(delta), defaults());

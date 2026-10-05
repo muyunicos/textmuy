@@ -1,7 +1,7 @@
 /* ===== PRESET MANAGER - presets .txm (miniaturas por spritesheet global) =====
  *
  * El almacenamiento unico de presets son ARCHIVOS:
- *   {nombre}.txm  -> delta de settings (formato textmuy-project v1)
+ *   {nombre}.txm  -> delta de settings (formato textmuy-project v2)
  *
  * Las miniaturas viven en el sprite del ambito tm-presets gestionado por
  * ThumbEngine.ensureSprite({scope:'tm-presets'}); se persiste via el endpoint
@@ -135,7 +135,7 @@
 
     // ===== FORMATO .txm =====
     const PROJECT_FORMAT = 'textmuy-project';
-    const PROJECT_VERSION = 1;
+    const PROJECT_VERSION = 2;
     const THUMB_WIDTH = 200;
     const THUMB_HEIGHT = 100;
 
@@ -228,9 +228,38 @@
         });
     }
 
+    /**
+     * Formato de lineas (002-text-tab D1, constitution IV/VII v3.2.0).
+     *
+     * El formato nuevo es `version:2`: `settings.lines` usa claves 1-based
+     * (`line["1"]` = L1) y la regla de tamano vive DENTRO de cada linea. Un
+     * archivo con el formato anterior (`lines.overrides` 0-based o
+     * `lines.sizing` global) se RECHAZA con causa y la vista queda intacta: no
+     * hay lectores ni migracion (entorno sin datos previos).
+     */
+    function validarFormatoLineas(settings) {
+        var ls = settings && settings.lines;
+        if (!ls || typeof ls !== 'object') return settings;
+        if (ls.overrides && typeof ls.overrides === 'object') {
+            throw new Error('presets:formato:lineas_v1 (overrides 0-based): no se puede leer un preset del formato anterior');
+        }
+        if (ls.sizing && typeof ls.sizing === 'object') {
+            throw new Error('presets:formato:lineas_v1 (sizing global): no se puede leer un preset del formato anterior');
+        }
+        if (ls.line && typeof ls.line === 'object') {
+            Object.keys(ls.line).forEach(function (k) {
+                if (!/^[1-9][0-9]?$/.test(k)) {
+                    throw new Error('presets:formato:lineas invalida (clave "' + k + '" no es 1-based)');
+                }
+            });
+        }
+        return settings;
+    }
+
     function settingsFromDelta(delta) {
         const settings = JSON.parse(JSON.stringify(getDefaults()));
         applyDelta(settings, delta);
+        validarFormatoLineas(settings);
         // `font.src` canonico: la IDENTIDAD NUMERICA de la fuente. Los presets
         // guardados antes de RC39 referenciaban la fuente por titulo, asi que
         // se acepta esa forma por compatibilidad y se normaliza a identidad
@@ -587,7 +616,7 @@
     }
 
     // ===== CARGA =====
-    // Devuelve {kind:'txm', data}: formato unico textmuy-project v1. Los
+    // Devuelve {kind:'txm', data}: formato unico textmuy-project v2. Los
     // formatos anteriores (.json legacy, referencias por nombre) NO se leen.
     async function fetchPreset(name) {
         const safe = sanitizeName(name);
@@ -668,6 +697,8 @@
         presetUrlBase,
         settingsFromDelta,
         diffSettings,
+        // 002-text-tab D1: formato de lineas v2 (constitucion IV/VII v3.2.0).
+        PROJECT_VERSION: PROJECT_VERSION,
         applyDelta,
         // Puente (escrituras por el motor unico: urls.motor + op= + nonces.motor)
         savePreset,

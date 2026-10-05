@@ -29,13 +29,14 @@
         letterSpacing: 0,
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
-        // ===== LINE SIZING DEFAULTS (referencia de tamano por linea) =====
-        // lines.sizing vive junto a activeTarget: es config del sistema de
-        // lineas, NO un override. ref:'canvas' = comportamiento historico
-        // (autoFit contra el lienzo). ref:'line' = la linea objetivo copia el
-        // tamano resuelto de otra linea (mode fontsize) o se auto-ajusta a su
-        // ancho con el alto restante del canvas (mode width).
-        lines: { activeTarget: 'all', overrides: {}, sizing: { ref: 'canvas', refLine: 0, mode: 'fontsize' } },
+        // ===== SISTEMA DE LINEAS (002-text-tab US6) =====
+        // `activeTarget` es solo QUE se esta editando: no filtra lo que se
+        // aplica. `inherit` es el padre de cada linea (ALL por defecto). `line`
+        // guarda el estilo PROPIO de cada linea direccionable con claves
+        // 1-BASED (`line["1"]` = L1) y su regla de tamano `sizing` dentro
+        // ({ref, refLine, mode, pct}). Las lineas 4+ no son direccionables:
+        // resuelven como All (contracts/lineas.md).
+        lines: { activeTarget: 'all', inherit: {}, line: {} },
 
         // ===== 3D & FILLING =====
         // Filling (Relleno principal) - RGB format matching TextStudio
@@ -1420,16 +1421,22 @@
     // globales via drawTextLines lineFilter). paint(lineText, lineSettings, li)
     // pinta SOLO la linea li en su posicion real. Si no hay overrides, llama
     // una vez con el bloque entero (via rapida, sin clonar settings).
+    // Hay alguna linea con estilo propio? Si no, el render va por el camino rapido:
+// el bloque entero de una vez (mismo resultado, sin resolver linea por linea).
+    function hayEstiloPorLinea(s) {
+        const ls = linesOf(s);
+        return !!(ls && ls.line && Object.keys(ls.line).length);
+    }
+
     function forEachLineSetting(ctx, text, lines, fontSizePx, s, paint) {
-        const lineOverrides = s.lines && s.lines.overrides ? s.lines.overrides : null;
-        const hasLineOverrides = lineOverrides && Object.keys(lineOverrides).length > 0;
-        const canResolve = typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings;
-        if (!hasLineOverrides || !canResolve) {
+        if (!hayEstiloPorLinea(s)) {
             paint(text, lines, s, null);
             return;
         }
         for (let li = 0; li < lines.length; li++) {
-            const ls = TextEditor.resolveLineSettings(li);
+            // Las lineas no direccionables (4+) resuelven como All.
+            const ls = resolveLine(s, li + 1, {});
+            ensureFillIds(ls.fill);
             paint(lines[li], [lines[li]], ls, li);
         }
     }
@@ -1441,8 +1448,7 @@
 
         // Alcance por linea: delegar en el helper (misma geometria de bloque,
         // lineFilter pinta solo la linea en su baseline global).
-        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
-            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+        if (hayEstiloPorLinea(s)) {
             forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
                 drawOuterShadowUnificadoLine(ctx, lineText, lines, fontSizePx, ls, configKey, li);
             });
@@ -2004,8 +2010,7 @@
     function drawOutline(ctx, text, lines, fontSizePx, s) {
         // Alcance por linea: cada linea con su config efectiva (misma
         // geometria de bloque via forEachLineSetting + lineFilter interno).
-        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
-            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+        if (hayEstiloPorLinea(s)) {
             forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
                 drawOutlineLine(ctx, lineText, lines, fontSizePx, ls, li);
             });
@@ -2120,8 +2125,7 @@
         configKey = configKey || 'inner';
         if (!s.shadow[configKey] || !isActive(s, 'shadow.' + configKey)) return;
         // Alcance por linea: mismo patron que outer (helper + lineFilter).
-        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
-            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+        if (hayEstiloPorLinea(s)) {
             forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
                 drawInnerShadowLine(ctx, lineText, lines, fontSizePx, ls, configKey, li);
             });
@@ -2222,8 +2226,7 @@
     function drawOutlineGlobal(ctx, text, lines, fontSizePx, s) {
         if (!isActive(s, 'outline.global')) return;
         // Alcance por linea: mismo patron (helper + lineFilter).
-        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
-            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+        if (hayEstiloPorLinea(s)) {
             forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
                 drawOutlineGlobalLine(ctx, lineText, lines, fontSizePx, ls, li);
             });
@@ -2287,8 +2290,7 @@
 
         // Alcance por linea: el icono se pinta una vez por linea con su config
         // efectiva (tamano/posicion/rotacion/opacidad propios de cada linea).
-        if (s.lines && s.lines.overrides && Object.keys(s.lines.overrides).length &&
-            typeof TextEditor !== 'undefined' && TextEditor.resolveLineSettings) {
+        if (hayEstiloPorLinea(s)) {
             forEachLineSetting(ctx, text, lines, fontSizePx, s, function(lineText, lineArr, ls, li) {
                 if (!isActive(ls, 'icon')) return;
                 drawIconLine(ctx, lineText, lines, fontSizePx, ls, li);
@@ -2570,9 +2572,12 @@
         let px = fontSizePx;
         if (lineIdx !== undefined && lineIdx !== null && state.lineFontPx && state.lineFontPx[lineIdx] !== undefined) {
             px = state.lineFontPx[lineIdx];
-        } else if (s.lines && s.lines.overrides && s.lines.overrides[String(lineIdx)] !== undefined && lineIdx !== undefined && lineIdx !== null) {
-            const ovSize = getNested(s.lines.overrides[String(lineIdx)], 'font.size');
-            if (ovSize !== undefined) px = Number(ovSize) || px;
+        } else if (lineIdx !== undefined && lineIdx !== null) {
+            // Sin state.lineFontPx (ajuste previo al render): se usa el tamano
+            // que RESUELVE la linea, que ya incluye px propio y reglas.
+            const r = resolveLine(s, lineIdx + 1, {});
+            const ovSize = r && r.font ? Number(r.font.size) : NaN;
+            if (Number.isFinite(ovSize) && ovSize > 0) px = ovSize;
         }
         aplicarFuente(ctx, s, px);
         return px;
@@ -2997,6 +3002,211 @@
         return fill;
     }
 
+    // ===== MODELO DE LINEAS (002-text-tab US6, contracts/lineas.md) =====
+    // `lines` es el sistema de lineas del preset: el target que se esta editando
+    // (que NO filtra lo que aplica), la herencia y el estilo propio de cada
+    // linea direccionable (L1-L3), con claves 1-BASED (`line["1"]` = L1).
+    //
+    // Rutas GLOBALES de bloque (nunca entran al delta de una linea): el texto,
+    // Canvas Size, el contenedor `lines`, descarga/procesado, `lineHeight`,
+    // `rotate` y `distort` (hasta que exista el spec de R9) y los letterings
+    // que actuan sobre todo el bloque. Todo lo demas es por linea.
+    const GLOBAL_PATHS = [
+        'text', 'canvas', 'lines', 'download', 'processing',
+        'lineHeight', 'rotate', 'distort',
+        'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
+    ];
+
+    // Lineas direccionables: solo L1..L3. Las demas filas del texto resuelven
+    // como All (R-L1.4).
+    const MAX_LINE = 3;
+
+    function isGlobalPath(path) {
+        if (!path) return false;
+        return GLOBAL_PATHS.some(function (g) {
+            return path === g || path.indexOf(g + '.') === 0;
+        });
+    }
+
+    // Acepta el numero (2) y el nombre de linea ('L2'): el padre se expresa
+    // como 'L2' (data-model §3) y las claves de `line` son 1-based numericas.
+    function normalizeLineNo(n) {
+        let v = n;
+        if (typeof v === 'string') {
+            const m = /^\s*[Ll]?(\d+)\s*$/.exec(v);
+            v = m ? parseInt(m[1], 10) : NaN;
+        }
+        v = typeof v === 'number' ? v : parseInt(v, 10);
+        return (isFinite(v) && v >= 1 && v <= MAX_LINE) ? v : 0;
+    }
+
+    function linesOf(s) {
+        return (s && s.lines && typeof s.lines === 'object') ? s.lines : null;
+    }
+
+    function lineEntry(s, lineNo) {
+        const ls = linesOf(s);
+        const n = normalizeLineNo(lineNo);
+        if (!ls || !ls.line || !n) return null;
+        const e = ls.line[String(n)];
+        return (e && typeof e === 'object') ? e : null;
+    }
+
+    // Padre de una linea: `inherit` es metadato del sistema, no estilo. Ausente
+    // = ALL (R-L1.2).
+    function parentLine(s, lineNo) {
+        const ls = linesOf(s);
+        const n = normalizeLineNo(lineNo);
+        if (!ls || !ls.inherit) return 0;
+        return normalizeLineNo(ls.inherit[String(n)]);
+    }
+
+    // Referencia de dimensionamiento de una linea: `sizing` vive DENTRO de la
+    // linea ({ref, mode, pct}); el `sizing` global anterior desaparece (R-L2.1).
+    function sizingOf(s, lineNo) {
+        const e = lineEntry(s, lineNo);
+        const sz = e && e.sizing;
+        if (!sz || typeof sz !== 'object') return null;
+        const ref = (sz.ref === 'linea' || sz.ref === 'line') ? 'linea' : 'canvas';
+        return {
+            ref: ref,
+            // La linea de referencia viaja en la propia regla (1-based).
+            refLine: normalizeLineNo(sz.refLine),
+            mode: sz.mode === 'width' ? 'width' : 'fontsize',
+            pct: Math.max(1, Number(sz.pct) || 100)
+        };
+    }
+
+    /**
+     * Detecta ciclos de herencia y de dimensionamiento, por ambas aristas y de
+     * cualquier longitud (R-L3.1, R-L3.3). Devuelve null si no hay ciclo, o la
+     * causa (`lines:<detalle>:ciclo`).
+     */
+    function detectarCiclos(s) {
+        function aristasDe(n) {
+            const out = [];
+            const padre = parentLine(s, n);
+            // El autociclo (L2 hereda de L2) es un ciclo de longitud 1: se
+            // reporta, no se ignora en silencio.
+            if (padre) out.push(padre);
+            const sz = sizingOf(s, n);
+            // Referenciarse a si misma en el dimensionamiento no es ciclo (no
+            // avanza la resolucion), asi que no cuenta como arista.
+            if (sz && sz.ref === 'linea' && sz.refLine && sz.refLine !== n) out.push(sz.refLine);
+            return out;
+        }
+        const nodos = [1, 2, 3].filter(function (n) { return !!lineEntry(s, n) || parentLine(s, n); });
+        const estado = {};   // 1 = en la pila, 2 = resuelto
+        const pila = [];
+        let ciclo = null;
+        function visitar(n) {
+            if (ciclo || !n) return;
+            if (estado[n] === 2) return;
+            if (estado[n] === 1) {
+                const desde = pila.indexOf(n);
+                const vuelta = pila.slice(desde >= 0 ? desde : 0).concat(n);
+                ciclo = vuelta.map(function (x) { return 'L' + x; }).join('>');
+                return;
+            }
+            estado[n] = 1;
+            pila.push(n);
+            aristasDe(n).forEach(visitar);
+            pila.pop();
+            estado[n] = 2;
+        }
+        nodos.forEach(visitar);
+        return ciclo ? ('lines:' + ciclo + ':ciclo') : null;
+    }
+
+    function clone(obj) {
+        return obj ? JSON.parse(JSON.stringify(obj)) : obj;
+    }
+
+    function cloneWithoutLines(s) {
+        const c = clone(s) || {};
+        delete c.lines;
+        return c;
+    }
+
+    // Delta disperso: solo las rutas presentes cambian (R-L1.3). Las rutas
+    // globales de bloque se IGNORAN aunque alguien las haya escrito a mano en el
+    // delta de la linea (R-L4.1): el alcance por linea no las cubre.
+    function mergeDelta(base, delta) {
+        const out = clone(base) || {};
+        (function apply(node, d, prefix) {
+            Object.keys(d).forEach(function (k) {
+                if (k === 'sizing' || k === 'inherit') return;  // metadatos del sistema
+                const v = d[k];
+                const full = prefix ? prefix + '.' + k : k;
+                if (isGlobalPath(full)) return;
+                if (v && typeof v === 'object' && !Array.isArray(v)) {
+                    if (!node[k] || typeof node[k] !== 'object' || Array.isArray(node[k])) node[k] = {};
+                    apply(node[k], v, full);
+                } else {
+                    node[k] = clone(v);
+                }
+            });
+        })(out, delta, '');
+        return out;
+    }
+
+    /**
+     * Resolucion de una linea en tres pasos: heredar -> mezclar lo propio ->
+     * dimensionar (R-L1.1). La dimension va la ultima porque el porcentaje se
+     * calcula sobre el tamano ya mezclado de la referencia.
+     *
+     * `memo` cachea por render para no repetir el recorrido por linea y motor.
+     * Con un ciclo (archivo editado a mano) NO se cuelga: cae a la base (R-L3.2).
+     */
+    function resolveLine(s, lineNo, memo) {
+        const n = normalizeLineNo(lineNo);
+        if (!n) return cloneWithoutLines(s);
+        const cache = memo || null;
+        if (cache && cache[n]) return cache[n];
+        // Guardia de ciclos: la resolucion es recursiva por la herencia.
+        if (!memo) memo = {};
+        if (memo['__viendo' + n]) return cloneWithoutLines(s);
+        memo['__viendo' + n] = true;
+
+        const padre = parentLine(s, n);
+        // 1. Heredar: de ALL (base tal cual) o del estilo RESUELTO del padre.
+        const puntoDePartida = padre ? resolveLine(s, padre, memo) : cloneWithoutLines(s);
+        // 2. Mezclar lo propio (delta disperso).
+        const propia = lineEntry(s, n);
+        const resuelta = propia ? mergeDelta(puntoDePartida, propia) : clone(puntoDePartida);
+        // 3. Dimensionar (ultimo).
+        aplicarDimension(resuelta, s, n, memo);
+
+        delete memo['__viendo' + n];
+        if (cache) cache[n] = resuelta;
+        return resuelta;
+    }
+
+    // Fase de dimensionamiento (R-L2.1 a R-L2.3). Un `font.size` en px
+    // SUSTITUYE a la regla: no se combinan.
+    // Aqui solo se resuelve la regla con referencia a OTRA LINEA (puro, sin
+    // canvas). La regla con referencia al canvas necesita el area util y se
+    // aplica en `lineFontSizes`, que es donde vive el ajuste real.
+    function aplicarDimension(resuelta, s, lineNo, memo) {
+        const sz = sizingOf(s, lineNo);
+        if (!sz) return resuelta;
+        if (tienePxPropio(s, lineNo)) return resuelta;
+        if (sz.ref !== 'linea' || !sz.refLine) return resuelta;
+        const ref = resolveLine(s, sz.refLine, memo);
+        const refPx = ref && ref.font ? Number(ref.font.size) : 0;
+        if (!Number.isFinite(refPx) || refPx <= 0) return resuelta;
+        resuelta.font = resuelta.font || {};
+        resuelta.font.size = Math.max(1, Math.round(refPx * sz.pct / 100));
+        return resuelta;
+    }
+
+    // El px propio se reconoce por EXISTIR en la linea (no por coincidir con la
+    // base): si L2 tiene font.size guardado, gana sobre el porcentaje (R-L2.3).
+    function tienePxPropio(s, lineNo) {
+        const e = lineEntry(s, lineNo);
+        return !!(e && e.font && Number(e.font.size) > 0);
+    }
+
     function getLineTarget() {
         const s = state.settings || {};
         const t = s.lines && s.lines.activeTarget;
@@ -3027,118 +3237,77 @@
         return obj;
     }
 
-    // Rutas siempre globales (contenido/layout/lienzo/lettering de bloque):
-    // ver GLOBAL_ONLY_PATHS en controls.js. setTargetedSetting las escribe en
-    // base aunque el target sea L1/L2, para no crear overrides huerfanos.
-    function isGlobalOnlyPath(path) {
-        const GLOBAL = ['text', 'align', 'lineHeight', 'letterSpacing', 'rotate',
-            'distort', 'canvas', 'lines', 'download', 'processing',
-            'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap',
-            'lettering.blendmode', 'font.src'];
-        return GLOBAL.some(function(g) {
-            return path === g || path.indexOf(g + '.') === 0;
-        });
-    }
-
-    // Podar overrides huerfanos de rutas globales (creados por versiones
-    // anteriores que permitian text/layout en lines.overrides). Se aplica al
-    // cargar preset en el editor visible; la API/export no la toca.
-    function pruneGlobalOnlyOverrides(s) {
-        const ovs = s.lines && s.lines.overrides;
-        if (!ovs || typeof ovs !== 'object') return;
-        Object.keys(ovs).forEach(function(idx) {
-            const ov = ovs[idx];
-            if (!ov || typeof ov !== 'object') { delete ovs[idx]; return; }
-            (function pruneNode(node) {
-                if (!node || typeof node !== 'object' || Array.isArray(node)) return;
-                Object.keys(node).forEach(function(k) {
-                    const child = node[k];
-                    if (child && typeof child === 'object' && !Array.isArray(child)) {
-                        pruneNode(child);
-                        if (!Object.keys(child).length) delete node[k];
-                    }
-                });
-            })(ov);
-            // Eliminar hojas globales en cualquier profundidad: comparar cada
-            // hoja del override contra su ruta completa. Nota: font.size,
-            // font.weight y lettering.shadow son ESTILO por-linea (no estan en
-            // isGlobalOnlyPath) y se conservan; solo font.src es global.
-            (function pruneGlobals(node, prefix) {
-                if (!node || typeof node !== 'object' || Array.isArray(node)) return;
-                Object.keys(node).forEach(function(k) {
-                    const full = prefix ? prefix + '.' + k : k;
-                    const child = node[k];
-                    if (child && typeof child === 'object' && !Array.isArray(child)) {
-                        pruneGlobals(child, full);
-                        if (!Object.keys(child).length) delete node[k];
-                    } else if (isGlobalOnlyPath(full)) {
-                        delete node[k];
-                    }
-                });
-            })(ov, '');
-            pruneEmpty(ov);
-            if (!Object.keys(ov).length) delete ovs[idx];
-        });
-    }
-
+    // Escribe un ajuste en la linea del target activo, o en la base si la ruta
+    // es global de bloque (R-L4.1). Las claves de linea son 1-BASED.
     function setTargetedSetting(path, value) {
         const target = getLineTarget();
-        if (target === 'all' || isGlobalOnlyPath(path)) {
+        const lineNo = normalizeLineNo(target);
+        if (!lineNo || isGlobalPath(path)) {
             setNested(state.settings, path, value);
             render();
             return;
         }
-        const idx = String(parseInt(target.slice(1), 10) - 1);
-        state.settings.lines.overrides = state.settings.lines.overrides || {};
-        const prev = state.settings.lines.overrides[idx];
-        const ov = (prev && typeof prev === 'object') ? prev : {};
-        setNested(ov, path, value);
-        if (JSON.stringify(getNested(ov, path)) === JSON.stringify(getNested(state.settings, path))) {
+        const ls = linesOf(state.settings) || {};
+        ls.line = ls.line || {};
+        const key = String(lineNo);
+        const previa = (ls.line[key] && typeof ls.line[key] === 'object') ? ls.line[key] : {};
+        const propia = mergeDelta({}, previa);
+        setNested(propia, path, value);
+        // Si el valor coincide con lo que la linea RESUELVE, no hace falta
+        // override: solo viaja la diferencia (delta estricto, constitucion IV).
+        const resuelta = resolveLine(state.settings, lineNo, {});
+        if (JSON.stringify(getNested(propia, path)) === JSON.stringify(getNested(resuelta, path))) {
             const keys = path.split('.');
-            let node = ov;
+            let node = propia;
             for (let i = 0; i < keys.length - 1; i++) { node = node && node[keys[i]]; }
             if (node) delete node[keys[keys.length - 1]];
         }
-        pruneEmpty(ov);
-        if (Object.keys(ov).length) state.settings.lines.overrides[idx] = ov;
-        else delete state.settings.lines.overrides[idx];
+        pruneEmpty(propia);
+        if (Object.keys(propia).length) ls.line[key] = propia;
+        else delete ls.line[key];
         render();
     }
 
+    // Valor efectivo de una ruta en una linea: lo que RESUELVE, no solo lo
+    // propio (herencia incluida).
     function getEffectiveSetting(lineIdx, path) {
-        const ov = state.settings.lines && state.settings.lines.overrides
-            ? state.settings.lines.overrides[String(lineIdx)] : null;
-        const v = ov ? getNested(ov, path) : undefined;
-        return v !== undefined ? v : getNested(state.settings, path);
+        const n = normalizeLineNo(lineIdx !== undefined && lineIdx !== null && !isNaN(lineIdx) ? lineIdx : lineIdx);
+        const resuelta = n ? resolveLine(state.settings, n, {}) : cloneWithoutLines(state.settings);
+        return getNested(resuelta, path);
     }
 
-    // ===== LINE SIZING (tamano por linea con referencia) =====
-    // sizing vive en settings.lines (config global del sistema de lineas).
-    // ref:'canvas' = autoFit historico. ref:'line' = la linea objetivo copia
-    // el tamano de otra linea (mode fontsize) o se ajusta a su ancho con el
-    // alto restante (mode width). Cadenas a 1 nivel (sin ciclos L1->L2->L1).
+    // Regla de tamano de la linea del target activo (null si no tiene).
     function getLineSizing() {
-        const lz = (state.settings && state.settings.lines && state.settings.lines.sizing) || {};
-        return {
-            ref: lz.ref === 'line' ? 'line' : 'canvas',
-            refLine: Math.max(0, parseInt(lz.refLine, 10) || 0),
-            mode: lz.mode === 'width' ? 'width' : 'fontsize'
-        };
+        return sizingOf(state.settings, getLineTarget());
     }
 
+    // Fija la regla de tamano de la linea del target activo. Con referencia al
+    // canvas el control escribe px absolutos (FR-012); con referencia a linea
+    // escribe el porcentaje, para que la cadena siga viva.
     function setLineSizing(patch) {
-        if (!state.settings.lines || typeof state.settings.lines !== 'object') {
-            state.settings.lines = { activeTarget: 'all', overrides: {} };
-        }
-        const cur = state.settings.lines.sizing || {};
-        state.settings.lines.sizing = {
-            ref: patch.ref !== undefined ? (patch.ref === 'line' ? 'line' : 'canvas') : (cur.ref === 'line' ? 'line' : 'canvas'),
-            refLine: patch.refLine !== undefined ? Math.max(0, parseInt(patch.refLine, 10) || 0) : (cur.refLine || 0),
-            mode: patch.mode !== undefined ? (patch.mode === 'width' ? 'width' : 'fontsize') : (cur.mode === 'width' ? 'width' : 'fontsize')
+        const lineNo = normalizeLineNo(getLineTarget());
+        if (!lineNo) { render(); return; }
+        const ls = linesOf(state.settings) || {};
+        ls.line = ls.line || {};
+        const key = String(lineNo);
+        const entrada = (ls.line[key] && typeof ls.line[key] === 'object') ? ls.line[key] : {};
+        const actual = sizingOf(state.settings, lineNo) || { ref: 'canvas', mode: 'fontsize', pct: 100 };
+        const ref = patch.ref !== undefined ? patch.ref : actual.ref;
+        const nueva = {
+            ref: ref,
+            mode: patch.mode !== undefined ? patch.mode : actual.mode,
+            pct: Math.max(1, Number(patch.pct !== undefined ? patch.pct : actual.pct) || 100)
         };
+        if (nueva.ref === 'linea') nueva.refLine = normalizeLineNo(patch.refLine !== undefined ? patch.refLine : actual.refLine);
+        if (ref === 'canvas' && patch.fontSizePx) {
+            // Con referencia al canvas el tamano es absoluto (FR-012).
+            delete nueva.pct;
+            setNested(entrada, 'font.size', Math.max(1, Math.round(patch.fontSizePx)));
+        }
+        if (Object.keys(nueva).length) entrada.sizing = nueva;
+        ls.line[key] = entrada;
         render();
     }
-
     // Sync simple controls from the effective settings of the active line target.
     // Delegates to window.TextEditorControls bindings when available (registrations
     // land there via bindRange/bindCheckbox/etc.). Falls back to a minimal
@@ -3155,31 +3324,9 @@
         ['tt-shadow-inner-size-input', 'shadow.inner.size']
     ];
 
-    // Rutas estilizables por linea: las que drawFill/drawOutline/... resuelven
-    // con forEachLineSetting. El resto (contenido, layout, lienzo, lettering
-    // de bloque) es global. Mantener en sync con GLOBAL_ONLY_PATHS de
-    // controls.js: misma lista, negada. Si una ruta no esta aqui, el sync por
-    // target la salta (los inputs muestran la base) y no marca override.
-    var LINE_STYLE_PATHS = [
-        'font.size', 'font.weight',
-        'fill',
-        'outline',
-        'depth', 'depth2',
-        'bevel',
-        'shadow',
-        'specular',
-        'lettering.shadow',
-        'lettering.active',
-        'icon'
-    ];
-
-    function isLineStylePath(path) {
-        if (!path) return false;
-        return LINE_STYLE_PATHS.some(function(g) {
-            return path === g || path.indexOf(g + '.') === 0;
-        });
-    }
-
+    // 002-text-tab US6: el alcance por linea ya no se filtra por una lista de
+    // "estilizables". Lo que decide es `isGlobalPath`: si la ruta es global de
+    // bloque se muestra la base; si no, el valor RESUELTO de la linea.
     function updateUIFromLineTarget() {
         const target = getLineTarget();
         const lineIdx = target === 'all' ? null : (parseInt(target.slice(1), 10) - 1);
@@ -3187,9 +3334,9 @@
             Array.isArray(window.TextEditorControls.bindings))
             ? window.TextEditorControls.bindings : null;
         const table = (bindings && bindings.length ? bindings : FALLBACK_LINE_SYNC_TABLE)
-            .filter(function(entry) {
+            .filter(function (entry) {
                 const p = String(entry && (entry.settingPath || entry[1]) || '');
-                return isLineStylePath(p);
+                return lineIdx === null || !isGlobalPath(p);
             });
         table.forEach(function(entry) {
             const id = entry.id || entry[0];
@@ -3220,11 +3367,9 @@
                 }
             }
             // Marcar override propio vs heredado (syncControlsFromTarget, paso 4):
-            // data-line-override="1" si la linea define el path, "0" si hereda.
             try {
-                const ov = state.settings.lines && state.settings.lines.overrides
-                    ? state.settings.lines.overrides[String(lineIdx)] : null;
-                const own = lineIdx !== null && ov && getNested(ov, path) !== undefined;
+                const propia = lineIdx !== null ? lineEntry(state.settings, lineIdx + 1) : null;
+                const own = !!propia && getNested(propia, path) !== undefined;
                 el.setAttribute('data-line-override', own ? '1' : '0');
             } catch (e) { /* decoracion best-effort, nunca rompe el sync */ }
             if (bindings && window.TextEditorControls && typeof window.TextEditorControls.refreshInputDecorations === 'function') {
@@ -3254,46 +3399,87 @@
     }
 
     // Resuelve el fontSizePx de cada linea segun lines.sizing. Sin sizing en
-    // modo line ni overrides de font.size devuelve el global repetido (rapido).
+    // Tamano por linea (R-L2). Dos pasadas:
+    //   1. cada linea resuelve su tamano base (px propio, o porcentaje sobre el
+    //      tamano del ajuste si su regla referencia al canvas);
+    //   2. las reglas que referencian a OTRA LINEA se aplican en cascada sobre
+    //      el tamano ya resuelto de la referencia (si L1 crece, L2 la sigue).
+    // Sin reglas de tamano devuelve el global repetido (caso normal, via rapida).
     function lineFontSizes(ctx, lines, canvasWidth, canvasHeight, s, fontSizePx) {
-        const sizing = getLineSizing();
         const n = lines.length;
         const out = new Array(n).fill(fontSizePx);
-        const ovs = (s.lines && s.lines.overrides) || {};
-        const hasSizeOv = Object.keys(ovs).some(function(k) {
-            return getNested(ovs[k], 'font.size') !== undefined;
-        });
-        if (sizing.ref !== 'line' && !hasSizeOv) return out;
-        // Area util del helper unico (R-G1.4).
+        const direccionables = Math.min(n, MAX_LINE);
+        if (!linesOf(s) || direccionables === 0) return out;
+        let hayReglas = false;
+        for (let li = 1; li <= direccionables; li++) {
+            const e = lineEntry(s, li);
+            if (e && (e.sizing || (e.font && Number(e.font.size) > 0))) { hayReglas = true; break; }
+        }
+        if (!hayReglas) return out;
+
         const area = areaUtil(s, canvasWidth, canvasHeight);
         const availW = area.width;
         const availH = area.height;
         const maxPct = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
-        const singleRef = canvasWidth >= canvasHeight ? availH : availW;
-        const target = getLineTarget();
-        const ti = target === 'all' ? -1 : parseInt(target.slice(1), 10) - 1;
-        for (let li = 0; li < n; li++) {
-            if (li === ti && sizing.ref === 'line') continue;
-            const ovSize = ovs[String(li)] ? getNested(ovs[String(li)], 'font.size') : undefined;
-            if (ovSize !== undefined) {
-                out[li] = Math.max(8, Math.round(Math.min(Number(ovSize) || fontSizePx, singleRef * maxPct, fontSizePx)));
+        const singleRef = canvasWidth >= canvasHeight ? area.height : area.width;
+        const lh = (s.lineHeight !== undefined ? s.lineHeight : 1);
+
+        // Pasada 1: tamano propio o porcentaje sobre el tamano del ajuste.
+        for (let li = 1; li <= direccionables; li++) {
+            const resuelta = resolveLine(s, li, {});
+            let px = resuelta && resuelta.font ? Number(resuelta.font.size) : NaN;
+            const sz = sizingOf(s, li);
+            if (tienePxPropio(s, li)) {
+                px = Number((lineEntry(s, li) || {}).font.size);
+            } else if (sz && sz.ref === 'canvas') {
+                px = fontSizePx * sz.pct / 100;
+            } else if (sz && sz.ref === 'linea') {
+                px = fontSizePx;   // la cascada se resuelve en la pasada 2
+            }
+            if (Number.isFinite(px) && px > 0) {
+                out[li - 1] = Math.max(8, Math.round(Math.min(px, singleRef * maxPct)));
             }
         }
-        if (sizing.ref === 'line' && ti >= 0 && ti < n) {
-            const ri = Math.min(n - 1, sizing.refLine);
-            if (ri >= 0 && ri < n && ri !== ti) {
-                if (sizing.mode === 'fontsize') {
-                    out[ti] = Math.max(8, Math.round(out[ri] * maxPct));
-                } else {
-                    const refW = Math.max(1, measureTextWidth(ctx, lines[ri], s.letterSpacing, out[ri]));
-                    let otherH = 0;
-                    for (let li = 0; li < n; li++) {
-                        if (li === ti) continue;
-                        otherH += out[li] * (s.lineHeight !== undefined ? s.lineHeight : 1);
-                    }
-                    out[ti] = Math.max(8, fitSingleLine(ctx, lines[ti], Math.min(refW, availW), Math.max(1, availH - otherH), s));
-                }
+
+        // Pasada 2: cascada. Se repite hasta que ninguna regla cambie un tamano
+        // (como maximo MAX_LINE vueltas: hay tres lineas).
+        for (let vuelta = 0; vuelta < MAX_LINE; vuelta++) {
+            let cambio = false;
+            for (let li = 1; li <= direccionables; li++) {
+                const sz = sizingOf(s, li);
+                if (!sz || sz.ref !== 'linea' || !sz.refLine) continue;
+                if (tienePxPropio(s, li)) continue;   // el px gana sobre la regla
+                const base = out[sz.refLine - 1];
+                if (!base) continue;
+                const nuevo = Math.max(8, Math.round(base * sz.pct / 100));
+                if (out[li - 1] !== nuevo) { out[li - 1] = nuevo; cambio = true; }
             }
+            if (!cambio) break;
+        }
+
+        // mode 'width': la linea se ajusta al ancho de su referencia con el
+        // alto restante del lienzo (R-L2.2).
+        for (let li = 1; li <= direccionables; li++) {
+            const sz = sizingOf(s, li);
+            if (!sz || sz.mode !== 'width' || sz.ref !== 'linea' || !sz.refLine) continue;
+            if (tienePxPropio(s, li)) continue;
+            const refPx = out[sz.refLine - 1] || fontSizePx;
+            const refW = Math.max(1, measureTextWidth(ctx, lines[li - 1], s.letterSpacing, refPx));
+            let otherH = 0;
+            for (let j = 0; j < n; j++) {
+                if (j === li - 1) continue;
+                otherH += out[j] * lh;
+            }
+            out[li - 1] = Math.max(8, fitSingleLine(ctx, lines[li - 1], Math.min(refW, availW), Math.max(1, availH - otherH), s));
+        }
+
+        // Fase 2 (R-L2.4): si la pila no cabe en vertical, TODAS se escalan por
+        // el mismo factor: las proporciones quedan intactas.
+        let totalH = 0;
+        for (let j = 0; j < n; j++) totalH += out[j] * lh;
+        if (totalH > availH && totalH > 0) {
+            const k = availH / totalH;
+            for (let j = 0; j < n; j++) out[j] = Math.max(8, Math.round(out[j] * k));
         }
         return out;
     }
@@ -3451,17 +3637,17 @@
         // se aplicaba al cargar, asi que un preset con overrides por linea
         // perdia todo el trabajo de estilos (FR-015).
         if (preset.lines && typeof preset.lines === 'object') {
-            s.lines = s.lines && typeof s.lines === 'object' ? s.lines : { activeTarget: 'all', overrides: {} };
+            s.lines = { activeTarget: 'all', inherit: {}, line: {} };
             if (preset.lines.activeTarget !== undefined) s.lines.activeTarget = preset.lines.activeTarget;
-            if (preset.lines.sizing && typeof preset.lines.sizing === 'object') {
-                s.lines.sizing = Object.assign({}, s.lines.sizing, preset.lines.sizing);
+            // Herencia y estilo propio con claves 1-BASED. Lo que el preset no
+            // declara NO se poda: las lineas configuradas se conservan aunque el
+            // texto actual tenga menos lineas (FR-015).
+            if (preset.lines.inherit && typeof preset.lines.inherit === 'object') {
+                s.lines.inherit = JSON.parse(JSON.stringify(preset.lines.inherit));
             }
-            s.lines.overrides = (preset.lines.overrides && typeof preset.lines.overrides === 'object')
-                ? JSON.parse(JSON.stringify(preset.lines.overrides))
-                : {};
-            // Podar overrides huerfanos de rutas globales (creados por versiones
-            // anteriores que permitian text/canvas en lines.overrides).
-            pruneGlobalOnlyOverrides(s);
+            if (preset.lines.line && typeof preset.lines.line === 'object') {
+                s.lines.line = JSON.parse(JSON.stringify(preset.lines.line));
+            }
             ensureFillIds(s.fill);
         } else if (!targetSettings) {
             // El preset no declara estilos por linea: vuelven al default en vez
@@ -3887,12 +4073,10 @@
         }
 
         if (!targetSettings) {
-            // Al cargar preset en el editor visible: resetear el style target a
-            // All y podar overrides huerfanos de rutas globales (text, canvas,
-            // layout, lettering de bloque) creados por versiones anteriores.
+            // Al cargar preset en el editor visible: el target vuelve a All. Lo que el
+            // preset declaro por linea se conserva intacto (FR-015).
             if (state.settings.lines && typeof state.settings.lines === 'object') {
                 state.settings.lines.activeTarget = 'all';
-                pruneGlobalOnlyOverrides(s);
             }
 
             // Update UI elements
@@ -4354,6 +4538,12 @@
     // modelo de bloque). El ajuste y el dibujado usan estos mismos helpers.
     areaUtil: areaUtil,
     blockLayout: blockLayout,
+    // 002-text-tab US6: modelo de lineas (resolucion, ciclos, alcance).
+    resolveLine: resolveLine,
+    detectarCiclos: detectarCiclos,
+    isGlobalPath: isGlobalPath,
+    MAX_LINE: MAX_LINE,
+    lineFontSizes: lineFontSizes,
         flagWaveAt: flagWaveAt,
         flagWaveSlopes: flagWaveSlopes
     };

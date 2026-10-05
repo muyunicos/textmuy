@@ -206,17 +206,17 @@ preset, recargar y comprobar que vuelve identico.
 
 ### Tests for User Story 6
 
-- [ ] T035 [P] [US6] Suite `tests/lineas-resolucion.test.js`: fijar el orden heredar -> mezclar lo propio -> dimensionar, que heredar de ALL parte de la base y heredar de linea parte de su estilo **resuelto**, que el delta disperso solo cambia las rutas presentes, y que el target activo no participa en la resolucion (FR-009, FR-010, R-L1.1 a R-L1.5)
-- [ ] T036 [P] [US6] Suite `tests/lineas-tamano.test.js`: fijar la cascada (L2 al 80% de L1 mantiene el 80% exacto y L3 sigue a L2), que con referencia a linea el slider reescribe el porcentaje y con referencia al canvas escribe px, y que la fase 2 escala todas las lineas por el mismo factor con proporciones intactas (FR-011, FR-012, SC-007, R-L2.1 a R-L2.5)
-- [ ] T037 [P] [US6] Suite `tests/lineas-ciclos.test.js`: fijar el ocultamiento transitivo por ambas aristas en los selectores y el rechazo con causa de un ciclo que llega por archivo editado a mano, dejando la vista intacta (FR-013, FR-014, R-L3.1 a R-L3.3)
-- [ ] T038 [P] [US6] Suite `tests/lineas-formato.test.js`: fijar las claves 1-based (`line["1"]`=L1) en el `.txm` `version:2`, que solo viaja el delta, y que lo configurado para lineas inexistentes se conserva y se reactiva (FR-015, FR-019, R10)
+- [x] T035 [P] [US6] Suite `tests/lineas-resolucion.test.js`: fijar el orden heredar -> mezclar lo propio -> dimensionar, que heredar de ALL parte de la base y heredar de linea parte de su estilo **resuelto**, que el delta disperso solo cambia las rutas presentes, y que el target activo no participa en la resolucion (FR-009, FR-010, R-L1.1 a R-L1.5)
+- [x] T036 [P] [US6] Suite `tests/lineas-tamano.test.js`: fijar la cascada (L2 al 80% de L1 mantiene el 80% exacto y L3 sigue a L2), que con referencia a linea el slider reescribe el porcentaje y con referencia al canvas escribe px, y que la fase 2 escala todas las lineas por el mismo factor con proporciones intactas (FR-011, FR-012, SC-007, R-L2.1 a R-L2.5)
+- [x] T037 [P] [US6] Suite `tests/lineas-ciclos.test.js`: fijar el ocultamiento transitivo por ambas aristas en los selectores y el rechazo con causa de un ciclo que llega por archivo editado a mano, dejando la vista intacta (FR-013, FR-014, R-L3.1 a R-L3.3)
+- [x] T038 [P] [US6] Suite `tests/lineas-formato.test.js`: fijar las claves 1-based (`line["1"]`=L1) en el `.txm` `version:2`, que solo viaja el delta, y que lo configurado para lineas inexistentes se conserva y se reactiva (FR-015, FR-019, R10)
 
 ### Implementation for User Story 6 - modelo de lineas
 
-- [ ] T039 [US6] En `js/editor.js`, sustituir `lines.{activeTarget,overrides,sizing}` global por el modelo de `data-model.md`: `lines.inherit` (padre ALL u otra linea), overrides propios por linea y `sizing` **dentro** de cada linea (`{ref, mode, pct}`), con claves 1-based
-- [ ] T040 [US6] En `js/editor.js`, implementar la resolucion en tres pasos con deteccion de ciclos de cualquier longitud, incluidos los mixtos (herencia + tamano), con causa `lines:<detalle>:ciclo` y vista intacta
+- [x] T039 [US6] En `js/editor.js`, sustituir `lines.{activeTarget,overrides,sizing}` global por el modelo de `data-model.md`: `lines.inherit` (padre ALL u otra linea), overrides propios por linea y `sizing` **dentro** de cada linea (`{ref, mode, pct}`), con claves 1-based
+- [x] T040 [US6] En `js/editor.js`, implementar la resolucion en tres pasos con deteccion de ciclos de cualquier longitud, incluidos los mixtos (herencia + tamano), con causa `lines:<detalle>:ciclo` y vista intacta
 - [ ] T041 [US6] En `js/editor.js`, quitar `isGlobalOnlyPath`/`pruneGlobalOnlyOverrides` y `getLineSizing` global: el alcance por linea cubre todo estilo y layout salvo Canvas Size, el contenedor del sistema de lineas y descarga/procesado (constitucion IV v3.2.0, FR-016)
-- [ ] T042 [US6] En `js/editor.js`, conservacion de las lineas inexistentes: no podar L2/L3 cuando el texto tiene menos lineas y reactivarlas al recuperar las (FR-015)
+- [x] T042 [US6] En `js/editor.js`, conservacion de las lineas inexistentes: no podar L2/L3 cuando el texto tiene menos lineas y reactivarlas al recuperar las (FR-015)
 
 ### Implementation for User Story 6 - UI
 
@@ -227,7 +227,7 @@ preset, recargar y comprobar que vuelve identico.
 
 ### Implementation for User Story 6 - persistencia y render
 
-- [ ] T047 [US6] En `js/preset-manager.js`, `PROJECT_VERSION` a 2, claves de linea 1-based, rechazo con causa de un formato de lineas desconocido y sin lectores del formato anterior (constitucion IV y VII v3.2.0, R10)
+- [x] T047 [US6] En `js/preset-manager.js`, `PROJECT_VERSION` a 2, claves de linea 1-based, rechazo con causa de un formato de lineas desconocido y sin lectores del formato anterior (constitucion IV y VII v3.2.0, R10)
 - [ ] T048 [US6] En `js/api.js`, resolver y cargar por linea las fuentes declaradas bajo demanda, una vez por identidad, y nombrar linea y fuente en el fallo sin impedir el resto (FR-017, constitucion VI sin `preloadAll`)
 - [ ] T049 [US6] En `js/editor.js`, partir el pipeline en una capa compuesta por linea para que rotacion y curva por linea se apliquen a cada linea y luego se apilen con la geometria del bloque (R9, ultimo por invasivo)
 

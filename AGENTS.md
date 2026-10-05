@@ -86,7 +86,7 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 32 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 36 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -95,7 +95,9 @@ textmuy/
                               integridad-archivos, entorno, hoja-generacion,
                               fuentes-filtros-footer, fuentes-preview-us3,
                               curva-snapshot, curva-sin-webgl, barra-line-target,
-                              area-util, avance-lineas, encaje-final)
+                              area-util, avance-lineas, encaje-final,
+                              lineas-resolucion, lineas-tamano, lineas-ciclos,
+                              lineas-formato)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -172,7 +174,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC51**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC52**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -390,6 +392,43 @@ geometría única). Pendiente: Bloque D (modelo de líneas completo:
 línea), que además cambia el formato `.txm` a `version:2`. Las tareas están en
 `specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
 `specs/002-text-tab/quickstart.md`.
+
+### 7.11 RC52 — Bloque D1: el modelo de líneas (núcleo + formato v2)
+
+Primera parte del Bloque D (US6). Reemplaza el modelo de líneas anterior sin
+tocar la interfaz: **si no hay nada configurado por línea, el resultado es
+idéntico al de antes**, y el recorrido integrado lo confirma (20/20 sin cambios).
+
+- ✅ **`settings.lines` = `{ activeTarget, inherit, line }`** con claves **1-based**
+  (`line["1"]` = L1). `inherit` es el padre de cada línea (ALL por defecto);
+  `line["n"]` guarda su estilo propio y **su** regla `sizing {ref, refLine,
+  mode, pct}`. Desaparecen `overrides` (0-based) y el `sizing` global.
+- ✅ **Resolución en tres pasos** (`editor.js::resolveLine`): heredar (de ALL o
+  del estilo **resuelto** de la otra línea) → mezclar el delta propio (disperso) →
+  dimensionar por porcentaje. Con `memo` por render: la resolución es recursiva
+  por la herencia y sin memoizar se multiplicaba por línea y motor (R-L1.1-R-L1.5).
+- ✅ **Anti-ciclos por ambas aristas** (`detectarCiclos`): DFS con pila sobre
+  herencia y dimensionamiento, cualquier longitud, con causa
+  `lines:L2>L3>L2:ciclo`. Un archivo editado a mano con un ciclo **no cuelga el
+  render**: la resolución cae a la base (R-L3.2, FR-014).
+- ✅ **`.txm` `version:2`** con validación de formato: un delta con
+  `lines.overrides` o `lines.sizing` (el formato v1) se **rechaza con causa**
+  `presets:formato:lineas_v1`. Sin lectores ni migración (constitución VII
+  v3.2.0). Las líneas configuradas **no se podan** al cargar (FR-015).
+- **Purga** (constitución VII): `isGlobalOnlyPath`, `pruneGlobalOnlyOverrides`,
+  `LINE_STYLE_PATHS`/`isLineStylePath` y `resolveLineSettings` desaparecieron.
+  El alcance por línea ya no se filtra con una lista de "estilizables": decide
+  `isGlobalPath` (contrato `contracts/lineas.md` §4).
+- ⚠️ **Desviación de FR-016 registrada**: `lineHeight`, `rotate` y `distort`
+  quedan **globales**. `lineHeight` por decisión del usuario (un control global
+  coherente es mejor que uno por línea que a veces no mueve nada, FR-021);
+  `rotate`/`distort` se extraen al spec de R9 (partir el pipeline en capas por
+  línea). Está documentado en `spec.md` y en `contracts/lineas.md` §4.
+- 4 suites nuevas (`lineas-resolucion`, `lineas-tamano`, `lineas-ciclos`,
+  `lineas-formato`) que fallaban antes; **36 suites en verde**.
+
+**Pendiente de D2**: la interfaz (selector de herencia, slider que reescribe el
+porcentaje, ocultamiento de ciclos, sync por línea resuelta).
 
 ### 7.10 RC51 — recorrido integrado US1–US5 (20/20) y dos defectos que Node no veía
 
@@ -768,7 +807,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 32 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 36 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -812,6 +851,10 @@ node tests/barra-line-target.test.js   # US2: la barra Style target se ve al abr
 node tests/area-util.test.js        # US3: padding contra el lado menor + area util minima garantizada
 node tests/avance-lineas.test.js    # US5: L1 ancla el bloque, avance por linea, sin solapes
 node tests/encaje-final.test.js     # US4: el encaje final SIEMPRE; la caja dibujada entra en el area util
+node tests/lineas-resolucion.test.js # US6: heredar -> mezclar -> dimensionar, claves 1-based
+node tests/lineas-tamano.test.js     # US6: sizing por linea con cascada de porcentajes
+node tests/lineas-ciclos.test.js      # US6: anti-ciclos por ambas aristas, sin colgarse
+node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas ausentes conservadas
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

@@ -50,8 +50,6 @@ FR-015, FR-019, FR-021. Es interno al modulo.
 - **R-L2.5**: Referencia a linea inexistente: la linea usa sus valores
   guardados o los de All; nunca falla el pintado.
 
----
-
 ## 3. Ciclos
 
 ### 3.1 Requisitos
@@ -62,4 +60,34 @@ FR-015, FR-019, FR-021. Es interno al modulo.
   (`lines:<detalle>:ciclo`) dejando la vista intacta; nunca cuelga ni pinta
   parcial.
 - **R-L3.3**: La deteccion cubre ciclos de cualquier longitud y mixtos
-  (herencia+tamanio combinados).
+  (herencia+dimensionamiento combinados).
+
+---
+
+## 4. Alcance por linea (desviacion de FR-016, 2026-10-04)
+
+FR-016 pedia "todo estilo y layout por linea". Al implementar se fijo el alcance
+real, para que el contrato y el codigo digan lo mismo:
+
+**Global de bloque** (nunca entra a overrides de linea):
+
+| Ruta | Motivo |
+|---|---|
+| `text` | El texto es global por definicion (FR-016). |
+| `canvas.*` | Canvas Size es la unica fuente de verdad del tamano de salida. |
+| `lines` | El contenedor del sistema de lineas. |
+| descarga / procesado | Rutas de salida. |
+| `lineHeight` | **Decision del usuario (2026-10-04):** sigue siendo global del bloque. Habia pasado a ser por linea y chocaba con FR-021 (el de L1 no mueve nada): un control visible que a veces no hace nada es peor que uno global que se comporta siempre igual. El dato por linea solo existe si alguien lo escribe a mano. |
+| `rotate`, `distort` | **Global hasta que exista el spec de R9** (rotacion y curva por linea). Se extrajeron del alcance de este feature: partir el pipeline en capas por linea es el cambio mas invasivo y su beneficio (rotar una linea suelta) es marginal. |
+| `lettering.flag`, `lettering.boggle`, `lettering.reverseOverlap`, `lettering.blendmode` | Actuan sobre el bloque completo. |
+
+**Por linea**: `align`, `letterSpacing`, `font.*`, `fill.*`, `outline.*`,
+`depth.*`, `depth2.*`, `bevel.*`, `shadow.*`, `specular.*`,
+`lettering.shadow`, `lettering.active`, `icon.*`.
+
+- **R-L4.1**: Una ruta de la tabla global MUST escribirse en la base aunque el
+  target activo sea L1/L2/L3, para no crear overrides huerfanos.
+- **R-L4.2**: Las rutas por linea se mezclan en el paso 2 de la resolucion, con
+  el mismo criterio de delta disperso del resto (R-L1.3).
+- **R-L4.3**: `lineHeight` global no impide el avance por linea: el avance lo da
+  `lineHeight * tamano[i-1]` (contracts/geometria.md R-G1.2).
