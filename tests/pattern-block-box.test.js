@@ -51,16 +51,25 @@ assert.equal(box1.height, 25, 'single-line height = ascent + descent = 25');
 assert.equal(box1.x, -55, 'box centered horizontally: -5 chars * 22 wide / 2');
 assert.equal(box1.width, 110, 'box width = 5 chars * 22');
 
-// Multiline: lineHeight default 1.0 -> second line adds exactly 76px more.
-// (The old 1.2 default made the height 116 instead of 101.)
+// Multiline: el Line height es un PORCENTAJE con base 0% = ajuste justo
+// (cola + asta = 25/5 + 20 = 50 con esta tipografia de prueba). Con la misma
+// tipografia, el "justo" da exactamente el tamano de linea.
 const ctx2 = makeFakeCtx();
 const box2 = TextEditor.getTextBlockBox(ctx2, s, ['HELLO', 'HELLO'], 76);
-assert.equal(box2.height, 25 + 76, 'multiline height uses lineHeight 1.0 (got ' + box2.height + ')');
+// Con measureText: asc 20, desc 5 a 76px. El avance justo entre dos lineas
+// es cola(5) + asta(20) = 25.
+assert.equal(box2.height, 25 + 25, 'multiline a 0% avanza justo (cola+asta), got ' + box2.height);
 
-// Explicit lineHeight is still respected.
-s.lineHeight = 1.4;
+// Un porcentaje explicito se respeta: el avance escala con el.
+s.lineHeight = 200;
 const ctx3 = makeFakeCtx();
 const box3 = TextEditor.getTextBlockBox(ctx3, s, ['HELLO', 'HELLO'], 76);
-assert.equal(box3.height, 25 + 76 * 1.4, 'explicit lineHeight respected');
+assert.equal(box3.height, 25 + 25 * 3, 'a +200% el avance es el triple del justo, got ' + box3.height);
+
+// Negativo: el usuario puede encimar las lineas a proposito.
+s.lineHeight = -100;
+const ctx4 = makeFakeCtx();
+const box4 = TextEditor.getTextBlockBox(ctx4, s, ['HELLO', 'HELLO'], 76);
+assert.equal(box4.height, 25, 'a -100% las lineas quedan encimadas (avance 0), got ' + box4.height);
 
 console.log('pattern block-box (no-repeat) regression tests passed');

@@ -276,13 +276,12 @@ como preset, recargar y comprobar que vuelve identico.
   rutas de descarga/procesado; el texto es global por definicion.
 
   **Desviacion registrada (2026-10-04, durante la implementacion)**: el alcance
-  real es el de `contracts/lineas.md` §4. Tres ajustes quedan GLOBALES ademas de
-  los tres originales: `lineHeight` (decision del usuario: un control global
-  que se comporta siempre igual es mejor que uno por linea que a veces no mueve
-  nada, FR-021), y `rotate` + `distort` (extraidos a un spec aparte: partir el
-  pipeline en capas por linea es el cambio mas invasivo del feature y su
-  beneficio es marginal). El resto, incluido `align` y `letterSpacing`, pasa a
-  ser por linea como estaba previsto.
+  real es el de `contracts/lineas.md` §4. `rotate` y `distort` quedan GLOBALES
+  hasta el bloque D4: hoy se aplican al bloque compuesto entero al final del
+  render, y hacerlos por linea exige partir el pipeline en una capa por linea
+  (un cambio de arquitectura del render, no un ajuste de configuracion). Todo lo
+  demas —incluidos `lineHeight`, `align` y `letterSpacing`— es **por linea** como
+  pide este requisito.
 - **FR-017**: Cada linea MUST cargar y medir con su propia tipografia; un
   fallo MUST nombrar la linea y la fuente sin impedir el resto.
 - **FR-018**: El desplegable de fuentes MUST mostrar la fuente del target

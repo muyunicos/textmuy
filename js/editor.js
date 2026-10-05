@@ -25,7 +25,9 @@
         },
         align: 'center',
         rotate: 0,
-        lineHeight: 1,
+        // PORCENTAJE con base 0% = ajuste justo (sin hueco y sin solape).
+        // -100% encima las lineas, +200% las separa el triple (R-L4.4).
+        lineHeight: 0,
         letterSpacing: 0,
         distort: { arc: { angle: 0 } },
         mergeGradients: false,
@@ -825,7 +827,10 @@
                 : (fontSizePx !== undefined ? Number(fontSizePx) : 0);
             px.push(size);
             const sLinea = porLinea ? resolveLine(s, i + 1, memo) : s;
-            setTextFont(ctx, sLinea, size, i);
+            // Se aplica el tamaño que trae `sizes` (o el global), no el que
+            // resolvería setTextFont por su cuenta: aquí el tamaño ya está
+            // decidido por linea y es el que hay que medir.
+            aplicarFuente(ctx, sLinea, size);
             const m = ctx.measureText('Ag');
             const a = m.actualBoundingBoxAscent || size * 0.8;
             const d = m.actualBoundingBoxDescent || size * 0.2;
@@ -836,13 +841,24 @@
             widths.push(w);
             if (w > maxLineWidth) maxLineWidth = w;
         }
-        // Altura de referencia (interlineado 1): el bloque queda centrado como
-        // hasta ahora y es INDEPENDIENTE del Line height actual.
+        // Altura de referencia (interlineado 0% = ajuste justo): el bloque queda
+        // centrado como hasta ahora y es INDEPENDIENTE del Line height actual.
+        // El "justo" es cola + asta de cada par, medido con la tipografia de CADA
+        // linea: con una sola tipografia eso da el tamano de linea y 0% reproduce
+        // el comportamiento historico (R-G1.2, R-G1.6).
+        const justo = [];
+        for (let i = 1; i < n; i++) justo.push(descent[i - 1] + ascent[i]);
         let refHeight = ascent[0] + descent[0];
-        for (let i = 1; i < n; i++) refHeight += px[i - 1];
+        for (let i = 1; i < n; i++) refHeight += justo[i - 1];
         const firstBaseline = -refHeight / 2 + ascent[0];
+        // El aire ANTERIOR a la linea i+1 lo controla ESA linea (R-G1.5): con
+        // 0% avanza justo (sin hueco, sin solape), con -100% se enciman y con
+        // +200% se separa el triple.
         const baselines = [firstBaseline];
-        for (let i = 1; i < n; i++) baselines.push(baselines[i - 1] + lh * px[i - 1]);
+        for (let i = 1; i < n; i++) {
+            const factor = 1 + lineHeightDe(s, i + 1, memo) / 100;
+            baselines.push(baselines[i - 1] + Math.max(0, justo[i - 1]) * Math.max(0, factor));
+        }
         const top = baselines[0] - ascent[0];
         const bottom = baselines[n - 1] + descent[n - 1];
         return {
@@ -882,7 +898,9 @@
             const metrics = ctx.measureText('Ag');
             const ascent = metrics.actualBoundingBoxAscent || mid * 0.8;
             const descent = metrics.actualBoundingBoxDescent || mid * 0.2;
-            const lineAdvance = mid * (s.lineHeight !== undefined ? s.lineHeight : 1);
+            // Avance 'justo' (cola + asta): independiente del Line height, que solo
+            // lo multiplica despues al componer (R-G1.2).
+            const lineAdvance = mid;
             const textHeight = ascent + descent + (lines.length - 1) * lineAdvance;
             const extraW = calcExtraWidth(s, mid);
             const extraH = calcExtraHeight(s, mid);
@@ -3041,12 +3059,13 @@
     // linea direccionable (L1-L3), con claves 1-BASED (`line["1"]` = L1).
     //
     // Rutas GLOBALES de bloque (nunca entran al delta de una linea): el texto,
-    // Canvas Size, el contenedor `lines`, descarga/procesado, `lineHeight`,
-    // `rotate` y `distort` (hasta que exista el spec de R9) y los letterings
-    // que actuan sobre todo el bloque. Todo lo demas es por linea.
+    // Canvas Size, el contenedor `lines`, descarga/procesado, `rotate` y
+    // `distort` (bloque D4: hoy se aplican al bloque entero al final del render)
+    // y los letterings que actuan sobre todo el bloque. Todo lo demas es por
+    // linea (FR-016), incluido `lineHeight`.
     const GLOBAL_PATHS = [
         'text', 'canvas', 'lines', 'download', 'processing',
-        'lineHeight', 'rotate', 'distort',
+        'rotate', 'distort',
         'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
     ];
 
@@ -3229,7 +3248,17 @@
         return salida;
     }
 
-    function clone(obj) {
+    // Line height de la linea `n` en PORCENTAJE: base 0% = ajuste justo (R-L4.4).
+// Si la linea no define valor propio, hereda el de la base (All).
+function lineHeightDe(s, n, memo) {
+    const r = resolveLine(s, n, memo || {});
+    const v = r && Number(r.lineHeight);
+    if (isFinite(v)) return v;
+    const b = Number((s && s.lineHeight) !== undefined ? s.lineHeight : 100);
+    return isFinite(b) ? b : 100;
+}
+
+function clone(obj) {
         return obj ? JSON.parse(JSON.stringify(obj)) : obj;
     }
 
@@ -3565,7 +3594,8 @@
         const availH = area.height;
         const maxPctBase = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
         const singleRef = canvasWidth >= canvasHeight ? area.height : area.width;
-        const lh = (s.lineHeight !== undefined ? s.lineHeight : 1);
+        // Fase 2 (R-L2.4): el avance justo es aproximadamente el tamano de linea.
+        const lh = 1;
 
         // Pasada 1: tamano propio o porcentaje sobre el tamano del ajuste.
         for (let li = 1; li <= direccionables; li++) {
@@ -3725,7 +3755,7 @@
         }
         if (preset.align) s.align = preset.align;
         if (preset.rotate !== undefined) s.rotate = clampValue(preset.rotate, -180, 180, 0);
-        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, 0, 1.5, 1);
+        if (preset.lineHeight !== undefined) s.lineHeight = clampValue(preset.lineHeight, -100, 200, 0);
         if (preset.letterSpacing !== undefined) s.letterSpacing = clampValue(preset.letterSpacing, -0.5, 1.5, 0);
         if (preset.mergeGradients !== undefined) s.mergeGradients = Boolean(preset.mergeGradients);
 
@@ -4269,7 +4299,7 @@
         setInputValue('tt-font-picker-input', s.font.src || s.font);
         setInputValue('tt-font-size-input', s.font.size || 64);
         setInputValue('tt-letter-spacing-input', s.letterSpacing || 0);
-        setInputValue('tt-line-height-input', s.lineHeight !== undefined ? s.lineHeight : 1);
+        setInputValue('tt-line-height-input', s.lineHeight !== undefined ? s.lineHeight : 0);
         setInputValue('tt-distort-arc-angle-input', s.distort && s.distort.arc ? s.distort.arc.angle : 0);
         setInputValue('tt-rotate-input', s.rotate || 0);
         setInputValue('tt-merge-gradients-input', s.mergeGradients || false);

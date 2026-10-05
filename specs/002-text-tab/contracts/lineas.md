@@ -77,24 +77,37 @@ real, para que el contrato y el codigo digan lo mismo:
 | `canvas.*` | Canvas Size es la unica fuente de verdad del tamano de salida. **Excepcion**: `canvas.maxFontSize` es global en All pero con una linea activa manda sobre ESA linea (decision del usuario, 2026-10-04). |
 | `lines` | El contenedor del sistema de lineas. |
 | descarga / procesado | Rutas de salida. |
-| `lineHeight` | **Decision del usuario (2026-10-04):** sigue siendo global del bloque. Habia pasado a ser por linea y chocaba con FR-021 (el de L1 no mueve nada): un control visible que a veces no hace nada es peor que uno global que se comporta siempre igual. El dato por linea solo existe si alguien lo escribe a mano. |
-| `rotate`, `distort` | **Global hasta que exista el spec de R9** (rotacion y curva por linea). Se extrajeron del alcance de este feature: partir el pipeline en capas por linea es el cambio mas invasivo y su beneficio (rotar una linea suelta) es marginal. |
+| `rotate`, `distort` | **Globales hasta el bloque D4.** Aplican al bloque compuesto entero al final del render. Hacerlos por linea exige partir el pipeline en una capa por linea (componer cada linea con su estilo resuelto, aplicarle su giro o su curva, y recien despues apilar), que es un cambio de arquitectura del render: ver D4 en `tasks.md`. |
 | `lettering.flag`, `lettering.boggle`, `lettering.reverseOverlap`, `lettering.blendmode` | Actuan sobre el bloque completo. |
 
-**Por linea**: `align`, `letterSpacing`, `font.*`, `fill.*`, `outline.*`,
-`depth.*`, `depth2.*`, `bevel.*`, `shadow.*`, `specular.*`,
-`lettering.shadow`, `lettering.active`, `icon.*`.
+**Por linea**: `align`, `letterSpacing`, **`lineHeight`**, `font.*`, `fill.*`,
+`outline.*`, `depth.*`, `depth2.*`, `bevel.*`, `shadow.*`, `specular.*`,
+`lettering.shadow`, `lettering.active`, `icon.*`, y `canvas.maxFontSize`.
 
 - **R-L4.1**: Una ruta de la tabla global MUST escribirse en la base aunque el
-  target activo sea L1/L2/L3, para no crear overrides huerfanos.
+  target activo sea L1/L2/L3, para no crear overrides huerfanos. La unica
+  excepcion es `canvas.maxFontSize` (R-L4.4).
 - **R-L4.2**: Las rutas por linea se mezclan en el paso 2 de la resolucion, con
   el mismo criterio de delta disperso del resto (R-L1.3).
-- **R-L4.3**: `lineHeight` global no impide el avance por linea: el avance lo da
-  `lineHeight * tamano[i-1]` (contracts/geometria.md R-G1.2).
-- **R-L4.4**: `canvas.maxFontSize` es la UNICA excepcion de la tabla global. En
-  All manda sobre el texto completo; con una linea activa manda sobre ESA linea.
+- **R-L4.3**: `canvas.maxFontSize` es la excepcion de la tabla global. En All
+  manda sobre el texto completo; con una linea activa manda sobre ESA linea.
   El valor es **siempre un porcentaje relativo** (del lado limitante del lienzo,
   o del tamano de la linea de referencia segun `Sizing ref:`), **nunca pixeles
   fijos**: el lienzo es dinamico (500 px o 5000 px) y el texto debe seguir al
   tamano que necesite el cliente. Con `Sizing ref: <Lx> · ancho` el tamano lo
   decide el ancho de la referencia y el control queda sin efecto.
+- **R-L4.4**: `lineHeight` es **por linea** (revierte la desviacion que se
+  registro durante la implementacion). Escala de **-100% a +200%** con base
+  **0% = ajuste justo**: la linea se apoya sobre la anterior sin hueco y sin
+  solape. Medido con tres tipografias reales a tamano 90 (Bangers 69 px,
+  Permanent Marker 69 px, Rock Salt 122 px de alto):
+  - `-100%` -> avance 0: las lineas quedan **encimadas** (util para un "HOLA"
+    grande detras con un script delante encima).
+  - `0%` -> ajuste justo (68 px entre L1 y L2, 102 px entre L2 y L3: la
+    diferencia es la cola de la de arriba mas el asta de la de abajo).
+  - `+200%` -> **tres veces** mas de separacion que el normal.
+  Con una sola tipografia la base da el tamano de linea y `0%` reproduce el
+  comportamiento historico: los presets existentes no se mueven.
+- **R-L4.5**: El aire *anterior* a una linea lo controla ESA linea (no la que
+  lo deja). `lineHeight` de L1 se guarda pero no mueve nada, porque no hay linea
+  encima (FR-021, coherente con contracts/geometria.md R-G1.5).

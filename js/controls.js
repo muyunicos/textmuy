@@ -27,29 +27,20 @@
         initPresetGallery();
     }
 
-    // Paths que son siempre globales: nunca entran a lines.overrides aunque el
-    // style target sea L1/L2/... El contenido (text), el layout del bloque
-    // (align, lineHeight, letterSpacing global, rotate, distort), el lienzo y
-    // los letterings de bloque (flag/boggle actuan sobre todo el bloque)
-    // pertenecen al proyecto, no a una linea. Sin esto, editar el textarea con
-    // L1 activo creaba overrides.text huerfanos que el render ignoraba y el
-    // texto se superponia en vez de mantener su linea.
-    var GLOBAL_ONLY_PATHS = [
-        'text', 'align', 'lineHeight',
-        'letterSpacing', 'rotate', 'distort',
-        'canvas', 'lines', 'download', 'processing',
-        'lettering.flag', 'lettering.boggle',
-        'lettering.reverseOverlap', 'lettering.blendmode',
-        'font.src',
-        // lines.sizing es config del sistema de lineas (como activeTarget):
-        // global-only para que el select de referencia nunca genere overrides.
-        'lines.sizing'
-    ];
 
+    // UNICA fuente de verdad del alcance por linea (constitucion VII, sin rutas
+    // dobles): el editor la expone y aqui se consulta. Antes controls.js tenia
+    // su propia lista, que quedo desactualizada (marcaba `align`, `letterSpacing`
+    // y `font.src` como globales cuando son por linea, y listaba un
+    // `lines.sizing` que ya no existe).
     function isGlobalOnlyPath(path) {
-        return GLOBAL_ONLY_PATHS.some(function(g) {
-            return path === g || path.indexOf(g + '.') === 0;
-        });
+        if (editor && typeof editor.isGlobalPath === 'function') return editor.isGlobalPath(path);
+        // Sin editor (arranque parcial): solo lo que nunca es por linea.
+        return path === 'text' || path === 'canvas' || path === 'lines'
+            || path === 'download' || path === 'processing'
+            || path.indexOf('canvas.') === 0 || path.indexOf('lines') === 0
+            || path === 'rotate' || path === 'distort'
+            || path.indexOf('lettering.flag') === 0 || path.indexOf('lettering.boggle') === 0;
     }
 
     // Helper: set nested setting and trigger render
@@ -485,7 +476,9 @@
         bindFontSelect('tt-font-picker-input');
         bindRangeWithRender('tt-font-size-input', 'font.size', parseInt);
         bindRange('tt-letter-spacing-input', 'letterSpacing', parseFloat);
-        bindRange('tt-line-height-input', 'lineHeight', parseFloat);
+        // Line height: PORCENTAJE con base 0% = ajuste justo (R-L4.4). Ya no se
+// transforma: el valor que se escribe es el que se muestra.
+        bindRange('tt-line-height-input', 'lineHeight', parseInt);
         bindRange('tt-rotate-input', 'rotate', parseFloat);
         bindRange('tt-distort-arc-angle-input', 'distort.arc.angle', parseFloat);
 

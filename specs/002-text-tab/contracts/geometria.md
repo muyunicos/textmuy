@@ -16,15 +16,27 @@ interno al modulo.
   usada por el ajuste (`autoFitText` y equivalentes) y por todos los
   motores (`drawTextLines`, `drawFillUnits`, sombras, icono, metricas de
   bloque). Lo calculado es lo pintado.
-- **R-G1.2**: Cada linea i>1 se coloca a `lineHeight[i] * tamano[i-1]`
-  debajo de la anterior; L1 ancla el bloque (su `lineHeight` se guarda pero
-  no la mueve).
+- **R-G1.2**: El avance entre la linea i y la i+1 es
+  `(cola_i + asta_{i+1}) * (1 + lineHeight[i+1]/100)`, donde `lineHeight` es un
+  porcentaje con base **0% = ajuste justo** (sin hueco y sin solape). Ver
+  R-G1.5 y contracts/lineas.md R-L4.5.
 - **R-G1.3**: Con tamanos por linea distintos, las Y usan avances acumulados
-  (cada linea aporta su propio avance); las lineas nunca se superponen por
-  construccion.
+  (cada linea aporta su propio avance). Con `lineHeight >= 0%` las lineas **nunca
+  se superponen** por construccion: el avance incluye la cola de la linea de
+  arriba y el asta de la de abajo. Con valores negativos el usuario puede
+  superponerlas a proposito.
 - **R-G1.4**: El area util es canvas menos padding, con padding contra el
   **lado menor** y minimo garantizado: el texto se achica pero nunca
   desaparece (US3).
+- **R-G1.5**: El avance lo controla la linea de **arriba de cada par** (la que
+  tiene linea encima), no la de abajo: el aire *anterior* a una linea es suyo.
+  L1 no tiene linea encima y por eso su `lineHeight` se guarda pero no mueve
+  nada (FR-021).
+- **R-G1.6**: La base `cola + asta` se mide con la tipografia **de cada linea**
+  (ya resuelto). Es lo que hace que con tipografias de metricas muy distintas
+  (una fuente de pincel con astas largas, por ejemplo) el "normal" sea
+  proporcional a lo que la tinta pide de verdad. Con una sola tipografia esa
+  base da el tamano de linea y `0%` reproduce el comportamiento historico.
 
 ---
 

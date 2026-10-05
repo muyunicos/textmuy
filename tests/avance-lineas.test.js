@@ -107,25 +107,40 @@ assert.equal(lhMin.baselines[0], lhMax.baselines[0], 'una sola linea: baseline i
 assert.equal(lhMin.height, lhMax.height, 'una sola linea: la altura no depende de lineHeight');
 assert.equal(lhMax.top, lhMin.top, 'una sola linea: el borde superior no se mueve');
 
-// --- R-G1.2: L1 ancla el bloque y L2 baja con el interlineado ---------------
-const dosA = TextEditor.blockLayout(ctx, ['HOLA', 'MUNDO'], settings(1), [100, 100]);
-const dosB = TextEditor.blockLayout(ctx, ['HOLA', 'MUNDO'], settings(1.5), [100, 100]);
-assert.equal(dosA.baselines[0], dosB.baselines[0], 'FR-008: la primera linea queda FIJA');
-assert.ok(dosB.baselines[1] > dosA.baselines[1], 'FR-008: la segunda linea se desplaza hacia abajo');
-assert.equal(dosB.baselines[1] - dosB.baselines[0], 100 * 1.5, 'R-G1.2: avance = lineHeight * tamano de la linea de arriba');
-assert.equal(dosA.baselines[1] - dosA.baselines[0], 100 * 1, 'avance con lineHeight 1');
-// --- FR-021: L1.lineHeight no mueve nada (su valor no se usa como avance) ----
-// Con una sola linea el avance es inexistente; con varias, L1 no aporta avance
-// porque no tiene linea arriba: su lineHeight se guarda y no desplaza.
-const tres = TextEditor.blockLayout(ctx, ['A', 'B', 'C'], settings(2), [100, 100, 100]);
-assert.equal(tres.baselines[1] - tres.baselines[0], 200, 'el avance lo da el interlineado vigente');
-assert.equal(tres.baselines[2] - tres.baselines[1], 200, 'y se repite para cada linea');
+// --- R-G1.2: el avance es (cola + asta) * (1 + lineHeight/100) ----------------
+// El Line height es un PORCENTAJE con base 0% = ajuste justo (R-L4.4).
+// Con esta tipografia de prueba: asc = 0.8*px, desc = 0.2*px, asi que a tamano
+// 100 el "justo" entre dos lineas = 20 + 80 = 100.
+const JUSTO_100 = 100;   // desc(L1) 20 + asc(L2) 80
+const dosCero = TextEditor.blockLayout(ctx, ['HOLA', 'MUNDO'], settings(0), [100, 100]);
+const dosMas = TextEditor.blockLayout(ctx, ['HOLA', 'MUNDO'], settings(200), [100, 100]);
+const dosMenos = TextEditor.blockLayout(ctx, ['HOLA', 'MUNDO'], settings(-100), [100, 100]);
+assert.equal(dosCero.baselines[0], dosMas.baselines[0], 'FR-008: la primera linea queda FIJA');
+assert.ok(dosMas.baselines[1] > dosCero.baselines[1], 'FR-008: la segunda baja con +200%');
+assert.equal(dosCero.baselines[1] - dosCero.baselines[0], JUSTO_100,
+    'a 0% el avance es justo (cola+asta), sin hueco y sin solape');
+assert.equal(dosMas.baselines[1] - dosMas.baselines[0], JUSTO_100 * 3,
+    'a +200% el avance es el TRIPLE del justo');
+assert.equal(dosMenos.baselines[1] - dosMenos.baselines[0], 0,
+    'a -100% las lineas quedan ENCIMADAS a proposito');
+
+// --- FR-021: L1.lineHeight no mueve nada (no tiene linea encima) -------------
+const tres = TextEditor.blockLayout(ctx, ['A', 'B', 'C'], settings(200), [100, 100, 100]);
+const tres0 = TextEditor.blockLayout(ctx, ['A', 'B', 'C'], settings(0), [100, 100, 100]);
+assert.equal(tres.baselines[1] - tres.baselines[0], JUSTO_100 * 3, 'el avance lo da el Line height de ESA linea');
+assert.equal(tres.baselines[2] - tres.baselines[1], JUSTO_100 * 3, 'y se repite para cada linea');
+assert.equal(tres0.baselines[1] - tres0.baselines[0], JUSTO_100, 'a 0% todas avanzan justo');
 
 // --- R-G1.3: tamanos por linea distintos, avances acumulados ----------------
-const mixto = TextEditor.blockLayout(ctx, ['A', 'B', 'C'], settings(1), [200, 100, 50]);
-assert.equal(mixto.baselines[1] - mixto.baselines[0], 200 * 1, 'avance desde L1 = su propio tamano');
-assert.equal(mixto.baselines[2] - mixto.baselines[1], 100 * 1, 'avance desde L2 = SU tamano, no el global');
-assert.ok(mixto.baselines[2] - mixto.baselines[1] < tres.baselines[2] - tres.baselines[1],
+// El "justo" de cada par se mide con la tipografia de CADA linea.
+const mixto = TextEditor.blockLayout(ctx, ['A', 'B', 'C'], settings(0), [200, 100, 50]);
+// par L1(200)->L2(100): desc(L1)=0.2*200=40 + asc(L2)=0.8*100=80 = 120
+assert.equal(mixto.baselines[1] - mixto.baselines[0], 120,
+    'el justo usa las metricas de AMBAS lineas del par, no un tamano global');
+// par L2(100)->L3(50): desc=20 + asc=40 = 60
+assert.equal(mixto.baselines[2] - mixto.baselines[1], 60,
+    'y el siguiente par usa las suyas');
+assert.ok(mixto.baselines[2] - mixto.baselines[1] < tres0.baselines[2] - tres0.baselines[1],
     'una linea mas chica avanza menos: las lineas no se superponen');
 
 // --- La geometria coincide con la real: caja de tinta y altura ---------------
