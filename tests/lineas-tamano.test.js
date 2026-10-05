@@ -80,15 +80,20 @@ s2.lines = {
         '3': { sizing: { ref: 'linea', pct: 50, refLine: 2 } }
     }
 };
-const t1b = tamanoDe(TextEditor.resolveLine(s2, 1));
-const t2b = tamanoDe(TextEditor.resolveLine(s2, 2));
-const t3b = tamanoDe(TextEditor.resolveLine(s2, 3));
-assert.ok(Math.abs(t2b - t1b * 0.8) <= 1, 'L2 = 80% de L1 (got ' + t2b + ' vs ' + (t1b * 0.8) + ')');
-assert.ok(Math.abs(t3b - t2b * 0.5) <= 1, 'L3 = 50% de L2, en cascada (got ' + t3b + ')');
+// El estado guarda la REGLA, no un tamano absoluto (RC59): por eso
+// `resolveLine` no calcula el tamano. La cascada se verifica donde se aplica,
+// en `lineFontSizes` (el camino real del render).
+assert.equal(s2.lines.line['2'].sizing.pct, 80, 'L2 guarda la regla: 80% de L1');
+const resuelta2 = TextEditor.resolveLine(s2, 2);
+// `sizing` es metadato: no viaja al estilo resuelto, y sobre todo NO deja un
+// `font.size` absoluto inventado (era lo que agrandaba las tres lineas).
+assert.equal(resuelta2.sizing, undefined, 'la regla no se mezcla en el estilo resuelto');
+assert.equal(tamanoDe(resuelta2), 100,
+    'y el tamaño NO se inventa aqui: lo decide el render (got ' + tamanoDe(resuelta2) + ')');
 
 const t2c = TextEditor.lineFontSizes(ctxFalso(), ['A', 'B', 'C'], 800, 600, s2, 100);
-assert.ok(Math.abs(t2c[1] - 80) <= 1, 'y el render pinta la cascada (got ' + t2c[1] + ')');
-assert.ok(Math.abs(t2c[2] - 40) <= 1, 'L3 al 50% de L2 en el render (got ' + t2c[2] + ')');
+assert.ok(Math.abs(t2c[1] - 80) <= 1, 'el render pinta L2 al 80% de L1 (got ' + t2c[1] + ')');
+assert.ok(Math.abs(t2c[2] - 40) <= 1, 'y L3 al 50% de L2, en cascada (got ' + t2c[2] + ')');
 
 // --- La cascada propaga: agrandar L1 mantiene el 80% exacto (SC-007) -------
 const s3 = base();

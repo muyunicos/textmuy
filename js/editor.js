@@ -3295,11 +3295,16 @@ function clone(obj) {
 
     /**
      * Resolucion de una linea en tres pasos: heredar -> mezclar lo propio ->
-     * dimensionar (R-L1.1). La dimension va la ultima porque el porcentaje se
-     * calcula sobre el tamano ya mezclado de la referencia.
+     * dejar la REGLA de tamano puesta (R-L1.1).
      *
      * `memo` cachea por render para no repetir el recorrido por linea y motor.
      * Con un ciclo (archivo editado a mano) NO se cuelga: cae a la base (R-L3.2).
+     *
+     * El paso 3 NO calcula un `font.size` absoluto: `sizing` es METADATO del
+     * sistema y lo consume `lineFontSizes`, que es donde estan los tamanos ya
+     * calculados. Calcularlo aqui metia un absoluto (el `font.size` guardado, 100
+     * por defecto) y al activar un "L1 · %" AGRANDABA las tres lineas en vez de
+     * encogerlas.
      */
     function resolveLine(s, lineNo, memo) {
         const n = normalizeLineNo(lineNo);
@@ -3317,29 +3322,10 @@ function clone(obj) {
         // 2. Mezclar lo propio (delta disperso).
         const propia = lineEntry(s, n);
         const resuelta = propia ? mergeDelta(puntoDePartida, propia) : clone(puntoDePartida);
-        // 3. Dimensionar (ultimo).
-        aplicarDimension(resuelta, s, n, memo);
+        // 3. La regla de tamano queda en `sizing` (no se aplica aqui).
 
         delete memo['__viendo' + n];
         if (cache) cache[n] = resuelta;
-        return resuelta;
-    }
-
-    // Fase de dimensionamiento (R-L2.1 a R-L2.3). Un `font.size` en px
-    // SUSTITUYE a la regla: no se combinan.
-    // Aqui solo se resuelve la regla con referencia a OTRA LINEA (puro, sin
-    // canvas). La regla con referencia al canvas necesita el area util y se
-    // aplica en `lineFontSizes`, que es donde vive el ajuste real.
-    function aplicarDimension(resuelta, s, lineNo, memo) {
-        const sz = sizingOf(s, lineNo);
-        if (!sz) return resuelta;
-        if (tienePxPropio(s, lineNo)) return resuelta;
-        if (sz.ref !== 'linea' || !sz.refLine) return resuelta;
-        const ref = resolveLine(s, sz.refLine, memo);
-        const refPx = ref && ref.font ? Number(ref.font.size) : 0;
-        if (!Number.isFinite(refPx) || refPx <= 0) return resuelta;
-        resuelta.font = resuelta.font || {};
-        resuelta.font.size = Math.max(1, Math.round(refPx * sz.pct / 100));
         return resuelta;
     }
 
@@ -4723,6 +4709,8 @@ function clone(obj) {
     detectarCiclos: detectarCiclos,
     opcionesValidas: opcionesValidas,
     fuentesPorLinea: fuentesPorLinea,
+    getLineFontPx: function () { return state.lineFontPx; },
+    getCanvas: getCanvas,
     isGlobalPath: isGlobalPath,
     MAX_LINE: MAX_LINE,
     lineFontSizes: lineFontSizes,
