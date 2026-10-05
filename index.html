@@ -9,7 +9,7 @@
       familia del template/preset activo (google:"Familia:wght@...") via
       ensureGoogleFontBySpec() justo antes de renderizar. Al abrir: cero fuentes. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=RC52">
+    <link rel="stylesheet" href="css/style.css?v=RC53">
 </head>
 <body>
     <div id="content">
@@ -1372,27 +1372,41 @@
                         <button type="button" data-line-style="2">L2</button>
                         <button type="button" data-line-style="3">L3</button>
                     </div>
+                    <!-- 002-text-tab D2: de quien hereda la linea activa (US6).
+                         Solo con un target L1/L2/L3; ALL es el valor por defecto. -->
+                    <label class="tt-line-target-label" for="tt-line-inherit-input" data-line-inherit-label hidden><span>Hereda de:</span></label>
+                    <select id="tt-line-inherit-input" data-line-inherit hidden>
+                        <option value="ALL">ALL</option>
+                    </select>
+                    <!-- Tamano de la linea activa. Con referencia a otra linea el
+                         control mueve el PORCENTAJE de la cadena (FR-011); con
+                         referencia al lienzo escribe px absolutos (FR-012). -->
+                    <label class="tt-line-target-label" for="tt-line-size-input" data-line-size-label hidden><span>Tamano:</span></label>
+                    <div class="tt-range-bubble" data-line-size-bubble hidden>
+                        <input type="range" min="10" max="200" step="5" value="100" id="tt-line-size-input" data-line-size>
+                        <output>100%</output>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="js/catalog.js?v=RC52"></script>
-    <script src="js/fonts.js?v=RC52"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC52"></script>
-    <script src="js/effects/specular-webgl.js?v=RC52"></script>
-    <script src="js/effects/distort-engine.js?v=RC52"></script>
-    <script src="js/preset-manager.js?v=RC52"></script>
-    <script src="js/gradient-picker.js?v=RC52"></script>
-    <script src="js/editor.js?v=RC52"></script>
+    <script src="js/catalog.js?v=RC53"></script>
+    <script src="js/fonts.js?v=RC53"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC53"></script>
+    <script src="js/effects/specular-webgl.js?v=RC53"></script>
+    <script src="js/effects/distort-engine.js?v=RC53"></script>
+    <script src="js/preset-manager.js?v=RC53"></script>
+    <script src="js/gradient-picker.js?v=RC53"></script>
+    <script src="js/editor.js?v=RC53"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC52"></script>
+    <script src="js/galeria.js?v=RC53"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC52"></script>
-    <script src="js/controls.js?v=RC52"></script>
-    <script src="js/export.js?v=RC52"></script>
-    <script src="js/api.js?v=RC52"></script>
-    <script src="js/main.js?v=RC52"></script>
+    <script src="js/fuentes-galeria.js?v=RC53"></script>
+    <script src="js/controls.js?v=RC53"></script>
+    <script src="js/export.js?v=RC53"></script>
+    <script src="js/api.js?v=RC53"></script>
+    <script src="js/main.js?v=RC53"></script>
 </body>
 </html>
 

@@ -220,9 +220,9 @@ preset, recargar y comprobar que vuelve identico.
 
 ### Implementation for User Story 6 - UI
 
-- [ ] T043 [US6] En `index.html` y `js/controls.js`, selector de **herencia** por linea (ALL / L1 / L2 / L3) dentro de la barra existente, sin panel nuevo
-- [ ] T044 [US6] En `js/controls.js`, el selector de tamano reescribe `pct` con referencia a linea y px absolutos con referencia al canvas, conservando viva la cadena (FR-012)
-- [ ] T045 [US6] En `js/controls.js`, ocultar transitivamente por ambas aristas toda opcion que cerraria un ciclo al editar una linea (FR-013)
+- [x] T043 [US6] En `index.html` y `js/controls.js`, selector de **herencia** por linea (ALL / L1 / L2 / L3) dentro de la barra existente, sin panel nuevo
+- [x] T044 [US6] En `js/controls.js`, el selector de tamano reescribe `pct` con referencia a linea y px absolutos con referencia al canvas, conservando viva la cadena (FR-012)
+- [x] T045 [US6] En `js/controls.js`, ocultar transitivamente por ambas aristas toda opcion que cerraria un ciclo al editar una linea (FR-013)
 - [ ] T046 [US6] En `js/controls.js`, el desplegable de fuentes muestra la fuente del target activo y marcar los overrides propios frente a los heredados (FR-018)
 
 ### Implementation for User Story 6 - persistencia y render

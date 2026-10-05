@@ -3118,6 +3118,49 @@
         return ciclo ? ('lines:' + ciclo + ':ciclo') : null;
     }
 
+        /**
+     * Opciones que la UI puede ofrecer SIN cerrar un ciclo (FR-013, R-L3.1).
+     *
+     * `kind:'inherit'` lista las lineas que la linea `lineNo` puede tomar como
+     * padre; `kind:'refLine'` las que puede usar como referencia de tamano. El
+     * filtro es transitivo y cubre las DOS aristas: se prueba la asignacion
+     * sobre una copia y se descarta si `detectarCiclos` la rechaza.
+     */
+    function opcionesValidas(s, lineNo, kind) {
+        const out = [];
+        const n = normalizeLineNo(lineNo);
+        const base = linesOf(s);
+        if (!n || !base) return out;
+        for (let c = 1; c <= MAX_LINE; c++) {
+            // Ni como padre ni como referencia se ofrece a si misma: no aporta
+            // nada y en herencia seria un autociclo (que si se rechaza cuando
+            // llega por archivo editado a mano).
+            if (c === n) continue;
+            // `detectarCiclos` recibe el SETTINGS: la prueba se arma sobre una copia con
+            // las lineas sustituidas, sin tocar el estado real.
+            const prueba = {
+                lines: {
+                    activeTarget: base.activeTarget,
+                    inherit: Object.assign({}, base.inherit || {}),
+                    line: Object.assign({}, base.line || {})
+                }
+            };
+            if (kind === 'inherit') {
+                // La propia linea `n` tomaria a la candidata `c` como padre.
+                prueba.lines.inherit[String(n)] = 'L' + c;
+            } else {
+                const entrada = Object.assign({}, prueba.lines.line[String(n)] || {});
+                entrada.sizing = Object.assign({}, entrada.sizing, {
+                    ref: 'linea', refLine: c,
+                    pct: (entrada.sizing && entrada.sizing.pct) || 100
+                });
+                prueba.lines.line[String(n)] = entrada;
+            }
+            if (!detectarCiclos(prueba)) out.push(c);
+        }
+        return out;
+    }
+
     function clone(obj) {
         return obj ? JSON.parse(JSON.stringify(obj)) : obj;
     }
@@ -3274,6 +3317,31 @@
         const n = normalizeLineNo(lineIdx !== undefined && lineIdx !== null && !isNaN(lineIdx) ? lineIdx : lineIdx);
         const resuelta = n ? resolveLine(state.settings, n, {}) : cloneWithoutLines(state.settings);
         return getNested(resuelta, path);
+    }
+
+    // Fija de quien hereda la linea del target activo. 'ALL' = sin padre (defecto).
+    function setLineInherit(valor) {
+        const lineNo = normalizeLineNo(getLineTarget());
+        if (!lineNo) return;
+        const ls = linesOf(state.settings) || {};
+        ls.inherit = Object.assign({}, ls.inherit || {});
+        if (!valor || valor === 'ALL') delete ls.inherit[String(lineNo)];
+        else {
+            // No se admite un padre que cerraria un ciclo (FR-013): la UI ya no
+            // lo ofrece, y aqui se evita que llegue por otra via.
+            const padre = normalizeLineNo(valor);
+            const prueba = {
+                lines: {
+                    inherit: Object.assign({}, ls.inherit, { [String(lineNo)]: 'L' + padre }),
+                    line: ls.line || {}
+                }
+            };
+            if (padre && padre !== lineNo && !detectarCiclos(prueba)) {
+                ls.inherit[String(lineNo)] = 'L' + padre;
+            }
+        }
+        render();
+        updateUIFromLineTarget();
     }
 
     // Regla de tamano de la linea del target activo (null si no tiene).
@@ -4526,6 +4594,7 @@
         OPTION_REGISTRY: OPTION_REGISTRY,
         updateUIFromLineTarget: updateUIFromLineTarget,
         getLineSizing: getLineSizing,
+        setLineInherit: setLineInherit,
         setLineSizing: setLineSizing,
 
         ensureFillIds: ensureFillIds,
@@ -4541,6 +4610,7 @@
     // 002-text-tab US6: modelo de lineas (resolucion, ciclos, alcance).
     resolveLine: resolveLine,
     detectarCiclos: detectarCiclos,
+    opcionesValidas: opcionesValidas,
     isGlobalPath: isGlobalPath,
     MAX_LINE: MAX_LINE,
     lineFontSizes: lineFontSizes,

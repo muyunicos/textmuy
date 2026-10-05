@@ -79,3 +79,60 @@ s5.lines = { activeTarget: 'all', inherit: { '1': 'L1' }, line: {} };
 assert.ok(TextEditor.detectarCiclos(s5), 'una linea que hereda de si misma es un ciclo');
 
 console.log('lineas ciclos: OK - deteccion por ambas aristas, sin colgarse, con causa');
+
+// --- La UI oculta lo que cerraria un ciclo (FR-013, R-L3.1) -----------------
+// Es lo que el selector de herencia y el de tamano necesitan para ofrecer solo
+// opciones validas: el filtro es TRANSITIVO y cubre las dos aristas.
+assert.equal(typeof TextEditor.opcionesValidas, 'function', 'opcionesValidas debe estar expuesta');
+
+// Sin nada configurado: cualquier linea puede tomar a otra como padre.
+const libre = base();
+libre.lines = { activeTarget: 'all', inherit: {}, line: { '1': {} } };
+assert.deepEqual(TextEditor.opcionesValidas(libre, 1, 'inherit'), [2, 3],
+    'sin ciclos, L1 puede heredar de L2 o L3');
+
+// Si L2 ya hereda de L1, L1 NO puede heredar de L2 (cerraria el ciclo).
+const encadenada = base();
+encadenada.lines = { activeTarget: 'all', inherit: { '2': 'L1' }, line: { '1': {}, '2': {} } };
+assert.ok(TextEditor.opcionesValidas(encadenada, 1, 'inherit').indexOf(2) === -1,
+    'L1 no puede heredar de L2 si L2 ya hereda de L1');
+assert.ok(TextEditor.opcionesValidas(encadenada, 1, 'inherit').indexOf(3) !== -1,
+    'pero si de L3, que es una hoja');
+
+// Ciclo de longitud 3: si L2<-L1 y L3<-L2, L1 no puede tomar a L3.
+const larga = base();
+larga.lines = {
+    activeTarget: 'all',
+    inherit: { '2': 'L1', '3': 'L2' },
+    line: { '1': {}, '2': {}, '3': {} }
+};
+assert.ok(TextEditor.opcionesValidas(larga, 1, 'inherit').indexOf(3) === -1,
+    'el filtro es transitivo: L1 no puede cerrar el ciclo de longitud 3 con L3');
+
+// MIXTO: L2 hereda de L1 mientras L1 dimensiona contra L2.
+const mixto2 = base();
+mixto2.lines = {
+    activeTarget: 'all',
+    inherit: { '2': 'L1' },
+    line: {
+        '1': { sizing: { ref: 'linea', refLine: 2, pct: 80 } },
+        '2': { sizing: { ref: 'linea', refLine: 1, pct: 50 } }
+    }
+};
+assert.ok(TextEditor.detectarCiclos(mixto2), 'el estado de partida ya tiene un ciclo mixto');
+
+// Aristas de tamano: si L1 ya dimensiona contra L2, L2 no puede hacerlo contra L1.
+const porTamano = base();
+porTamano.lines = {
+    activeTarget: 'all',
+    inherit: {},
+    line: { '1': { sizing: { ref: 'linea', refLine: 2, pct: 80 } }, '2': { sizing: { ref: 'linea', refLine: 1, pct: 50 } } }
+};
+assert.ok(TextEditor.opcionesValidas(porTamano, 2, 'refLine').indexOf(1) === -1,
+    'la arista de tamano tambien se filtra: L2 no puede referenciar a L1 si L1 referencia a L2');
+
+// Referenciarse a si misma no se ofrece (no avanza la resolucion).
+const propias = base();
+propias.lines = { activeTarget: 'all', inherit: {}, line: { '2': {} } };
+assert.ok(TextEditor.opcionesValidas(propias, 2, 'refLine').indexOf(2) === -1,
+    'una linea no se ofrece a si misma como referencia');

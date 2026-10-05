@@ -10,6 +10,7 @@
         editor = editorInstance;
         bindControls();
         bindLineSizingUI();
+        bindLineSizeUI();
         bindMenuTabs();
         bindCustomMenu();
         bindDownloadControls();
@@ -182,58 +183,177 @@
         }
     }
 
-        function refreshLineSizingUI() {
-            const refSel = document.getElementById('tt-line-sizing-ref-input');
-            if (!refSel) return;
-            const refLabel = document.querySelector('[data-line-sizing-label]');
-            const target = editor ? editor.getLineTarget() : 'all';
-            const isLine = /^L\d+$/.test(target);
-            const text = editor ? String(editor.getSettings().text || 'TEXT') : 'TEXT';
-            const n = Math.max(1, text.split('\n').length);
-            refSel.innerHTML = '';
-            const optC = document.createElement('option');
-            optC.value = 'canvas';
-            optC.textContent = 'Canvas';
-            refSel.appendChild(optC);
-            const selfIdx = isLine ? parseInt(target.slice(1), 10) - 1 : -1;
-            for (let i = 0; i < Math.max(n, 3); i++) {
-                if (i === selfIdx) continue;
-                const o1 = document.createElement('option');
-                o1.value = 'line:' + i + ':fontsize';
-                o1.textContent = 'L' + (i + 1) + ' · font size';
-                refSel.appendChild(o1);
-                const o2 = document.createElement('option');
-                o2.value = 'line:' + i + ':width';
-                o2.textContent = 'L' + (i + 1) + ' · ancho';
-                refSel.appendChild(o2);
+    // ===== SISTEMA DE LINEAS (002-text-tab D2) =====
+    // Los selectores de tamano y de herencia ofrecen SOLO opciones que no
+    // cierran un ciclo (FR-013): `opcionesValidas` viene ya filtrado por las dos
+    // aristas y de forma transitiva (R-L3.1).
+
+    function selTiene(sel, valor) {
+        // `options` puede no existir todavia (el elemento se acaba de crear).
+        const opts = sel && sel.options ? sel.options : [];
+        return Array.prototype.some.call(opts, function (o) { return o.value === valor; });
+    }
+
+    function pintarOpciones(sel, valores, seleccionado) {
+        sel.innerHTML = '';
+        valores.forEach(function (v) {
+            const o = document.createElement('option');
+            o.value = v.valor;
+            o.textContent = v.texto;
+            sel.appendChild(o);
+        });
+        sel.value = selTiene(sel, seleccionado) ? seleccionado : (valores[0] ? valores[0].valor : '');
+    }
+
+    // Tamano de la linea activa. La UNIDAD depende de la referencia: con
+    // referencia a otra linea el valor es el PORCENTAJE sobre esa linea (la
+    // cadena sigue viva); con referencia al lienzo, px absolutos (FR-011, FR-012).
+    function pintarTamanoLinea(usaPct, valor) {
+        const input = document.getElementById('tt-line-size-input');
+        if (!input) return;
+        const bubble = input.parentElement ? input.parentElement.querySelector('output') : null;
+        input.min = usaPct ? 10 : 8;
+        input.max = usaPct ? 200 : 400;
+        input.step = usaPct ? 5 : 1;
+        input.value = valor;
+        input.setAttribute('data-line-size-unit', usaPct ? 'pct' : 'px');
+        if (bubble) {
+            bubble.textContent = usaPct ? (valor + '%') : (valor + 'px');
+            const p = (valor - input.min) / (input.max - input.min) * 100;
+            bubble.style.left = 'calc(' + p + '% + ' + (0.5 - p * 0.01) + 'px)';
+        }
+    }
+
+    function refrescarLineasUI() {
+        if (!editor) return;
+        const target = editor.getLineTarget();
+        const lineNo = parseInt(String(target).slice(1), 10) || 0;
+        const isLine = /^L\d+$/.test(target);
+        const settings = editor.getSettings() || {};
+        const nLineas = Math.max(1, String(settings.text || 'TEXT').split('\n').length);
+        const sz = (isLine && editor.getLineSizing) ? editor.getLineSizing() : null;
+        const ref = (sz && sz.ref === 'linea') ? 'linea' : 'canvas';
+        const refLine = (sz && sz.refLine) || 0;
+        const mode = (sz && sz.mode) === 'width' ? 'width' : 'fontsize';
+
+        // --- Regla de tamano de la linea activa ---
+        const refSel = document.getElementById('tt-line-sizing-ref-input');
+        const refLabel = document.querySelector('[data-line-sizing-label]');
+        if (refSel) {
+            const valores = [{ valor: 'canvas', texto: 'Canvas (px)' }];
+            if (isLine && editor.opcionesValidas) {
+                editor.opcionesValidas(settings, lineNo, 'refLine').forEach(function (li) {
+                    if (li > nLineas) return;
+                    valores.push({ valor: 'linea:' + li + ':fontsize', texto: 'L' + li + ' · %' });
+                    valores.push({ valor: 'linea:' + li + ':width', texto: 'L' + li + ' · ancho' });
+                });
             }
-            try {
-                const sz = editor.getSettings().lines && editor.getSettings().lines.sizing;
-                if (sz && sz.ref === 'line') refSel.value = 'line:' + (sz.refLine || 0) + ':' + (sz.mode === 'width' ? 'width' : 'fontsize');
-                else refSel.value = 'canvas';
-            } catch (e) { refSel.value = 'canvas'; }
+            pintarOpciones(refSel, valores,
+                ref === 'linea' ? ('linea:' + refLine + ':' + mode) : 'canvas');
             refSel.hidden = !isLine;
-            if (refLabel) refLabel.hidden = !isLine;
+            refSel.setAttribute('data-line-sizing-active', sz ? '1' : '0');
+            if (refLabel) {
+                refLabel.hidden = !isLine;
+                refLabel.setAttribute('data-line-sizing-active', sz ? '1' : '0');
+            }
         }
 
-        function bindLineSizingUI() {
+        // --- De quien hereda la linea activa ---
+        const inhSel = document.getElementById('tt-line-inherit-input');
+        const inhLabel = document.querySelector('[data-line-inherit-label]');
+        if (inhSel) {
+            const padre = (isLine && settings.lines && settings.lines.inherit)
+                ? settings.lines.inherit[String(lineNo)] : null;
+            const valores = [{ valor: 'ALL', texto: 'ALL' }];
+            if (isLine && editor.opcionesValidas) {
+                editor.opcionesValidas(settings, lineNo, 'inherit').forEach(function (li) {
+                    if (li > nLineas) return;
+                    valores.push({ valor: 'L' + li, texto: 'L' + li });
+                });
+            }
+            pintarOpciones(inhSel, valores, padre || 'ALL');
+            inhSel.hidden = !isLine;
+            inhSel.setAttribute('data-line-inherit-active', padre ? '1' : '0');
+            if (inhLabel) inhLabel.hidden = !isLine;
+        }
+
+        // --- Slider de tamano: muestra lo que la linea RESUELVE ---
+        const sizeInput = document.getElementById('tt-line-size-input');
+        const sizeLabel = document.querySelector('[data-line-size-label]');
+        const sizeBubble = document.querySelector('[data-line-size-bubble]');
+        if (sizeInput) {
+            const usaPct = ref === 'linea';
+            let valor = 100;
+            if (isLine && editor.resolveLine) {
+                if (usaPct) valor = (sz && sz.pct) || 100;
+                else {
+                    const r = editor.resolveLine(settings, lineNo, {});
+                    valor = (r && r.font && Math.round(Number(r.font.size))) || 100;
+                }
+            }
+            pintarTamanoLinea(isLine && usaPct, valor);
+            sizeInput.hidden = !isLine;
+            if (sizeLabel) sizeLabel.hidden = !isLine;
+            if (sizeBubble) sizeBubble.hidden = !isLine;
+        }
+    }
+    function bindLineSizingUI() {
             const refSel = document.getElementById('tt-line-sizing-ref-input');
             if (refSel && !refSel.dataset.bound) {
                 refSel.dataset.bound = '1';
                 refSel.addEventListener('change', function() {
                     if (!editor) return;
                     const v = String(this.value || 'canvas');
-                    if (v === 'canvas') editor.setLineSizing({ ref: 'canvas' });
-                    else {
+                    if (v === 'canvas') {
+                        // Referencia al lienzo: el tamano pasa a ser absoluto.
+                        editor.setLineSizing({ ref: 'canvas' });
+                    } else {
                         const parts = v.split(':');
-                        editor.setLineSizing({ ref: 'line', refLine: parseInt(parts[1], 10) || 0, mode: parts[2] === 'width' ? 'width' : 'fontsize' });
+                        editor.setLineSizing({
+                            ref: 'linea',
+                            refLine: parseInt(parts[1], 10) || 0,
+                            mode: parts[2] === 'width' ? 'width' : 'fontsize'
+                        });
                     }
+                    refrescarLineasUI();
                     editor.render();
                 });
             }
-            document.addEventListener('textmuy:line-target-updated', refreshLineSizingUI);
-            document.addEventListener('textmuy:settings-updated', refreshLineSizingUI);
-            refreshLineSizingUI();
+
+            // Herencia de la linea activa (US6): de quien parte antes de mezclar
+            // sus propios ajustes. ALL es el valor por defecto.
+            const inhSel = document.getElementById('tt-line-inherit-input');
+            if (inhSel && !inhSel.dataset.bound) {
+                inhSel.dataset.bound = '1';
+                inhSel.addEventListener('change', function() {
+                    if (!editor || !editor.setLineInherit) return;
+                    editor.setLineInherit(String(this.value || 'ALL'));
+                    refrescarLineasUI();
+                    editor.render();
+                });
+            }
+
+            document.addEventListener('textmuy:line-target-updated', refrescarLineasUI);
+            document.addEventListener('textmuy:settings-updated', refrescarLineasUI);
+            refrescarLineasUI();
+        }
+
+        // Slider de tamano de la linea activa (FR-011, FR-012): con referencia a
+        // otra linea mueve el PORCENTAJE de la cadena; con referencia al lienzo
+        // escribe px absolutos.
+        function bindLineSizeUI() {
+            const input = document.getElementById('tt-line-size-input');
+            if (!input || input.dataset.bound) return;
+            input.dataset.bound = '1';
+            input.addEventListener('input', function() {
+                if (!editor) return;
+                const v = parseInt(this.value, 10);
+                if (isNaN(v)) return;
+                const usaPct = input.getAttribute('data-line-size-unit') === 'pct';
+                pintarTamanoLinea(usaPct, v);
+                if (usaPct) editor.setLineSizing({ pct: v });
+                else editor.setTargetedSetting('font.size', v);
+            });
         }
     // Helper: get nested setting
     function getNestedSetting(path) {

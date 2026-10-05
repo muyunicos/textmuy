@@ -501,8 +501,44 @@ strong {
 
 [data-global-only][hidden],
 [data-line-sizing-ref][hidden],
-[data-line-sizing-label][hidden] {
+[data-line-sizing-label][hidden],
+[data-line-inherit][hidden],
+[data-line-inherit-label][hidden],
+[data-line-size-label][hidden],
+[data-line-size-bubble][hidden] {
     display: none;
+}
+
+/* Slider de tamano de la linea activa: cabe junto a la barra sin partirla. */
+[data-line-size-bubble] {
+    width: 90px;
+    margin: 0;
+}
+
+#tt-line-size-input {
+    width: 100%;
+}
+
+/* Selector de herencia y de tamano de la linea activa (002-text-tab D2) */
+[data-line-inherit],
+[data-line-sizing-ref] {
+    background: var(--tt-bg-panel-3);
+    color: var(--tt-text);
+    border: 1px solid var(--tt-border-input);
+    border-radius: var(--tt-radius-sm);
+    padding: 3px 6px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    max-width: 130px;
+}
+
+/* Cuando la linea activa tiene una regla de tamano propia, el selector se
+   marca: el control de tamano ya no escribe px absolutos. */
+[data-line-sizing-ref][data-line-sizing-active="1"],
+[data-line-inherit][data-line-inherit-active="1"] {
+    border-color: var(--tt-accent);
+    color: var(--tt-text-bright);
 }
 
 

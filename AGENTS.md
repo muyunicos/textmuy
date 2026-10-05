@@ -174,7 +174,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC52**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC53**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -393,6 +393,35 @@ línea), que además cambia el formato `.txm` a `version:2`. Las tareas están e
 `specs/002-text-tab/tasks.md` (T001-T057) y el plan de validación en
 `specs/002-text-tab/quickstart.md`.
 
+### 7.12 RC53 — Bloque D2: la interfaz del sistema de líneas (US6)
+
+Convierte el modelo de D1 en algo manejable desde el editor. Todo vive en la
+**barra existente** (sin panel nuevo) y solo aparece con un target L1/L2/L3.
+
+- ✅ **Selector de herencia** ("Hereda de:"): `ALL` por defecto o la línea que
+  se le elija. Se guarda en `lines.inherit` y `setLineInherit` vuelve a validar
+  contra ciclos aunque llegue por otra vía (FR-012, R-L1.2).
+- ✅ **El tamaño de línea reescribe el porcentaje** (FR-011, FR-012): un slider
+  nuevo en la barra cuya **unidad depende de la referencia** — con referencia a
+  otra línea mueve el `pct` (la cadena sigue viva: si L1 crece, L2 la sigue) y
+  con referencia al lienzo escribe px absolutos. Antes no existía ningún control
+  de tamaño por línea: el tamaño solo se auto-ajustaba.
+- ✅ **Anti-ciclos en la UI** (`editor.opcionesValidas`): los dos selectores
+  ofrecen solo opciones que no cierran un ciclo, transitivas y por ambas aristas.
+  Se prueba la asignación sobre una copia y se descarta si `detectarCiclos` la
+  rechaza (FR-013, R-L3.1).
+- ✅ **El sync muestra lo que la línea resuelve**, no la base, y marca
+  `data-line-override` según si la línea **declara** la ruta o la hereda. El
+  filtro por lista de "estilizables" desapareció en D1.
+- Solo se ofrecen líneas que **existen en el texto**: lo configurado para líneas
+  inexistentes se conserva y reaparece (FR-015).
+- **Verificación**: el recorrido integrado sube de 20 a **28/28** (0 errores de
+  consola). Comprueba en el navegador real que los selectores se ocultan en All,
+  que al elegir L2 aparecen con `ALL` y sin ofrecerse a sí misma, que la
+  herencia se guarda, **que la opción que cerraría un ciclo desaparece del
+  selector**, que el slider escribe el porcentaje y que L2 resuelve al 70% de L1
+  (L1=76 → L2=53).
+
 ### 7.11 RC52 — Bloque D1: el modelo de líneas (núcleo + formato v2)
 
 Primera parte del Bloque D (US6). Reemplaza el modelo de líneas anterior sin
@@ -427,8 +456,7 @@ idéntico al de antes**, y el recorrido integrado lo confirma (20/20 sin cambios
 - 4 suites nuevas (`lineas-resolucion`, `lineas-tamano`, `lineas-ciclos`,
   `lineas-formato`) que fallaban antes; **36 suites en verde**.
 
-**Pendiente de D2**: la interfaz (selector de herencia, slider que reescribe el
-porcentaje, ocultamiento de ciclos, sync por línea resuelta).
+Pendiente: D3 (fuente por línea).
 
 ### 7.10 RC51 — recorrido integrado US1–US5 (20/20) y dos defectos que Node no veía
 
