@@ -86,7 +86,7 @@ textmuy/
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
 │   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
 │                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
-└── tests/                 <- 37 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 38 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -97,7 +97,8 @@ textmuy/
                               curva-snapshot, curva-sin-webgl, barra-line-target,
                               area-util, avance-lineas, encaje-final,
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
-                              lineas-formato, fuente-por-linea)
+                              lineas-formato, fuente-por-linea,
+                              estilo-tema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -174,7 +175,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC55**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC56**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -387,6 +388,33 @@ no depende de la geometria unica y por eso va primero.
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
 **Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
+
+### 7.15 RC56 — el texto es una MUESTRA, no el contenido
+
+Aclaracion del objetivo de la herramienta (2026-10-04): **el editor sirve para
+DISEÑAR un estilo**. El texto del cuadro es una muestra; lo que viaja al PDF es
+el texto que escribe el cliente, que puede ser largo, de una o de varias lineas
+y en general DISTINTO del que se uso para disenar. Tres correcciones:
+
+- **Fuera el control "Tamano" de la barra.** Se habia agregado para cumplir
+  FR-012, pero duplicaba "Max Font Size (1 character)" y se compensaban. El
+  tamano lo gobierna ese unico control.
+- **"Hereda de:" y "Sizing ref:" ofrecen SIEMPRE L1/L2/L3.** Antes se
+  limitaban a las lineas escritas en ese momento (`if (li > nLineas) return`),
+  lo cual ataba el diseno al texto de prueba: con una sola linea, "Hereda de" solo
+  ofrecia ALL y no habia forma de definir la estructura de lineas (medido). Los
+  botones L1/L2/L3 nunca se desactivan, y es lo correcto: se esta disenando como
+  se vera un texto de tres lineas aunque ahora haya uno escrito.
+- **"Max Font Size (1 character)" declara que es global** (chispeta `global` con
+  tooltip). Es global por contrato (`canvas` nunca es por linea,
+  contracts/lineas.md 4) y sin marcarlo, tocarlo con L3 activa parecia un fallo.
+- **Prueba nueva `tests/estilo-tema.test.js`**: diseña un estilo compuesto
+  (fuente por linea, outline, depth 3D, herencia) con un texto de muestra y lo
+  aplica a OTROS textos, que es el caso real: una linea larga, tres lineas, cuatro
+  (L4 resuelve como All), texto vacio, con acentos. Nunca se habia probado este
+  recorrido: todas las pruebas usaban el mismo texto para disenar y para
+  renderizar, asi que un estilo que solo funcionaba con su muestra pasaba
+  inadvertido. 38 suites en verde.
 
 ### 7.14 RC55 — prueba del EDITOR VISIBLE: solo se pintaba L1
 
@@ -881,7 +909,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 37 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 38 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -930,6 +958,7 @@ node tests/lineas-tamano.test.js     # US6: sizing por linea con cascada de porc
 node tests/lineas-ciclos.test.js      # US6: anti-ciclos por ambas aristas, sin colgarse
 node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas ausentes conservadas
 node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga por identidad, fallo nombrado
+node tests/estilo-tema.test.js      # el estilo disenado con una muestra se aplica a CUALQUIER texto
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

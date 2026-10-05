@@ -10,7 +10,6 @@
         editor = editorInstance;
         bindControls();
         bindLineSizingUI();
-        bindLineSizeUI();
         bindMenuTabs();
         bindCustomMenu();
         bindDownloadControls();
@@ -205,45 +204,29 @@
         sel.value = selTiene(sel, seleccionado) ? seleccionado : (valores[0] ? valores[0].valor : '');
     }
 
-    // Tamano de la linea activa. La UNIDAD depende de la referencia: con
-    // referencia a otra linea el valor es el PORCENTAJE sobre esa linea (la
-    // cadena sigue viva); con referencia al lienzo, px absolutos (FR-011, FR-012).
-    function pintarTamanoLinea(usaPct, valor) {
-        const input = document.getElementById('tt-line-size-input');
-        if (!input) return;
-        const bubble = input.parentElement ? input.parentElement.querySelector('output') : null;
-        input.min = usaPct ? 10 : 8;
-        input.max = usaPct ? 200 : 400;
-        input.step = usaPct ? 5 : 1;
-        input.value = valor;
-        input.setAttribute('data-line-size-unit', usaPct ? 'pct' : 'px');
-        if (bubble) {
-            bubble.textContent = usaPct ? (valor + '%') : (valor + 'px');
-            const p = (valor - input.min) / (input.max - input.min) * 100;
-            bubble.style.left = 'calc(' + p + '% + ' + (0.5 - p * 0.01) + 'px)';
-        }
-    }
-
-    function refrescarLineasUI() {
+        function refrescarLineasUI() {
         if (!editor) return;
         const target = editor.getLineTarget();
         const lineNo = parseInt(String(target).slice(1), 10) || 0;
         const isLine = /^L\d+$/.test(target);
         const settings = editor.getSettings() || {};
-        const nLineas = Math.max(1, String(settings.text || 'TEXT').split('\n').length);
         const sz = (isLine && editor.getLineSizing) ? editor.getLineSizing() : null;
         const ref = (sz && sz.ref === 'linea') ? 'linea' : 'canvas';
         const refLine = (sz && sz.refLine) || 0;
         const mode = (sz && sz.mode) === 'width' ? 'width' : 'fontsize';
 
         // --- Regla de tamano de la linea activa ---
+        // Se ofrecen SIEMPRE L1/L2/L3, se escriban o no: el texto del cuadro es
+        // una MUESTRA para disenar el estilo, no el contenido que recibe el
+        // cliente. Limitar las opciones a las lineas presentes ataba el diseno al
+        // texto de prueba (medido: con una sola linea, "Hereda de" solo ofrecia
+        // ALL y no habia forma de definir la estructura de lineas).
         const refSel = document.getElementById('tt-line-sizing-ref-input');
         const refLabel = document.querySelector('[data-line-sizing-label]');
         if (refSel) {
-            const valores = [{ valor: 'canvas', texto: 'Canvas (px)' }];
+            const valores = [{ valor: 'canvas', texto: 'Canvas' }];
             if (isLine && editor.opcionesValidas) {
                 editor.opcionesValidas(settings, lineNo, 'refLine').forEach(function (li) {
-                    if (li > nLineas) return;
                     valores.push({ valor: 'linea:' + li + ':fontsize', texto: 'L' + li + ' · %' });
                     valores.push({ valor: 'linea:' + li + ':width', texto: 'L' + li + ' · ancho' });
                 });
@@ -267,7 +250,6 @@
             const valores = [{ valor: 'ALL', texto: 'ALL' }];
             if (isLine && editor.opcionesValidas) {
                 editor.opcionesValidas(settings, lineNo, 'inherit').forEach(function (li) {
-                    if (li > nLineas) return;
                     valores.push({ valor: 'L' + li, texto: 'L' + li });
                 });
             }
@@ -275,26 +257,6 @@
             inhSel.hidden = !isLine;
             inhSel.setAttribute('data-line-inherit-active', padre ? '1' : '0');
             if (inhLabel) inhLabel.hidden = !isLine;
-        }
-
-        // --- Slider de tamano: muestra lo que la linea RESUELVE ---
-        const sizeInput = document.getElementById('tt-line-size-input');
-        const sizeLabel = document.querySelector('[data-line-size-label]');
-        const sizeBubble = document.querySelector('[data-line-size-bubble]');
-        if (sizeInput) {
-            const usaPct = ref === 'linea';
-            let valor = 100;
-            if (isLine && editor.resolveLine) {
-                if (usaPct) valor = (sz && sz.pct) || 100;
-                else {
-                    const r = editor.resolveLine(settings, lineNo, {});
-                    valor = (r && r.font && Math.round(Number(r.font.size))) || 100;
-                }
-            }
-            pintarTamanoLinea(isLine && usaPct, valor);
-            sizeInput.hidden = !isLine;
-            if (sizeLabel) sizeLabel.hidden = !isLine;
-            if (sizeBubble) sizeBubble.hidden = !isLine;
         }
     }
     function bindLineSizingUI() {
@@ -336,24 +298,6 @@
             document.addEventListener('textmuy:line-target-updated', refrescarLineasUI);
             document.addEventListener('textmuy:settings-updated', refrescarLineasUI);
             refrescarLineasUI();
-        }
-
-        // Slider de tamano de la linea activa (FR-011, FR-012): con referencia a
-        // otra linea mueve el PORCENTAJE de la cadena; con referencia al lienzo
-        // escribe px absolutos.
-        function bindLineSizeUI() {
-            const input = document.getElementById('tt-line-size-input');
-            if (!input || input.dataset.bound) return;
-            input.dataset.bound = '1';
-            input.addEventListener('input', function() {
-                if (!editor) return;
-                const v = parseInt(this.value, 10);
-                if (isNaN(v)) return;
-                const usaPct = input.getAttribute('data-line-size-unit') === 'pct';
-                pintarTamanoLinea(usaPct, v);
-                if (usaPct) editor.setLineSizing({ pct: v });
-                else editor.setTargetedSetting('font.size', v);
-            });
         }
     // Helper: get nested setting
     function getNestedSetting(path) {

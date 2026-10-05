@@ -9,7 +9,7 @@
       familia del template/preset activo (google:"Familia:wght@...") via
       ensureGoogleFontBySpec() justo antes de renderizar. Al abrir: cero fuentes. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=RC55">
+    <link rel="stylesheet" href="css/style.css?v=RC56">
 </head>
 <body>
     <div id="content">
@@ -81,8 +81,8 @@
                                             <input type="number" id="tt-canvas-ratio-input" data-tt-option="canvas.ratio" value="0.67" step="0.1" min="0.1" max="10" style="width: 60px;">
                                         </div>
                                     </div>
-                                    <div class="tt-option">
-                                        <label class="tt-label" for="tt-canvas-max-font-size-input"><span>Max Font Size (1 character):</span></label>
+                                    <div class="tt-option" data-global-only-suffix>
+                                        <label class="tt-label" for="tt-canvas-max-font-size-input"><span>Max Font Size (1 character):</span><span class="tt-global-hint" title="Afecta al texto completo, no a la linea activa">global</span></label>
                                         <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="V+'%'"><output>100%</output></div>
                                         <label class="tt-label" for="tt-line-sizing-ref-input" data-line-sizing-label hidden><span>Sizing ref:</span></label>
                                         <select id="tt-line-sizing-ref-input" data-line-sizing-ref hidden>
@@ -1373,40 +1373,36 @@
                         <button type="button" data-line-style="3">L3</button>
                     </div>
                     <!-- 002-text-tab D2: de quien hereda la linea activa (US6).
-                         Solo con un target L1/L2/L3; ALL es el valor por defecto. -->
+                         Solo con un target L1/L2/L3; ALL es el valor por defecto.
+                         Se ofrecen SIEMPRE L1/L2/L3: el texto del cuadro es una
+                         muestra para disenar el estilo, no el contenido final,
+                         asi que la estructura de lineas se define con
+                         independencia de cuantas haya escritas ahora. -->
                     <label class="tt-line-target-label" for="tt-line-inherit-input" data-line-inherit-label hidden><span>Hereda de:</span></label>
                     <select id="tt-line-inherit-input" data-line-inherit hidden>
                         <option value="ALL">ALL</option>
                     </select>
-                    <!-- Tamano de la linea activa. Con referencia a otra linea el
-                         control mueve el PORCENTAJE de la cadena (FR-011); con
-                         referencia al lienzo escribe px absolutos (FR-012). -->
-                    <label class="tt-line-target-label" for="tt-line-size-input" data-line-size-label hidden><span>Tamano:</span></label>
-                    <div class="tt-range-bubble" data-line-size-bubble hidden>
-                        <input type="range" min="10" max="200" step="5" value="100" id="tt-line-size-input" data-line-size>
-                        <output>100%</output>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="js/catalog.js?v=RC55"></script>
-    <script src="js/fonts.js?v=RC55"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC55"></script>
-    <script src="js/effects/specular-webgl.js?v=RC55"></script>
-    <script src="js/effects/distort-engine.js?v=RC55"></script>
-    <script src="js/preset-manager.js?v=RC55"></script>
-    <script src="js/gradient-picker.js?v=RC55"></script>
-    <script src="js/editor.js?v=RC55"></script>
+    <script src="js/catalog.js?v=RC56"></script>
+    <script src="js/fonts.js?v=RC56"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC56"></script>
+    <script src="js/effects/specular-webgl.js?v=RC56"></script>
+    <script src="js/effects/distort-engine.js?v=RC56"></script>
+    <script src="js/preset-manager.js?v=RC56"></script>
+    <script src="js/gradient-picker.js?v=RC56"></script>
+    <script src="js/editor.js?v=RC56"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC55"></script>
+    <script src="js/galeria.js?v=RC56"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC55"></script>
-    <script src="js/controls.js?v=RC55"></script>
-    <script src="js/export.js?v=RC55"></script>
-    <script src="js/api.js?v=RC55"></script>
-    <script src="js/main.js?v=RC55"></script>
+    <script src="js/fuentes-galeria.js?v=RC56"></script>
+    <script src="js/controls.js?v=RC56"></script>
+    <script src="js/export.js?v=RC56"></script>
+    <script src="js/api.js?v=RC56"></script>
+    <script src="js/main.js?v=RC56"></script>
 </body>
 </html>
 

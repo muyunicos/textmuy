@@ -499,24 +499,26 @@ strong {
     white-space: nowrap;
 }
 
+/* Chispeta "global": los controles que afectan a TODO el texto (no a la linea
+   activa) lo declaran, para que tocarlo con L1/L2/L3 no parezca un fallo. */
+.tt-global-hint {
+    margin-left: 6px;
+    padding: 1px 5px;
+    border: 1px solid var(--tt-border-input);
+    border-radius: 8px;
+    font-size: 10px;
+    color: var(--tt-text-dim);
+    background: var(--tt-bg-panel-3);
+    cursor: help;
+    vertical-align: middle;
+}
+
 [data-global-only][hidden],
 [data-line-sizing-ref][hidden],
 [data-line-sizing-label][hidden],
 [data-line-inherit][hidden],
-[data-line-inherit-label][hidden],
-[data-line-size-label][hidden],
-[data-line-size-bubble][hidden] {
+[data-line-inherit-label][hidden] {
     display: none;
-}
-
-/* Slider de tamano de la linea activa: cabe junto a la barra sin partirla. */
-[data-line-size-bubble] {
-    width: 90px;
-    margin: 0;
-}
-
-#tt-line-size-input {
-    width: 100%;
 }
 
 /* Selector de herencia y de tamano de la linea activa (002-text-tab D2) */
