@@ -3050,12 +3050,21 @@
         'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
     ];
 
+    // Unica EXCEPCION dentro de `canvas` (2026-10-04, decision del usuario):
+    // "Max Font Size" es global en All pero con una linea activa manda sobre ESA
+    // linea. Sigue siendo un PORCENTAJE relativo al lienzo, nunca px fijos: el
+    // canvas es dinamico (500 px o 5000 px) y el texto debe seguir al tamano que
+    // necesite el cliente.
+    const CANVAS_POR_LINEA = ['canvas.maxFontSize'];
+
     // Lineas direccionables: solo L1..L3. Las demas filas del texto resuelven
     // como All (R-L1.4).
     const MAX_LINE = 3;
 
     function isGlobalPath(path) {
         if (!path) return false;
+        if (CANVAS_POR_LINEA.indexOf(path) !== -1) return false;
+        if (CANVAS_POR_LINEA.some(function (p) { return path.indexOf(p + '.') === 0; })) return false;
         return GLOBAL_PATHS.some(function (g) {
             return path === g || path.indexOf(g + '.') === 0;
         });
@@ -3547,7 +3556,7 @@
         const area = areaUtil(s, canvasWidth, canvasHeight);
         const availW = area.width;
         const availH = area.height;
-        const maxPct = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
+        const maxPctBase = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
         const singleRef = canvasWidth >= canvasHeight ? area.height : area.width;
         const lh = (s.lineHeight !== undefined ? s.lineHeight : 1);
 
@@ -3556,6 +3565,12 @@
             const resuelta = resolveLine(s, li, {});
             let px = resuelta && resuelta.font ? Number(resuelta.font.size) : NaN;
             const sz = sizingOf(s, li);
+            // Tope de ESA linea: con una linea activa, "Max Font Size" deja de
+            // ser global y manda sobre ella. Sigue siendo un porcentaje relativo
+            // al lienzo (nunca px fijos: el canvas es dinamico).
+            const pctLinea = (resuelta && resuelta.canvas && resuelta.canvas.maxFontSize !== undefined)
+                ? Math.max(0, Math.min(100, Number(resuelta.canvas.maxFontSize) || 100)) / 100
+                : maxPctBase;
             if (tienePxPropio(s, li)) {
                 px = Number((lineEntry(s, li) || {}).font.size);
             } else if (sz && sz.ref === 'canvas') {
@@ -3564,7 +3579,7 @@
                 px = fontSizePx;   // la cascada se resuelve en la pasada 2
             }
             if (Number.isFinite(px) && px > 0) {
-                out[li - 1] = Math.max(8, Math.round(Math.min(px, singleRef * maxPct)));
+                out[li - 1] = Math.max(8, Math.round(Math.min(px, singleRef * pctLinea)));
             }
         }
 
