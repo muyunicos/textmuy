@@ -50,6 +50,8 @@ su interior contra la rama equivalente del schema:
 - `fill.layers` (array con `id` estable) + `styles[]` internos
   (`{type:'color'|'gradient'|'texture', ...}`).
 - `lines.line["<n>"]`, `lines.inherit["<n>"]`, `lines.activeTarget`.
+- `outline.first.specular`, `outline.second.specular` (copiados enteros desde
+  presets de TextStudio; defaults no los declaran).
 
 Ante la duda sobre una sub-ruta dinamica, el validador PERMITE (no rechaza).
 
@@ -61,3 +63,15 @@ Ante la duda sobre una sub-ruta dinamica, el validador PERMITE (no rechaza).
 - **R-O4.2**: el rechazo NO se cachea (un retry reevalua, como un fallo de red).
 - **R-O4.3**: conservador: solo rechaza lo claramente invalido. Un path bajo un
   contenedor dinamico conocido (§3) nunca se rechaza por "desconocido".
+- **R-O4.4 (COLOR HEX)**: `loadPreset` convierte los colores `{r,g,b}` a hex
+  string al cargar. El schema, derivado de defaults (objetos), solo conoce
+  `X.color.r/g/b`. El validador ACEPTA `X.color` como STRING cuando `X.color.r`
+  (o `.g`/`.b`) existe en el schema. Sin esto, cualquier preset que el usuario
+  cargara y guardara (ciclo load->save->reload) se rechazaria al recargarlo.
+- **R-O4.5 (LEGADO)**: campos que `loadPreset` escribe/persiste y defaults no
+  declaran se aceptan por un allowlist `CAMPOS_LEGADO` en el validador (no en
+  `defaultSettings`, Constitucion VII): `distort.active`, `canvas.background`,
+  `fill.gradient.startColor`, `fill.gradient.endColor`,
+  `lettering.reverseOverlap.active`.
+- **R-O4.6**: la raiz de una ruta que no es opcion de `defaultSettings` se
+  permite (campo de extension); solo se rechaza un typo bajo una raiz conocida.

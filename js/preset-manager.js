@@ -262,16 +262,45 @@
      * Valida que las rutas hoja del delta existan en OPTION_SCHEMA. CONSERVADOR:
      *  - los ARRAYS se permiten completos (p.ej. fill.gradient.colors[], que en
      *    defaults esta vacio y por eso no genera hojas en el schema);
-     *  - los CONTENEDORES DINAMICOS (fill.layers, lines.line, lines.inherit) se
-     *    permiten con todo su subarbol;
+     *  - los CONTENEDORES DINAMICOS (fill.layers, lines.line, lines.inherit,
+     *    outline.*.specular) se permiten con todo su subarbol;
      *  - una ruta cuya RAIZ no es una opcion de defaultSettings se permite (puede
      *    ser un campo de extension): solo se rechaza un TYPO/obsoleto bajo una
      *    raiz conocida (p.ej. fill.colorx).
-     * Rechazo con `presets:<nombre>:ruta_desconocida:<ruta>`, sin aplicar nada.
+     *
+     * Dos concesiones necesarias porque el propio editor produce estos datos
+     * (si no, cualquier preset que el usuario cargue y vuelva a guardar se
+     * rechazaria al recargarlo):
+     *  1. COLOR HEX: loadPreset convierte los colores {r,g,b} a hex string. El
+     *     schema, derivado de defaults (objetos), solo conoce X.color.r/g/b. Se
+     *     acepta X.color como STRING cuando X.color.r existe en el schema.
+     *  2. LEGADO: campos que loadPreset escribe/persiste y defaults no declaran.
+     *     Rechazo con `presets:<nombre>:ruta_desconocida:<ruta>`, sin aplicar nada.
      */
+    // Campos derivados/legacy que loadPreset produce y defaults no declaran.
+    // No van en defaultSettings (son legacy/muerto: Constitucion VII); aqui se
+    // aceptan para compat. Familia B de contracts/opciones.md §4.
+    const CAMPOS_LEGADO = [
+        'distort.active',            // loadPreset lo escribe; defaults no (nunca se lee)
+        'canvas.background',         // legacy TextStudio
+        'fill.gradient.startColor',  // legacy (los gradientes usan colors[])
+        'fill.gradient.endColor',
+        'lettering.reverseOverlap.active'  // loadPreset lo deriva de letters/lines
+    ];
     function esContenedorDinamico(path) {
         const din = (window.TextEditor && window.TextEditor.RUTAS_DINAMICAS) || [];
         return din.some(function (d) { return path === d || path.indexOf(d + '.') === 0; });
+    }
+    function esCampoLegado(path) {
+        return CAMPOS_LEGADO.indexOf(path) !== -1;
+    }
+    // Un color en hex es valido en cualquier ruta cuyo equivalente objeto tenga
+    // .r/.g/.b en el schema (familia A). El valor debe ser string.
+    function esColorHex(schema, path, valor) {
+        if (typeof valor !== 'string') return false;
+        return Object.prototype.hasOwnProperty.call(schema, path + '.r')
+            || Object.prototype.hasOwnProperty.call(schema, path + '.g')
+            || Object.prototype.hasOwnProperty.call(schema, path + '.b');
     }
     function validarRutasDelta(delta, nombre) {
         const TE = window.TextEditor;
@@ -295,9 +324,10 @@
                 // Hoja: raiz conocida Y ruta inexistente -> rechazo.
                 const raiz = path.split('.')[0];
                 if (raices.indexOf(raiz) === -1) return;
-                if (!Object.prototype.hasOwnProperty.call(schema, path)) {
-                    throw new Error('presets:' + ((nombre) || '?') + ':ruta_desconocida:' + path);
-                }
+                if (Object.prototype.hasOwnProperty.call(schema, path)) return;  // hoja declarada
+                if (esColorHex(schema, path, v)) return;    // color en hex (loadPreset)
+                if (esCampoLegado(path)) return;            // campo derivado/legacy
+                throw new Error('presets:' + ((nombre) || '?') + ':ruta_desconocida:' + path);
             });
         })(delta, '');
     }

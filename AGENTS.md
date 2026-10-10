@@ -185,7 +185,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC64**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC65**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -450,7 +450,7 @@ administrador. **Todo lo borrado era codigo inalcanzable o una fuga de datos.**
   **no debe crearse**: ya existe `fill.layers` (controles de relleno, boton
   "+ Add style") y duplicarla seria tener dos formas de editar lo mismo (§7).
 
-### 7.20 RC64 — la sombra exterior se recortaba en el borde de las miniaturas
+### 7.20 RC65 — la sombra exterior se recortaba en el borde de las miniaturas
 
 Defecto visible en la hoja `tm-presets/thumbs.webp` (galeria de estilos): en cada
 tile con `shadow.outer` aparecia un **"fantasma" cortado** en la esquina inferior
@@ -484,7 +484,7 @@ punto a píxel (PIL), no por la vista: el color del fantasma coincidia con
   `tests/sombra-no-recortada.test.js` (falla con el codigo anterior, pasa con el
   fix): 40 suites en verde.
 
-### 7.21 RC64 — schema unico de opciones y fail-fast de rutas
+### 7.21 RC65 — schema unico de opciones y fail-fast de rutas
 
 Spec `003-option-schema`. Unifica la identidad y el alcance de cada opcion, que
 estaban fragmentados en `OPTION_REGISTRY` (expuesto, sin consumidores), en las dos
@@ -518,6 +518,46 @@ Esa duplicacion ya habia producido una lista desactualizada (RC58).
 - **No cambia** el formato `.txm` (sigue siendo delta anidado, IV) ni el motor de
   render ni `resolveLine`. La Mejora 3 (nombres/menus para regenerar la UI) queda
   fuera: el campo `nombre` ya viaja en el schema, listo para consumirse.
+
+### 7.22 RC65 — el fail-fast rechazaba los presets que el editor producia
+
+Regresion de RC64 detectada en produccion al validar en navegador. El validador
+de rutas rechazaba presets REALES (`vsdvsdv`) con
+`presets:?:ruta_desconocida:distort.active`. Causa: el schema, derivado de
+`defaultSettings`, no cubre (a) los colores que `loadPreset` convierte a hex ni
+(b) los campos derivados/legacy que el propio editor escribe. O sea: cualquier
+preset que el usuario cargara y volviera a guardar (ciclo load->save->reload)
+dejaba de recargar. Re-arreglar los presets NO bastaba: el editor re-producia el
+formato rechazado en cada guardado.
+
+- 🔴 **Barrido completo**: 227 asignaciones `s.*` en `loadPreset`, 37 rutas en
+  hueco respecto al schema, en dos familias:
+  - **Color hex (~20)**: `loadPreset` hace `s.X.color = rgbToHex(...)` donde
+    defaults tienen `{r,g,b}` (schema solo conoce `.r/.g/.b`). Afecta `fill.color`,
+    `background.fill.color`, `depth.fill.color`, `shadow.*.fill.color`,
+    `outline.*.fill.color`, `bevel.*.highlight|shadow.color`, etc.
+  - **Derivados/legacy (~5+2)**: `distort.active` (loadPreset lo escribe, defaults
+    no; nunca se lee), `canvas.background`, `fill.gradient.startColor`/`endColor`,
+    `lettering.reverseOverlap.active`, y los subarboles `outline.first|second.specular`.
+- ✅ **Fix en el validador** (`preset-manager.js`), sin tocar `loadPreset` ni el
+  formato `.txm`:
+  - **Color hex** (R-O4.4): se acepta `X.color` como STRING cuando `X.color.r/.g/.b`
+    existe en el schema. Cubre la familia entera de un salvo.
+  - **Allowlist `CAMPOS_LEGADO`** (R-O4.5): `distort.active`, `canvas.background`,
+    `fill.gradient.startColor`/`endColor`, `lettering.reverseOverlap.active`. Va en
+    el validador, NO en `defaultSettings` (legacy/muerto: Constitucion VII).
+  - **`outline.*.specular`** agregado a `RUTAS_DINAMICAS` (`editor.js`) como
+    subarbol dinamico (defaults no lo declaran; loadPreset lo copia entero).
+- ✅ **El fail-fast no se quedo ciego**: un typo real (`fill.colorx`, `font.sz`)
+  sigue rechazando con causa. Verificado por inyeccion.
+- ✅ **Regresion del ciclo**: `tests/option-schema.test.js` ahora simula el ciclo
+  load->save->reload (preset con colores objeto -> `loadPreset` -> `diffSettings` ->
+  `settingsFromDelta`) y exige que el delta que PRODUCE el editor recargue sin
+  rechazo. 41 suites en verde.
+- ⚠️ **Limite conocido**: el allowlist cubre todo lo que produce `loadPreset` (la
+  fuente principal de datos del editor), pero no garantiza al 100% que un preset
+  hecho a mano no traiga otro campo exotico; en desarrollo eso es aceptable (si
+  aparece, se agrega al allowlist con su causa). Bajarlo a "solo warn" es de una linea.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
@@ -1214,7 +1254,7 @@ node tests/lineas-ciclos.test.js      # US6: anti-ciclos por ambas aristas, sin 
 node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas ausentes conservadas
 node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga por identidad, fallo nombrado
 node tests/estilo-tema.test.js      # el estilo disenado con una muestra se aplica a CUALQUIER texto
-node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC64)
+node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC65)
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

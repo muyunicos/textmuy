@@ -3129,7 +3129,10 @@
 
     // Contenedores dinamicos: su interior es valido aunque no este en
     // defaultSettings (contracts/opciones.md §3). El fail-fast de rutas los respeta.
-    const RUTAS_DINAMICAS = ['fill.layers', 'lines.line', 'lines.inherit'];
+    // outline.*.specular se copia entero desde presets de TextStudio y defaults no
+    // lo declara (003-option-schema: allowlist de legado, ver preset-manager).
+    const RUTAS_DINAMICAS = ['fill.layers', 'lines.line', 'lines.inherit',
+        'outline.first.specular', 'outline.second.specular'];
 
     // Scope de una ruta ('global' | 'linea'). Antes era isGlobalPath con dos
     // listas; ahora una sola precedencia compartida por OPTION_SCHEMA.

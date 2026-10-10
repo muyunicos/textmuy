@@ -100,4 +100,37 @@ fs.readdirSync(presetsDir).filter(f => f.endsWith('.txm')).sort().forEach(functi
         file + ' debe cargar sin rechazo de ruta');
 });
 
+// --- 5. Ciclo load->save->reload: el formato que PRODUCE el editor ----------
+// loadPreset convierte los colores {r,g,b} a hex y escribe campos derivados
+// (distort.active, etc.). Si el validador no aceptara ese formato, cualquier
+// preset que el usuario cargara y guardara dejaria de recargar. Regresion del
+// bug que rechazo el preset real "vsdvsdv" (ruta_desconocida:distort.active).
+const presetConObjetos = {
+    text: 'HOLA',
+    font: { src: 1, size: 40 },
+    fill: { color: { r: 255, g: 0, b: 0 } },
+    background: { fill: { color: { r: 16, g: 32, b: 48 } } },
+    depth: { active: true, length: 0.2, fill: { color: { r: 18, g: 52, b: 86 } } },
+    bevel: { inner: { active: true, highlight: { color: { r: 255, g: 255, b: 255 } } } },
+    distort: { arc: { angle: 10 } },   // loadPreset escribe distort.active
+    canvas: { width: 400, height: 200 }
+};
+const destino = TextEditor.createDefaultSettings();
+TextEditor.loadPreset(JSON.parse(JSON.stringify(presetConObjetos)), destino);
+// loadPreset deja los colores en HEX (formato del editor al guardar).
+assert.equal(typeof destino.fill.color, 'string',
+    'loadPreset convirtio fill.color a hex (formato del editor)');
+const deltaDelEditor = PM.diffSettings(TextEditor.createDefaultSettings(), destino);
+assert.ok(deltaDelEditor.fill && typeof deltaDelEditor.fill.color === 'string',
+    'el delta guardado trae fill.color en hex');
+assert.ok(deltaDelEditor.distort && deltaDelEditor.distort.active === true,
+    'el delta guardado trae distort.active (derivado)');
+assert.doesNotThrow(function () { PM.settingsFromDelta(deltaDelEditor); },
+    'el delta que PRODUCE el editor (hex + derivados) debe recargar sin rechazo');
+
+// El typo real de la seccion 3 sigue rechazandose: el fail-fast no se quedo ciego.
+assert.throws(function () {
+    PM.settingsFromDelta({ name: 'typo', fill: { colorx: { r: 1 } } });
+}, /ruta_desconocida/, 'un typo sigue rechazandose tras el arreglo');
+
 console.log('OK: option-schema.test.js');
