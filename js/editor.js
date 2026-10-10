@@ -1438,22 +1438,23 @@
         img.src = src;
     }
 
-    // Apply blur to a canvas using StackBlur if available, otherwise ctx.filter
+    // Blur de un canvas con el filtro nativo ctx.filter. El vendor StackBlur se
+    // retiro junto con js/utils/: el blur nativo difumina TAMBIEN el canal alpha y
+    // va acelerado por el navegador (GPU/Skia), mientras StackBlur.canvasRGB no
+    // tocaba el alpha (daba halos en las sombras) y corria en CPU. El guard por
+    // si el contexto no soporta filter: en ese caso el blur simplemente no aplica.
     function applyBlur(canvas, radius) {
         if (radius <= 0 || canvas.width === 0 || canvas.height === 0) return;
         const ctx = canvas.getContext('2d');
-        if (typeof StackBlur !== 'undefined' && StackBlur.canvasRGB) {
-            StackBlur.canvasRGB(canvas, 0, 0, canvas.width, canvas.height, Math.round(radius));
-        } else if (typeof ctx.filter !== 'undefined') {
-            const tmp = document.createElement('canvas');
-            tmp.width = canvas.width;
-            tmp.height = canvas.height;
-            const tmpCtx = tmp.getContext('2d');
-            tmpCtx.filter = `blur(${radius}px)`;
-            tmpCtx.drawImage(canvas, 0, 0);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(tmp, 0, 0);
-        }
+        if (typeof ctx.filter === 'undefined') return;
+        const tmp = document.createElement('canvas');
+        tmp.width = canvas.width;
+        tmp.height = canvas.height;
+        const tmpCtx = tmp.getContext('2d');
+        tmpCtx.filter = `blur(${radius}px)`;
+        tmpCtx.drawImage(canvas, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(tmp, 0, 0);
     }
 
     // Helper por-linea: itera las lineas con su config efectiva (base + delta

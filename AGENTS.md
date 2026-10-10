@@ -84,8 +84,12 @@ textmuy/
 │   ├── fonts.js           <- Carga de fuentes (Google Fonts + catalogo) y ensureFontReady
 │   ├── gradient-picker.js <- Picker de gradientes de N colores
 │   ├── effects/           <- bevel-webgl.js, specular-webgl.js, distort-engine.js
-│   └── utils/             <- Vendors minificados (FileSaver, Sortable, gif-encoder,
-│                             pica, potrace, stackblur, svgo, toastify-js, util...). NO editar
+│   └── utils/             <- (vacio) Los vendors minificados se retiraron en RC59:
+│                             FileSaver/Sortable/gif-encoder/potrace/toastify-js/util en
+│                             el refactor 03ea16e, y pica/stackblur/svgo en RC59. Nada de
+│                             utils/ se carga: la descarga usa createObjectURL + <a
+│                             download>, el blur usa ctx.filter nativo y el SVG (cuando
+│                             exista) NO dependera de potrace/svgo.
 └── tests/                 <- 38 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
@@ -175,7 +179,7 @@ textmuy/
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC58**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC59**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
