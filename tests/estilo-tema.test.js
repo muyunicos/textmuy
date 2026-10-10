@@ -160,3 +160,7 @@ assert.equal(reCargado.outline.first.width, 6, 'el outline del estilo sobrevive 
 assert.equal(reCargado.depth.length, 12, 'el depth 3D tambien');
 assert.equal(reCargado.font.src, 1, 'la fuente base del estilo tambien');
 
+// Convencion de las suites (AGENTS.md §9): cada una anuncia su OK, asi el
+// runner que frena en la primera que falla deja rastro de cual corrio.
+console.log('estilo-tema: OK - el estilo disenado con una muestra se aplica a CUALQUIER texto');
+

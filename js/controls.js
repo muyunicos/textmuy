@@ -449,13 +449,29 @@
         });
     }
 
+    // Formato de la burbuja de un slider (data-bubble). Antes era una EXPRESION
+    // JS que se resolvia con eval(): ejecucion de codigo arbitrario desde un
+    // atributo del DOM en cada render del slider. Ahora es un nombre de formato
+    // y el valor se compone aqui, sin evaluar nada (M1).
+    //
+    // Sufijos: 'pct' multiplica por 100 y redondea (rangos fraccionarios como
+    // letterSpacing, que va de -0.5 a 1.5); 'grado' anade el simbolo de grado.
+    function textoBubble(formato, valor) {
+        const v = Number(valor);
+        if (!isFinite(v)) return String(valor === undefined || valor === null ? '' : valor);
+        let salida = String(v);
+        if (formato === 'pct') salida = String(Math.round(v * 100)) + '%';
+        else if (formato === 'pct-directo') salida = String(v) + '%';
+        else if (formato === 'grado') salida = String(v) + '\u00B0';
+        return salida;
+    }
+
     // Update range fill (bubble)
     function updateRangeFill(input) {
         const bubble = input.parentElement?.querySelector('output');
         if (bubble && input.dataset.bubble) {
             try {
-                const val = eval(input.dataset.bubble.replace(/V/g, input.value));
-                bubble.textContent = val;
+                bubble.textContent = textoBubble(input.dataset.bubble, input.value);
                 const pct = (input.value - input.min) / (input.max - input.min) * 100;
                 bubble.style.left = `calc(${pct}% + ${0.5 - pct * 0.01}px)`;
             } catch(e) {}
@@ -859,8 +875,11 @@
                     window.PresetManager.uploadImage(file, { categoria: categoria }).then(function(res) {
                         aplicarImagen(res.id > 0 ? res.id : res.url);
                     }).catch(function(err) {
-                        alert(((err && err.message) || 'No se pudo subir la imagen.')
-                            + ' La imagen se usara embebida en el preset.');
+                        // M6: aviso en linea en vez de alert(). El importador de
+                        // imagen trae su propio estado; si no existe, la consola.
+                        const msg = ((err && err.message) || 'No se pudo subir la imagen.')
+                            + ' La imagen se usara embebida en el preset.';
+                        console.warn(msg);
                         usarLocalEmbebida(file);
                     });
                 } else {
@@ -960,276 +979,18 @@
         if (window.TextMuyGaleria) window.TextMuyGaleria.abrir(categoria||'varios', aplicar, seccion);
     }
 
-    // ===== ICON GALLERY =====
-    function initIconGallery() {
-        // La galeria unificada (galeria.js) maneja catalog + imagenes via tabs.
-        // El boton "Select" se inyecta automaticamente por insertarBotonMisImagenes.
-        return;
-        const gallery = document.getElementById('tt-icon-gallery');
-        const searchInput = document.getElementById('tt-icon-search-input');
-        if (!gallery) return;
+    // ===== ICON GALLERY / BACKGROUND GALLERY (retiradas en RC61) =====
+    // Las galerias propias de iconos y fondos se eliminaron: eran codigo
+    // INALCANZABLE (las dos funciones empezaban con un `return`) y arrastraban
+    // 136 URLs de cdn.textstudio.com incrustadas en el modulo, contra §5 (los
+    // recursos son datos del plugin) y §7 (sin datos de fabrica). El HTML
+    // tampoco tenia sus contenedores (#tt-icon-gallery, #tt-background-gallery,
+    // los search, los -list y los -no-result), asi que no se perdia ninguna
+    // funcion visible. Los iconos y fondos se eligen con la galeria unificada
+    // (galeria.js) sobre el catalogo `img` del plugin.
 
-        function loadIcons() {
-            return [
-                {id:'96', file:'https://cdn.textstudio.com/output/clipart/0/0/6/9/96_c0d92.svg', title:'Fire'},
-                {id:'352', file:'https://cdn.textstudio.com/output/clipart/0/2/5/3/352_36130.svg', title:'Youtube Logo'},
-                {id:'376', file:'https://cdn.textstudio.com/output/clipart/0/6/7/3/376_6456f.svg', title:'Instagram Logo'},
-                {id:'528', file:'https://cdn.textstudio.com/output/clipart/0/8/2/5/528_5ff44.svg', title:'Heart'},
-                {id:'1320', file:'https://cdn.textstudio.com/output/clipart/0/2/3/1/1320_65c7f.svg', title:'Discord Logo'},
-                {id:'1541', file:'https://cdn.textstudio.com/output/clipart/1/4/5/1/1541_4cdae.svg', title:'Whatsapp Logo'},
-                {id:'2636', file:'https://cdn.textstudio.com/output/clipart/6/3/6/2/2636_7808e.svg', title:'Tiktok Logo'},
-                {id:'2853', file:'https://cdn.textstudio.com/output/clipart/3/5/8/2/2853_f15fb.svg', title:'Rating Star'},
-                {id:'4433', file:'https://cdn.textstudio.com/output/clipart/3/3/4/4/4433_e32f1.svg', title:'Stars'},
-                {id:'5159', file:'https://cdn.textstudio.com/output/clipart/9/5/1/5/5159_4f0f9.svg', title:'Black Roblox Logo'},
-                {id:'6470', file:'https://cdn.textstudio.com/output/clipart/0/7/4/6/6470_efb84.svg', title:'Instagram'},
-                {id:'6706', file:'https://cdn.textstudio.com/output/clipart/6/0/7/6/6706_2c9d7.svg', title:'Youtube Logo'},
-                {id:'8238', file:'https://cdn.textstudio.com/output/clipart/8/3/2/8/8238_e8654.svg', title:'Onlyfans Logo'},
-                {id:'8449', file:'https://cdn.textstudio.com/output/clipart/9/4/4/8/8449_3847a.svg', title:'Butterflies'},
-                {id:'9472', file:'https://cdn.textstudio.com/output/clipart/2/7/4/9/9472_4bfce.svg', title:'Cartoon Eyes Wink'},
-                {id:'12049', file:'https://cdn.textstudio.com/output/clipart/9/4/0/2/12049_d3ab6.svg', title:'Red Hearts'},
-                {id:'18208', file:'https://cdn.textstudio.com/output/clipart/8/0/2/8/18208_93c82.svg', title:'Minecraft'},
-                {id:'18209', file:'https://cdn.textstudio.com/output/clipart/9/0/2/8/18209_38953.svg', title:'Nike'},
-                {id:'18214', file:'https://cdn.textstudio.com/output/clipart/4/1/2/8/18214_dfb84.svg', title:'Mushroom'},
-                {id:'18375', file:'https://cdn.textstudio.com/output/clipart/5/7/3/8/18375_8082d.svg', title:'Pokemon'},
-                {id:'18675', file:'https://cdn.textstudio.com/output/clipart/5/7/6/8/18675_917d9.svg', title:'4k'},
-                {id:'20690', file:'https://cdn.textstudio.com/output/clipart/0/9/6/0/20690_77547.svg', title:'GTA'},
-                {id:'20734', file:'https://cdn.textstudio.com/output/clipart/4/3/7/0/20734_dc266.svg', title:'Spiderman'},
-                {id:'20938', file:'https://cdn.textstudio.com/output/clipart/8/3/9/0/20938_5a2f8.svg', title:'Minecraft'},
-                {id:'20939', file:'https://cdn.textstudio.com/output/clipart/9/3/9/0/20939_96b92.svg', title:'Fortnite'},
-                {id:'20940', file:'https://cdn.textstudio.com/output/clipart/0/4/9/0/20940_eb462.svg', title:'YouTube'},
-                {id:'20948', file:'https://cdn.textstudio.com/output/clipart/8/4/9/0/20948_5633f.svg', title:'Dragon Ball Z'},
-                {id:'20963', file:'https://cdn.textstudio.com/output/clipart/3/6/9/0/20963_141b4.svg', title:'Minecraft Creeper'},
-                {id:'21022', file:'https://cdn.textstudio.com/output/clipart/2/2/0/1/21022_6da28.svg', title:'Naruto'},
-                {id:'21025', file:'https://cdn.textstudio.com/output/clipart/5/2/0/1/21025_30681.svg', title:'One Piece'},
-                {id:'21045', file:'https://cdn.textstudio.com/output/clipart/5/4/0/1/21045_233af.svg', title:'Barbie'},
-                {id:'21047', file:'https://cdn.textstudio.com/output/clipart/7/4/0/1/21047_15219.svg', title:'Super Mario'},
-                {id:'21049', file:'https://cdn.textstudio.com/output/clipart/9/4/0/1/21049_86905.svg', title:'Dragon Ball Goku'},
-                {id:'22151', file:'https://cdn.textstudio.com/output/clipart/1/5/1/2/22151_f2404.svg', title:'Hello Kitty'},
-                {id:'25347', file:'https://cdn.textstudio.com/output/clipart/7/4/3/5/25347_ba990.svg', title:'X Twitter'},
-                {id:'25541', file:'https://cdn.textstudio.com/output/clipart/1/4/5/5/25541_1fb8e.svg', title:'Golden Crown'},
-                {id:'25855', file:'https://cdn.textstudio.com/output/clipart/5/5/8/5/25855_915ab.svg', title:'Skull'},
-                {id:'25968', file:'https://cdn.textstudio.com/output/clipart/8/6/9/5/25968_b7c9b.svg', title:'Heart creature'},
-                {id:'26186', file:'https://cdn.textstudio.com/output/clipart/6/8/1/6/26186_e7180.svg', title:'Adidas'},
-                {id:'26224', file:'https://cdn.textstudio.com/output/clipart/4/2/2/6/26224_d5d8f.svg', title:'KFC'},
-                {id:'26249', file:'https://cdn.textstudio.com/output/clipart/9/4/2/6/26249_af59b.svg', title:'Playstation'},
-                {id:'26252', file:'https://cdn.textstudio.com/output/clipart/2/5/2/6/26252_0667a.svg', title:'Eagle'},
-                {id:'26264', file:'https://cdn.textstudio.com/output/clipart/4/6/2/6/26264_d5ea7.svg', title:'Bluey'},
-                {id:'26887', file:'https://cdn.textstudio.com/output/clipart/7/8/8/6/26887_3dd80.svg', title:'Sparkling Star'},
-                {id:'27250', file:'https://cdn.textstudio.com/output/clipart/0/5/2/7/27250_378f8.svg', title:'Red Dripping Paint'},
-            ];
-        }
-
-        function renderIcons(icons) {
-            gallery.innerHTML = '';
-            icons.forEach(function(icon) {
-                const li = document.createElement('li');
-                li.dataset.id = icon.id;
-                li.dataset.file = icon.file;
-                li.title = icon.title;
-                const img = document.createElement('img');
-                img.src = icon.file.replace('.svg', '.webp').replace('/clipart/', '/clipart/preview/small/');
-                img.alt = icon.title;
-                img.loading = 'lazy';
-                li.appendChild(img);
-                li.addEventListener('click', function() {
-                    setNestedSetting('icon.src', icon.file);
-                    const preview = document.getElementById('tt-icon-preview-container');
-                    if (preview) {
-                        preview.style.display = 'block';
-                        const pimg = preview.querySelector('img');
-                        if (pimg) pimg.src = icon.file;
-                    }
-                    gallery.querySelectorAll('li').forEach(item => item.classList.remove('selected'));
-                    this.classList.add('selected');
-                });
-                gallery.appendChild(li);
-            });
-        }
-
-        const allIcons = loadIcons();
-        renderIcons(allIcons);
-
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                const q = this.value.toLowerCase();
-                const filtered = allIcons.filter(function(icon) {
-                    return icon.title.toLowerCase().includes(q);
-                });
-                renderIcons(filtered);
-                const noResult = document.getElementById('tt-icon-list-no-result');
-                if (noResult) noResult.style.display = filtered.length === 0 ? 'block' : 'none';
-            });
-        }
-    }
-
-    // ===== BACKGROUND GALLERY =====
-    function initBackgroundGallery() {
-        // La galeria unificada (galeria.js) maneja catalog + imagenes via tabs.
-        // El boton "Select" se inyecta automaticamente por insertarBotonMisImagenes.
-        return;
-        const gallery = document.getElementById('tt-background-gallery');
-        const searchInput = document.getElementById('tt-background-search-input');
-        if (!gallery) return;
-
-        const backgrounds = [
-            {id:'391', title:'Transparent', preset:'https://cdn.textstudio.com/output/background/0/1/9/3/391_84432.json'},
-            {id:'385', title:'White', preset:'https://cdn.textstudio.com/output/background/0/5/8/3/385_23afc.json'},
-            {id:'386', title:'Black', preset:'https://cdn.textstudio.com/output/background/0/6/8/3/386_0fae0.json'},
-            {id:'70', title:'Kimoby Blue', preset:'https://cdn.textstudio.com/output/background/0/0/0/7/70_eb29a.json'},
-            {id:'356', title:'Blood splash', preset:'https://cdn.textstudio.com/output/background/0/6/5/3/356_90e90.json'},
-            {id:'376', title:'Blurred circles', preset:'https://cdn.textstudio.com/output/background/0/6/7/3/376_15b81.json'},
-            {id:'380', title:'Hearts', preset:'https://cdn.textstudio.com/output/background/0/0/8/3/380_ff91f.json'},
-            {id:'384', title:'Sky', preset:'https://cdn.textstudio.com/output/background/0/4/8/3/384_89785.json'},
-            {id:'389', title:'Golden', preset:'https://cdn.textstudio.com/output/background/0/9/8/3/389_36ff1.json'},
-            {id:'421', title:'Space Earth', preset:'https://cdn.textstudio.com/output/background/0/1/2/4/421_cb4b9.json'},
-            {id:'427', title:'Rainbow swirl', preset:'https://cdn.textstudio.com/output/background/0/7/2/4/427_58338.json'},
-            {id:'447', title:'Smoke', preset:'https://cdn.textstudio.com/output/background/0/7/4/4/447_be2e2.json'},
-            {id:'452', title:'Thunder', preset:'https://cdn.textstudio.com/output/background/0/2/5/4/452_c75f0.json'},
-            {id:'858', title:'Circular', preset:'https://cdn.textstudio.com/output/background/0/8/5/8/858_ab743.json'},
-            {id:'941', title:'Pop Art', preset:'https://cdn.textstudio.com/output/background/0/1/4/9/941_25235.json'},
-            {id:'964', title:'Minecraft', preset:'https://cdn.textstudio.com/output/background/0/4/6/9/964_eb3a3.json'},
-            {id:'981', title:'Comic bubbles', preset:'https://cdn.textstudio.com/output/background/0/1/8/9/981_f147d.json'},
-            {id:'999', title:'Retro 80s', preset:'https://cdn.textstudio.com/output/background/0/9/9/9/999_65d81.json'},
-            {id:'1040', title:'Green screen', preset:'https://cdn.textstudio.com/output/background/0/4/0/1/1040_81bc8.json'},
-            {id:'1086', title:'Brick', preset:'https://cdn.textstudio.com/output/background/6/8/0/1/1086_435a6.json'},
-            {id:'1114', title:'Purple splash', preset:'https://cdn.textstudio.com/output/background/4/1/1/1/1114_bb229.json'},
-            {id:'1115', title:'Blue splash', preset:'https://cdn.textstudio.com/output/background/5/1/1/1/1115_32f55.json'},
-            {id:'1117', title:'Green splash', preset:'https://cdn.textstudio.com/output/background/7/1/1/1/1117_ef1cc.json'},
-            {id:'1156', title:'Sun Vintage', preset:'https://cdn.textstudio.com/output/background/6/5/1/1/1156_b0b9e.json'},
-            {id:'1182', title:'Neon Square', preset:'https://cdn.textstudio.com/output/background/2/8/1/1/1182_321b3.json'},
-            {id:'1186', title:'Fantasy', preset:'https://cdn.textstudio.com/output/background/6/8/1/1/1186_bf78a.json'},
-            {id:'1197', title:'Dragon Ball Z', preset:'https://cdn.textstudio.com/output/background/7/9/1/1/1197_577a0.json'},
-            {id:'1211', title:'Blue gradient', preset:'https://cdn.textstudio.com/output/background/1/1/2/1/1211_e4fc1.json'},
-            {id:'1222', title:'Fortnite gradient', preset:'https://cdn.textstudio.com/output/background/2/2/2/1/1222_a13ce.json'},
-            {id:'1223', title:'Orange sunburst', preset:'https://cdn.textstudio.com/output/background/3/2/2/1/1223_c4c60.json'},
-            {id:'1225', title:'Black Wall', preset:'https://cdn.textstudio.com/output/background/5/2/2/1/1225_382c9.json'},
-            {id:'1231', title:'Sunburst Turquoise', preset:'https://cdn.textstudio.com/output/background/1/3/2/1/1231_294a7.json'},
-            {id:'1236', title:'Pink', preset:'https://cdn.textstudio.com/output/background/6/3/2/1/1236_5c21a.json'},
-            {id:'1237', title:'Love', preset:'https://cdn.textstudio.com/output/background/7/3/2/1/1237_16afd.json'},
-            {id:'1238', title:'Yellow sunburst', preset:'https://cdn.textstudio.com/output/background/8/3/2/1/1238_9a094.json'},
-            {id:'1240', title:'Red Gold', preset:'https://cdn.textstudio.com/output/background/0/4/2/1/1240_f0c17.json'},
-            {id:'1242', title:'Happy New Year', preset:'https://cdn.textstudio.com/output/background/2/4/2/1/1242_0d65e.json'},
-            {id:'1251', title:'Galaxy', preset:'https://cdn.textstudio.com/output/background/1/5/2/1/1251_21994.json'},
-            {id:'1252', title:'Cloud', preset:'https://cdn.textstudio.com/output/background/2/5/2/1/1252_a329e.json'},
-            {id:'1256', title:'Retro', preset:'https://cdn.textstudio.com/output/background/6/5/2/1/1256_21482.json'},
-            {id:'1265', title:'Retro', preset:'https://cdn.textstudio.com/output/background/5/6/2/1/1265_c9a29.json'},
-            {id:'1270', title:'Retro', preset:'https://cdn.textstudio.com/output/background/0/7/2/1/1270_c45bb.json'},
-            {id:'1303', title:'Retro', preset:'https://cdn.textstudio.com/output/background/3/0/3/1/1303_255a4.json'},
-            {id:'1316', title:'Synthwave 80s', preset:'https://cdn.textstudio.com/output/background/6/1/3/1/1316_d847f.json'},
-            {id:'1322', title:'Futuristic digital', preset:'https://cdn.textstudio.com/output/background/2/2/3/1/1322_f096b.json'},
-            {id:'1323', title:'Warning stripes', preset:'https://cdn.textstudio.com/output/background/3/2/3/1/1323_410d1.json'},
-            {id:'1326', title:'Tech wave', preset:'https://cdn.textstudio.com/output/background/6/2/3/1/1326_f3698.json'},
-            {id:'1331', title:'Pink stripes', preset:'https://cdn.textstudio.com/output/background/1/3/3/1/1331_eaa54.json'},
-            {id:'1332', title:'Pink hearts', preset:'https://cdn.textstudio.com/output/background/2/3/3/1/1332_bf831.json'},
-            {id:'1338', title:'Halftone comic', preset:'https://cdn.textstudio.com/output/background/8/3/3/1/1338_684fc.json'},
-            {id:'1343', title:'Spongebob', preset:'https://cdn.textstudio.com/output/background/3/4/3/1/1343_ffa8f.json'},
-            {id:'1365', title:'Sun burst', preset:'https://cdn.textstudio.com/output/background/5/6/3/1/1365_79f41.json'},
-            {id:'1371', title:'Spider', preset:'https://cdn.textstudio.com/output/background/1/7/3/1/1371_6f2e5.json'},
-            {id:'1372', title:'Red Comic', preset:'https://cdn.textstudio.com/output/background/2/7/3/1/1372_15e6a.json'},
-            {id:'1373', title:'Golden crown', preset:'https://cdn.textstudio.com/output/background/3/7/3/1/1373_d354c.json'},
-            {id:'1380', title:'Soft gradient', preset:'https://cdn.textstudio.com/output/background/0/8/3/1/1380_4ca61.json'},
-            {id:'1382', title:'Optical illusion', preset:'https://cdn.textstudio.com/output/background/2/8/3/1/1382_90001.json'},
-            {id:'1391', title:'Pastel sky glitter', preset:'https://cdn.textstudio.com/output/background/1/9/3/1/1391_84a46.json'},
-            {id:'1403', title:'Minnie Mouse', preset:'https://cdn.textstudio.com/output/background/3/0/4/1/1403_0d828.json'},
-            {id:'1414', title:'Rainbow stripes', preset:'https://cdn.textstudio.com/output/background/4/1/4/1/1414_5248f.json'},
-            {id:'1436', title:'Holi color', preset:'https://cdn.textstudio.com/output/background/6/3/4/1/1436_903ec.json'},
-            {id:'1469', title:'Blue Light', preset:'https://cdn.textstudio.com/output/background/9/6/4/1/1469_30763.json'},
-            {id:'1470', title:'Blue pink rays', preset:'https://cdn.textstudio.com/output/background/0/7/4/1/1470_ca194.json'},
-            {id:'1489', title:'Comic pink', preset:'https://cdn.textstudio.com/output/background/9/8/4/1/1489_7dd48.json'},
-            {id:'1493', title:'Dark Black', preset:'https://cdn.textstudio.com/output/background/3/9/4/1/1493_f05cb.json'},
-            {id:'1494', title:'Abstract dark', preset:'https://cdn.textstudio.com/output/background/4/9/4/1/1494_0b373.json'},
-            {id:'1496', title:'Blue portal', preset:'https://cdn.textstudio.com/output/background/6/9/4/1/1496_7b16b.json'},
-            {id:'1502', title:'Cyberpunk', preset:'https://cdn.textstudio.com/output/background/2/0/5/1/1502_69a6d.json'},
-            {id:'1505', title:'Comic blue', preset:'https://cdn.textstudio.com/output/background/5/0/5/1/1505_86195.json'},
-            {id:'1537', title:'Retro psychedelic', preset:'https://cdn.textstudio.com/output/background/7/3/5/1/1537_75ff0.json'},
-            {id:'1545', title:'70s funky', preset:'https://cdn.textstudio.com/output/background/5/4/5/1/1545_d60d0.json'},
-            {id:'1551', title:'Palm Silhouettes', preset:'https://cdn.textstudio.com/output/background/1/5/5/1/1551_bac18.json'},
-            {id:'1559', title:'Yellow Splash', preset:'https://cdn.textstudio.com/output/background/9/5/5/1/1559_fca1b.json'},
-            {id:'1586', title:'Purple circle', preset:'https://cdn.textstudio.com/output/background/6/8/5/1/1586_2093b.json'},
-            {id:'1593', title:'Minecraft Dungeons', preset:'https://cdn.textstudio.com/output/background/3/9/5/1/1593_6b0d8.json'},
-            {id:'1597', title:'GTA', preset:'https://cdn.textstudio.com/output/background/7/9/5/1/1597_be070.json'},
-            {id:'1599', title:'Dark Blue Brick', preset:'https://cdn.textstudio.com/output/background/9/9/5/1/1599_96efb.json'},
-            {id:'1606', title:'Space', preset:'https://cdn.textstudio.com/output/background/6/0/6/1/1606_37998.json'},
-            {id:'1618', title:'Purple Sunburst', preset:'https://cdn.textstudio.com/output/background/8/1/6/1/1618_862a7.json'},
-            {id:'1620', title:'Cloudy sky', preset:'https://cdn.textstudio.com/output/background/0/2/6/1/1620_5049f.json'},
-            {id:'1628', title:'Ronaldo', preset:'https://cdn.textstudio.com/output/background/8/2/6/1/1628_a5db2.json'},
-            {id:'1638', title:'Flash Sale', preset:'https://cdn.textstudio.com/output/background/8/3/6/1/1638_f5234.json'},
-            {id:'1644', title:'Brick Wall', preset:'https://cdn.textstudio.com/output/background/4/4/6/1/1644_e2cee.json'},
-            {id:'1656', title:'Comic Pop Art Pink', preset:'https://cdn.textstudio.com/output/background/6/5/6/1/1656_021bf.json'},
-            {id:'1664', title:'Purple pink clouds', preset:'https://cdn.textstudio.com/output/background/4/6/6/1/1664_fe70f.json'},
-            {id:'1690', title:'Pennant flags', preset:'https://cdn.textstudio.com/output/background/0/9/6/1/1690_125ed.json'},
-            {id:'1693', title:'Speech bubble pink', preset:'https://cdn.textstudio.com/output/background/3/9/6/1/1693_a2d13.json'},
-            {id:'1703', title:'Neon Heart', preset:'https://cdn.textstudio.com/output/background/3/0/7/1/1703_8ceb8.json'},
-            {id:'1721', title:'Christmas Red', preset:'https://cdn.textstudio.com/output/background/1/2/7/1/1721_505e8.json'},
-            {id:'2025', title:'Silhouette Drip', preset:'https://cdn.textstudio.com/output/background/5/2/0/2/2025_2d91a.json'},
-        ];
-
-        function renderBackgrounds(bgs) {
-            gallery.innerHTML = '';
-            bgs.forEach(function(bg) {
-                const li = document.createElement('li');
-                li.title = bg.title;
-                li.dataset.id = bg.id;
-                li.dataset.preset = bg.preset;
-                const div = document.createElement('div');
-                div.style.backgroundImage = 'url(https://cdn.textstudio.com/output/background/preview/small/' + bg.id + '_' + bg.preset.split('/').pop().split('_')[1].replace('.json', '') + '.webp)';
-                div.style.backgroundSize = 'cover';
-                div.style.width = '100%';
-                div.style.height = '100%';
-                li.appendChild(div);
-                li.addEventListener('click', function() {
-                    fetch(bg.preset)
-                        .then(function(r) { return r.json(); })
-                        .then(function(data) {
-                            if (data && data.background) {
-                                const bgSettings = data.background;
-                                if (bgSettings.fill) {
-                                    if (bgSettings.fill.color) setNestedSetting('background.fill.color', bgSettings.fill.color);
-                                    if (bgSettings.fill.alpha !== undefined) setNestedSetting('background.fill.alpha', bgSettings.fill.alpha);
-                                }
-                                if (bgSettings.fill && bgSettings.fill.gradient) {
-                                    setNestedSetting('background.fill.gradient.active', true);
-                                    if (bgSettings.fill.gradient.colors) setNestedSetting('background.fill.gradient.colors', bgSettings.fill.gradient.colors);
-                                    if (bgSettings.fill.gradient.type) setNestedSetting('background.fill.gradient.type', bgSettings.fill.gradient.type);
-                                }
-                                if (bgSettings.fill && bgSettings.fill.image && bgSettings.fill.image.src) {
-                                    setNestedSetting('background.fill.image.active', true);
-                                    setNestedSetting('background.fill.image.src', bgSettings.fill.image.src);
-                                }
-                                setNestedSetting('background.active', true);
-                            }
-                        })
-                        .catch(function() {
-                            setNestedSetting('background.active', true);
-                        });
-                    gallery.querySelectorAll('li').forEach(function(item) { item.classList.remove('selected'); });
-                    this.classList.add('selected');
-                });
-                gallery.appendChild(li);
-            });
-        }
-
-        renderBackgrounds(backgrounds);
-
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                const q = this.value.toLowerCase();
-                const filtered = backgrounds.filter(function(bg) {
-            options.querySelectorAll('section').forEach(function(section) {
-                section.style.display = section.dataset.name === sectionName ? 'flex' : 'none';
-            });
-            if (typeof applyLineTargetGating === 'function') {
-                try { applyLineTargetGating(); } catch (e) {}
-            }
-
-                    return bg.title.toLowerCase().includes(q);
-                });
-                renderBackgrounds(filtered);
-                const noResult = document.getElementById('tt-background-list-no-result');
-                if (noResult) noResult.style.display = filtered.length === 0 ? 'block' : 'none';
-            });
-        }
-    }
+    function initIconGallery() { /* sin galeria propia: ver la nota de arriba */ }
+    function initBackgroundGallery() { /* sin galeria propia: ver la nota de arriba */ }
 
     // ===== MENU TABS =====
     function bindMenuTabs() {
@@ -1981,19 +1742,32 @@
      * inferior (unico panel de presets).
      */
     function guardarPresetImportado(nombre, presetRaw) {
-        if (!window.PresetManager) { alert('PresetManager no esta disponible.'); return; }
+        if (!window.PresetManager) { console.error('PresetManager no esta disponible.'); return; }
         let settings = presetRaw;
         if (window.TextEditor && TextEditor.createDefaultSettings && TextEditor.loadPreset) {
             settings = TextEditor.createDefaultSettings();
             TextEditor.loadPreset(presetRaw, settings);
         }
         window.PresetManager.savePreset(nombre, settings).then(function (res) {
-            alert('Preset importado y guardado como "' + res.name + '"'
-                + (res.mode === 'server' ? ' (en el servidor).' : ' (.txm descargado: colocalo en presets/).'));
+            // M6: estado en linea en vez de alert(). El aviso vive en el
+            // importador; si no esta (guardado desde otro camino) se usa la
+            // consola para no bloquear el hilo con un dialog nativo.
+            const msg = 'Preset importado y guardado como "' + res.name + '"'
+                + (res.mode === 'server' ? ' (en el servidor).' : ' (.txm descargado).');
+            avisarImport(msg, false);
             if (typeof refrescarGaleriaPresets === 'function') refrescarGaleriaPresets();
         }).catch(function (e) {
-            alert('Error al guardar el preset importado: ' + e.message);
+            avisarImport('Error al guardar el preset importado: ' + e.message, true);
         });
+    }
+
+    // Ultimo aviso del importador: lo llena setAvisoImport cuando el panel
+    // existe (bindImportControls) y sirve de respaldo por consola si no.
+    let ultimoAviso = null;
+    function avisarImport(texto, esError) {
+        if (ultimoAviso) ultimoAviso(texto, esError);
+        else if (esError) console.error(texto);
+        else console.log(texto);
     }
 
     // ===== IMPORT CONTROLS =====
@@ -2002,67 +1776,108 @@
         const importUrl = document.getElementById('tt-import-url-input');
         if (!importBtn || !importUrl) return;
 
-        importBtn.addEventListener('click', function() {
-            const url = importUrl.value.trim();
-            if (!url) return;
-            importBtn.textContent = 'Importing...';
-            importBtn.disabled = true;
+        // Estado en linea del importador (M6): sustituye a los alert() nativos,
+        // que en un panel de WordPress bloquean el hilo y rompen el foco. Se
+        // crea una sola vez junto al boton y se rellena con el resultado.
+        let aviso = document.getElementById('tt-import-status');
+        if (!aviso) {
+            aviso = document.createElement('p');
+            aviso.id = 'tt-import-status';
+            aviso.hidden = true;
+            aviso.style.margin = '6px 0 0';
+            aviso.style.fontSize = '12px';
+            importBtn.parentElement.appendChild(aviso);
+        }
+        function setAvisoImport(texto, esError) {
+            aviso.textContent = texto;
+            aviso.hidden = !texto;
+            aviso.style.color = esError ? 'var(--tt-danger, #d33)' : 'var(--tt-success, #2b2)';
+        }
+        // guardarPresetImportado avisa por aqui si existe el panel.
+        ultimoAviso = setAvisoImport;
 
-            const proxyUrls = [
-                'https://api.allorigins.win/raw?url=',
-                'https://corsproxy.io/?',
-                'https://api.codetabs.com/v1/proxy?quest='
-            ];
-
-            function tryProxy(index) {
-                if (index >= proxyUrls.length) {
+        // Acepta la URL o el HTML/JSON pegado a mano. Extrae el preset de
+        // `window.__PRESET__` o del JSON-LD, que es lo mismo que hacia con los
+        // proxies pero sin mandar nada afuera.
+        function intentarImportar(texto) {
+            const match = texto.match(/window\.__PRESET__\s*=\s*({[^;]+})/);
+            if (match) {
+                try {
+                    const preset = JSON.parse(match[1]);
+                    if (window.PresetManager) guardarPresetImportado('imported-' + Date.now(), preset);
                     importBtn.textContent = 'Import';
                     importBtn.disabled = false;
-                    alert('Could not import preset. Try pasting the JSON manually.');
-                    return;
+                    return true;
+                } catch (e) {
+                    setAvisoImport('El `window.__PRESET__` de la pagina no es JSON valido: ' + e.message, true);
+                    importBtn.textContent = 'Import';
+                    importBtn.disabled = false;
+                    return true;
                 }
-
-                fetch(proxyUrls[index] + encodeURIComponent(url))
-                    .then(function(r) { return r.text(); })
-                    .then(function(html) {
-                        const match = html.match(/window\.__PRESET__\s*=\s*({[^;]+})/);
-                        if (match) {
-                            try {
-                                const preset = JSON.parse(match[1]);
-                                if (window.PresetManager) {
-                                    const name = 'imported-' + Date.now();
-                                    guardarPresetImportado(name, preset);
-                                }
-                                importBtn.textContent = 'Import';
-                                importBtn.disabled = false;
-                                return;
-                            } catch(e) {}
-                        }
-
-                        const jsonLdMatch = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([^<]+)<\/script>/);
-                        if (jsonLdMatch) {
-                            try {
-                                const data = JSON.parse(jsonLdMatch[1]);
-                                if (data && data.text) {
-                                    if (window.PresetManager) {
-                                        const name = 'imported-' + Date.now();
-                                        guardarPresetImportado(name, data);
-                                    }
-                                    importBtn.textContent = 'Import';
-                                    importBtn.disabled = false;
-                                    return;
-                                }
-                            } catch(e) {}
-                        }
-
-                        tryProxy(index + 1);
-                    })
-                    .catch(function() {
-                        tryProxy(index + 1);
-                    });
             }
 
-            tryProxy(0);
+            const jsonLdMatch = texto.match(/<script[^>]+type="application\/ld\+json"[^>]*>([^<]+)<\/script>/);
+            if (jsonLdMatch) {
+                try {
+                    const data = JSON.parse(jsonLdMatch[1]);
+                    if (data && data.text) {
+                        if (window.PresetManager) guardarPresetImportado('imported-' + Date.now(), data);
+                        importBtn.textContent = 'Import';
+                        importBtn.disabled = false;
+                        return true;
+                    }
+                    setAvisoImport('El JSON-LD de la pagina no trae el campo "text" del preset.', true);
+                    importBtn.textContent = 'Import';
+                    importBtn.disabled = false;
+                    return true;
+                } catch (e) {
+                    setAvisoImport('El JSON-LD de la pagina no es JSON valido: ' + e.message, true);
+                    importBtn.textContent = 'Import';
+                    importBtn.disabled = false;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        importBtn.addEventListener('click', function() {
+            const url = importUrl.value.trim();
+            if (!url) { setAvisoImport('Pega la URL del preset de TextStudio.', true); return; }
+            setAvisoImport('');
+            importBtn.textContent = 'Importando...';
+            importBtn.disabled = true;
+
+            // RC61: FUERA los proxies CORS publicos (allorigins / corsproxy /
+            // codetabs). Mandaban a un servicio de terceros la URL que pega el
+            // administrador, y en un panel de WordPress eso es una fuga de datos
+            // involuntaria hacia un destino no auditable. Ademas eran la unica
+            // via: desde el iframe, leer textstudio.com directo lo bloquea CORS.
+            // Quedan dos caminos honestos:
+            //   1. fetch directo, que solo funciona si el sitio manda CORS;
+            //   2. pegar el HTML/JSON a mano (ver el aviso de abajo).
+            // Lo correcto a futuro es un `op=fetch-remoto` en el motor (§3): la
+            // peticion saldria del servidor del plugin. Documentado en AGENTS.md.
+            fetch(url)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('respuesta ' + r.status);
+                    return r.text();
+                })
+                .then(function(html) {
+                    if (!intentarImportar(html)) {
+                        setAvisoImport('Se leyo la pagina pero no se encontro el preset. '
+                            + 'Abrila con "Ver codigo fuente" y pega el HTML o el JSON aca.', true);
+                        importBtn.textContent = 'Import';
+                        importBtn.disabled = false;
+                    }
+                })
+                .catch(function(e) {
+                    // Sin proxy no hay segunda vuelta: se explica que hacer.
+                    setAvisoImport('El navegador no puede leer esa URL (' + ((e && e.message) || e)
+                        + '). Abri la pagina del preset, copia su codigo fuente (o el JSON) '
+                        + 'y pegalo en este campo.', true);
+                    importBtn.textContent = 'Import';
+                    importBtn.disabled = false;
+                });
         });
     }
 

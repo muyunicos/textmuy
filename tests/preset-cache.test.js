@@ -14,12 +14,12 @@ global.localStorage = { getItem: function() { return null; }, setItem: function(
 global.document = { fonts: null };
 global.fetch = function() {
     fetchCalls++;
-    // Respuesta con forma de .txm (delta textmuy-project v1).
+    // Respuesta con forma de .txm (delta textmuy-project v2).
     return Promise.resolve({
         ok: true,
         json: function() {
             // Delta valido: font.src canonico (id del catalogo o string).
-            return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { n: fetchCalls, font: { src: 1 } } });
+            return Promise.resolve({ format: 'textmuy-project', version: 2, settings: { n: fetchCalls, font: { src: 1 } } });
         }
     });
 };
@@ -60,7 +60,7 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
         return Promise.resolve({
             ok: true,
             json: function() {
-                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { font: { src: 'Nintender Regular' } } });
+                return Promise.resolve({ format: 'textmuy-project', version: 2, settings: { font: { src: 'Nintender Regular' } } });
             }
         });
     };
@@ -73,7 +73,7 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
         return Promise.resolve({
             ok: true,
             json: function() {
-                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { font: { src: {} } } });
+                return Promise.resolve({ format: 'textmuy-project', version: 2, settings: { font: { src: {} } } });
             }
         });
     };
@@ -81,6 +81,27 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
     global.fetch = fetchBase;
     const relegado = await API.loadPresetByName('invalido-str');
     assert.equal(relegado.font.src, 1, 'tras el rechazo, el retry valido resuelve');
+    API.clearPresetCache();
+    fetchCalls = 0;
+
+    // 1d. La VERSION del formato se valida (A1, constitucion IV/VII): antes solo
+    //     se miraban `format` y `settings`, asi que un `.txm` v1 sin `lines`
+    //     entraba en silencio (el validador de lineas de preset-manager solo
+    //     rechaza cuando hay `overrides` 0-based o `sizing` global). El rechazo
+    //     NO se cachea: al igual que un fallo de red, el retry debe reevaluar.
+    global.fetch = function() {
+        return Promise.resolve({
+            ok: true,
+            json: function() {
+                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { font: { src: 1 } } });
+            }
+        });
+    };
+    await assert.rejects(API.loadPresetByName('version-vieja'), /formato:version/,
+        'un .txm v1 se rechaza con causa, aunque no declare lines');
+    global.fetch = fetchBase;
+    const trasRechazo = await API.loadPresetByName('version-vieja');
+    assert.equal(trasRechazo.n, 1, 'tras el rechazo por version, el retry valido resuelve');
     API.clearPresetCache();
     fetchCalls = 0;
 
@@ -102,7 +123,7 @@ assert.ok(PM && PM.settingsFromDelta, 'PresetManager should be exposed (api.js n
             ok: true,
             json: function() {
                 // Delta valido (font.src canonico: id numerico del catalogo).
-                return Promise.resolve({ format: 'textmuy-project', version: 1, settings: { retry: true, font: { src: 2 } } });
+                return Promise.resolve({ format: 'textmuy-project', version: 2, settings: { retry: true, font: { src: 2 } } });
             }
         });
     };

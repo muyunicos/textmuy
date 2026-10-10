@@ -28,10 +28,18 @@ const RAIZ = path.resolve(__dirname, '..');
 // Extensiones de TEXTO propias del modulo. Se excluyen a proposito:
 //  - js/utils/*.min.js : vendors minificados, no se tocan (AGENTS.md 6)
 //  - .specify/**       : archivos gestionados por el CLI (no editar a mano)
+// Los archivos SIN extension de la raiz se listan aparte (ARRAIGADOS): el
+// filtro por extension dejaba fuera .editorconfig y .gitattributes, que son
+// justamente los que fijan charset/EOL, y estaban en CRLF en el worktree
+// mientras la suite daba verde (falso positivo, M2).
+const ARRAIGADOS = ['.editorconfig', '.gitattributes'];
 function esTextoDelModulo(rel) {
+    if (ARRAIGADOS.indexOf(rel) !== -1) return true;
     if (/(^|[\\/])js[\\/]utils[\\/]/.test(rel)) return false;      // vendors .min
     if (/(^|[\\/])\.specify[\\/]/.test(rel)) return false;          // gestionados
     if (/(^|[\\/])\.git[\\/]/.test(rel)) return false;
+    if (/(^|[\\/])\.clinerules[\\/]/.test(rel)) return false;       // gestionados
+    if (/(^|[\\/])\.vscode[\\/]/.test(rel)) return false;           // config local
     return /\.(js|css|html|md|json|txt|ps1)$/i.test(rel);
 }
 
@@ -58,15 +66,29 @@ assert.equal(initOpts.script, 'ps',
     '.specify/init-options.json: script debe ser "ps" (PowerShell), no bash');
 
 // --- 3) UTF-8 sin BOM y EOL uniforme en el texto propio del modulo -----------
-const archivos = recorrer(RAIZ, []).filter(esTextoDelModulo);
+// OJO: recorrer() devuelve rutas ABSOLUTAS. El filtro necesita la ruta
+// RELATIVA con separador '/', porque ARRAIGADOS compara nombres relativos y
+// los regex de exclusion usan '/' (en Windows path.relative da '\\'). Pasarle
+// la absoluta hacia que .editorconfig y .gitattributes nunca coincidieran y
+// quedaran fuera del barrido: justo los dos archivos que fijan charset y EOL.
+const archivos = recorrer(RAIZ, [])
+    .map((abs) => ({ abs: abs, rel: path.relative(RAIZ, abs).split(path.sep).join('/') }))
+    .filter(function (e) { return esTextoDelModulo(e.rel); });
 assert.ok(archivos.length > 20, 'se encontraron archivos de texto a validar (control de cobertura)');
+
+// Cobertura explicita: los arraigados DEBEN entrar al barrido (M2). Sin esto
+// el filtro por extension los volvia a dejar fuera en silencio.
+ARRAIGADOS.forEach(function (nombre) {
+    assert.ok(archivos.some(function (e) { return e.rel === nombre; }),
+        nombre + ' debe validarse (BOM/CRLF/UTF-8): si no entra al barrido, la guarda es inutil');
+});
 
 const conBOM = [];
 const conCRLF = [];
 const noUTF8 = [];
-for (const abs of archivos) {
-    const rel = path.relative(RAIZ, abs).replace(/\\/g, '/');
-    const buf = fs.readFileSync(abs);
+for (const e of archivos) {
+    const rel = e.rel;
+    const buf = fs.readFileSync(e.abs);
 
     // BOM UTF-8 (EF BB BF) o UTF-16 (FF FE / FE FF) prohibidos.
     if ((buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) ||

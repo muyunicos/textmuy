@@ -9,7 +9,7 @@
       familia del template/preset activo (google:"Familia:wght@...") via
       ensureGoogleFontBySpec() justo antes de renderizar. Al abrir: cero fuentes. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=RC59">
+    <link rel="stylesheet" href="css/style.css?v=RC61">
 </head>
 <body>
     <div id="content">
@@ -86,7 +86,7 @@
                                             <span id="tt-max-font-size-label-text">Max Font Size (1 character)</span>
                                             <span class="tt-global-hint" id="tt-max-font-size-hint" title="Tope del texto completo: afecta a todas las lineas">global</span>
                                         </label>
-                                        <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="V+'%'"><output>100%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="pct-directo"><output>100%</output></div>
                                         <label class="tt-label" for="tt-line-sizing-ref-input" data-line-sizing-label hidden><span>Sizing ref:</span></label>
                                         <select id="tt-line-sizing-ref-input" data-line-sizing-ref hidden>
                                             <option value="canvas">Canvas</option>
@@ -94,7 +94,7 @@
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-margin-input"><span>Margin:</span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="0" max="50" step="1" value="0" id="tt-canvas-margin-input" data-bubble="V+'%'"><output>0%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="50" step="1" value="0" id="tt-canvas-margin-input" data-bubble="pct-directo"><output>0%</output></div>
                                     </div>
                                     <div class="tt-option" style="flex:1">
                                         <textarea id="tt-text-textarea" spellcheck="false" placeholder="Your text..." data-tt-option="text" rows="3" cols="20"></textarea>
@@ -133,23 +133,23 @@
                                 <div class="tt-column-inner" id="tt-column-text-settings">
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-zoom-input"><span>Zoom:</span><span class="tt-undo" data-undo-control="tt-canvas-zoom-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="0" max="300" step="1" value="100" id="tt-canvas-zoom-input" data-tt-option="canvas.zoom" data-bubble="V+'%'"><output style="left: calc(33.333% + 0.333px);">100%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="0" max="300" step="1" value="100" id="tt-canvas-zoom-input" data-tt-option="canvas.zoom" data-bubble="pct-directo"><output style="left: calc(33.333% + 0.333px);">100%</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-letter-spacing-input"><span>Character spacing:</span><span class="tt-undo" data-undo-control="tt-letter-spacing-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="-0.5" max="1.5" step="0.01" value="0.0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" data-bubble="Math.round(V*100)+'%'"><output style="left: calc(25% + 4.25px); display: none;">0%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="-0.5" max="1.5" step="0.01" value="0.0" id="tt-letter-spacing-input" data-tt-option="letterSpacing" data-bubble="pct"><output style="left: calc(25% + 4.25px); display: none;">0%</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-line-height-input"><span>Line height:</span><span class="tt-undo" data-undo-control="tt-line-height-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="-100" max="200" step="5" value="0" id="tt-line-height-input" data-tt-option="lineHeight" data-bubble="V+'%'"><output style="left: calc(50% + 0.5px);">0%</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="-100" max="200" step="5" value="0" id="tt-line-height-input" data-tt-option="lineHeight" data-bubble="pct-directo"><output style="left: calc(50% + 0.5px);">0%</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-distort-arc-angle-input"><span>Curve the text:</span><span class="tt-undo" data-undo-control="tt-distort-arc-angle-input" style="display: none;"></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-distort-arc-angle-input" data-tt-option="distort.arc.angle" data-bubble="V+'°'"><output style="left: calc(50% + 0.5px);">0°</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-distort-arc-angle-input" data-tt-option="distort.arc.angle" data-bubble="grado"><output style="left: calc(50% + 0.5px);">0°</output></div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-rotate-input"><span>Rotation:</span><span class="tt-undo" data-undo-control="tt-rotate-input" ></span></label>
-                                        <div class="tt-range-bubble"><input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" data-bubble="V+'°'"><output style="left: calc(27.0833% + 3.9375px); display: none;">-82.5°</output></div>
+                                        <div class="tt-range-bubble"><input type="range" min="-180" max="180" step="2.5" value="0" id="tt-rotate-input" data-tt-option="rotate" data-bubble="grado"><output style="left: calc(27.0833% + 3.9375px); display: none;">-82.5°</output></div>
                                     </div>
                                 </div>
                             </div>
@@ -202,7 +202,7 @@
                                             </legend>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-tilt-input" title="Inclinaci�n m�xima de las letras, en grados. En Follow wave cae a mitad del viaje (subiendo/bajando); en By position cae en la primera y �ltima letra"><span>Tilt</span></label>
-                                                <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-lettering-flag-tilt-input" data-tt-option="lettering.flag.tilt" data-bubble="V+'\u00B0'"><output>0&#176;</output></div>
+                                                <div class="tt-range-bubble"><input type="range" min="-360" max="360" step="1" value="0" id="tt-lettering-flag-tilt-input" data-tt-option="lettering.flag.tilt" data-bubble="grado"><output>0&#176;</output></div>
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-tilt-mode-input" title="C�mo se inclinan las letras: siguiendo la pendiente de la onda (bandera natural: m�x inclinaci�n al subir/bajar, casi verticales en crestas y valles) o por posici�n (arco progresivo de + a -)"><span>Tilt mode</span></label>
@@ -213,15 +213,15 @@
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-rise-input" title="Cu�nto sube (o baja, en negativo) cada letra en los extremos, en % del tama�o de fuente"><span>Rise</span></label>
-                                                <div class="tt-range-bubble"><input type="range" min="-100" max="100" step="1" value="0" id="tt-lettering-flag-rise-input" data-tt-option="lettering.flag.rise" data-bubble="V+'%'"><output>0%</output></div>
+                                                <div class="tt-range-bubble"><input type="range" min="-100" max="100" step="1" value="0" id="tt-lettering-flag-rise-input" data-tt-option="lettering.flag.rise" data-bubble="pct-directo"><output>0%</output></div>
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-wave-width-input" title="% del texto que ocupa cada oscilaci�n: 100% = un solo barrido de + a - a lo largo del texto; m�nimo = zigzag letra por letra"><span>Wave width</span></label>
-                                                <div class="tt-range-bubble"><input type="range" min="1" max="100" step="1" value="100" id="tt-lettering-flag-wave-width-input" data-tt-option="lettering.flag.waveWidth" data-bubble="V+'%'"><output>100%</output></div>
+                                                <div class="tt-range-bubble"><input type="range" min="1" max="100" step="1" value="100" id="tt-lettering-flag-wave-width-input" data-tt-option="lettering.flag.waveWidth" data-bubble="pct-directo"><output>100%</output></div>
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-wave-shift-input" title="Corre el patr�n de la onda a lo largo del texto: d�nde empieza la oscilaci�n (% del ancho de onda)"><span>Wave shift</span></label>
-                                                <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="0" id="tt-lettering-flag-wave-shift-input" data-tt-option="lettering.flag.waveShift" data-bubble="V+'%'"><output>0%</output></div>
+                                                <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="0" id="tt-lettering-flag-wave-shift-input" data-tt-option="lettering.flag.waveShift" data-bubble="pct-directo"><output>0%</output></div>
                                             </div>
                                             <div class="tt-option">
                                                 <label class="tt-label" for="tt-lettering-flag-shape-input" title="Forma de la onda: suave (coseno) o lineal (rampa exacta entre + y -)"><span>Shape</span></label>
@@ -1390,22 +1390,22 @@
         </div>
     </div>
 
-    <script src="js/catalog.js?v=RC59"></script>
-    <script src="js/fonts.js?v=RC59"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC59"></script>
-    <script src="js/effects/specular-webgl.js?v=RC59"></script>
-    <script src="js/effects/distort-engine.js?v=RC59"></script>
-    <script src="js/preset-manager.js?v=RC59"></script>
-    <script src="js/gradient-picker.js?v=RC59"></script>
-    <script src="js/editor.js?v=RC59"></script>
+    <script src="js/catalog.js?v=RC61"></script>
+    <script src="js/fonts.js?v=RC61"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC61"></script>
+    <script src="js/effects/specular-webgl.js?v=RC61"></script>
+    <script src="js/effects/distort-engine.js?v=RC61"></script>
+    <script src="js/preset-manager.js?v=RC61"></script>
+    <script src="js/gradient-picker.js?v=RC61"></script>
+    <script src="js/editor.js?v=RC61"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC59"></script>
+    <script src="js/galeria.js?v=RC61"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC59"></script>
-    <script src="js/controls.js?v=RC59"></script>
-    <script src="js/export.js?v=RC59"></script>
-    <script src="js/api.js?v=RC59"></script>
-    <script src="js/main.js?v=RC59"></script>
+    <script src="js/fuentes-galeria.js?v=RC61"></script>
+    <script src="js/controls.js?v=RC61"></script>
+    <script src="js/export.js?v=RC61"></script>
+    <script src="js/api.js?v=RC61"></script>
+    <script src="js/main.js?v=RC61"></script>
 </body>
 </html>
 

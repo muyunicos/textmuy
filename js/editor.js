@@ -727,11 +727,7 @@
     // Compone y aplica el valor de fuente. Devuelve el valor aplicado, o null
     // si el contexto lo rechazo (fallo visible, nunca un valor residual).
     function aplicarFuente(ctx, s, px) {
-        const peso = (s && s.font && s.font.weight) || 'normal';
-        const familia = familiaDeFuente(s);
-        const valor = peso + ' ' + Math.max(1, Math.round(px)) + 'px ' + familia;
-        const previo = ctx.font;
-        ctx.font = valor;
+        ctx.font = componerFuente(s, px);
         // R-C3.4 / FR-025: avisar SOLO cuando el lienzo rechazo de verdad el
         // valor. Comparar el texto crudo daba falso positivo: el navegador
         // serializa el valor normalizado (p.ej. 'normal 187px "Bangers"' se lee
@@ -740,12 +736,23 @@
         // Un rechazo real solo ocurre si el valor era invalido de verdad; se
         // comprueba comparando lo normalizado y confirmando que la familia
         // pedido no quedo aplicada.
-        if (!fuenteAplicada(ctx, valor, familia)) {
-            console.warn('El lienzo rechazo el valor de fuente "' + valor + '" (CSS invalido).');
+        const familia = familiaDeFuente(s);
+        if (!fuenteAplicada(ctx, ctx.font, familia)) {
+            console.warn('El lienzo rechazo el valor de fuente "' + ctx.font + '" (CSS invalido).');
         }
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
-        return valor;
+        return ctx.font;
+    }
+    // Compone el valor de `ctx.font` SIN aplicarlo. UNICA forma de hacerlo
+    // (R-C3.1 / RC39): la familia llega entrecomillada de familiaDeFuente, que
+    // es resolvedor puro, asi que un nombre con espacios no genera una
+    // abreviatura CSS invalida que el navegador ignoraria en silencio.
+    // La usan aplicarFuente y las dos bisecciones de tamano (autoFitText y
+    // fitSingleLine), que MIDEN con el mismo valor que se va a pintar.
+    function componerFuente(s, px) {
+        const peso = (s && s.font && s.font.weight) || 'normal';
+        return peso + ' ' + Math.max(1, Math.round(px)) + 'px ' + familiaDeFuente(s);
     }
     // Normaliza un valor de fuente para comparar: sin comillas y con espacios
     // normalizados. Chrome devuelve el shorthand ya serializado, que puede
@@ -871,9 +878,6 @@
 
     // Auto-fit: find the largest font size that fits within the canvas
     function autoFitText(ctx, text, lines, canvasWidth, canvasHeight, s) {
-        const fontWeight = s.font.weight || 'normal';
-        const familia = familiaDeFuente(s);
-        // Un solo calculo del area util (R-G1.4).
         const area = areaUtil(s, canvasWidth, canvasHeight);
         const availW = area.width;
         const availH = area.height;
@@ -884,7 +888,10 @@
 
         while (lo <= hi) {
             const mid = Math.floor((lo + hi) / 2);
-            ctx.font = fontWeight + ' ' + mid + 'px ' + familia;
+            // La biseccion MIDE con el mismo valor que se va a pintar: se usa
+            // componerFuente, la unica composicion (antes se armaba a mano y
+            // quedaba fuera del punto unico de RC39).
+            ctx.font = componerFuente(s, mid);
 
             // Find the widest line
             let maxLineWidth = 0;
@@ -3536,14 +3543,12 @@ function clone(obj) {
     // Tamano base (canvas) de UNA linea aislada: biseccion como autoFitText
     // pero con una sola linea y caja disponible explicita. Devuelve px.
     function fitSingleLine(ctx, lineText, availW, availH, s) {
-        const fontWeight = s.font.weight || 'normal';
-        const familia = familiaDeFuente(s);
         let lo = 8;
         let hi = Math.max(8, Math.ceil(Math.max(availW, availH)));
         let best = 8;
         while (lo <= hi) {
             const mid = Math.floor((lo + hi) / 2);
-            ctx.font = fontWeight + ' ' + mid + 'px ' + familia;
+            ctx.font = componerFuente(s, mid);
             const w = measureTextWidth(ctx, lineText, s.letterSpacing, mid);
             const m = ctx.measureText('Ag');
             const h = (m.actualBoundingBoxAscent || mid * 0.8) + (m.actualBoundingBoxDescent || mid * 0.2);

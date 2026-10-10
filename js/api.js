@@ -44,6 +44,20 @@
                 || typeof payload.settings !== 'object' || payload.settings === null) {
                 throw new Error('presets:' + name + ':formato: volver a guardar el preset desde el editor.');
             }
+            // Version del formato: se valida SIEMPRE (constitucion IV/VII). Antes
+            // solo se miraban `format` y `settings`, asi que un `.txm` de la
+            // version anterior pasaba el porton SI no declaraba `lines` (el
+            // validador de lineas de preset-manager solo rechaza cuando hay
+            // `overrides` 0-based o `sizing` global). Resultado: un preset v1
+            // se leia en silencio y el render salia con defaults donde el delta
+            // ya no significaba lo mismo. Ahora es fail-fast con causa.
+            // La constante la expone PresetManager: una sola fuente de verdad.
+            const versionEsperada = (window.PresetManager && window.PresetManager.PROJECT_VERSION) || 2;
+            if (payload.version !== versionEsperada) {
+                throw new Error('presets:' + name + ':formato:version (archivo v'
+                    + payload.version + ', se esperaba v' + versionEsperada
+                    + '): volver a guardar el preset desde el editor.');
+            }
             if (window.PresetManager && window.PresetManager.settingsFromDelta) {
                 return window.PresetManager.settingsFromDelta(payload.settings);
             }
@@ -233,17 +247,31 @@
      * Canvas 2D). El editor conserva su fallback documentado; el render de la
      * API no.
      */
+    // Cache de la prueba: WebGL no aparece ni desaparece a mitad de una sesion,
+    // asi que basta con mirarlo UNA vez. Sin esto, assertWebGLDisponible()
+    // creaba un contexto por cada item de renderBatch y nunca lo devolvia
+    // (getContext sin loseContext), acercandose al limite de ~16 contextos GPU
+    // que los motores si respetan (bevel/specular/distort llaman loseContext).
+    var webglCache = null;
+
     function assertWebGLDisponible() {
+        if (webglCache === true) return;
+        let gl = null;
         try {
             const cv = document.createElement('canvas');
-            const gl = cv.getContext('webgl') || cv.getContext('experimental-webgl');
-            if (!gl) {
-                throw new Error('render:webgl:no_disponible (la API requiere WebGL; sin el el estilo se degradaria)');
-            }
-        } catch (e) {
-            if (e && /render:webgl/.test(e.message || '')) { throw e; }
+            gl = cv.getContext('webgl') || cv.getContext('experimental-webgl');
+        } catch (e) { gl = null; }
+        if (!gl) {
+            webglCache = false;
             throw new Error('render:webgl:no_disponible (la API requiere WebGL; sin el el estilo se degradaria)');
         }
+        // El canvas de prueba se descarta: se devuelve el contexto en el mismo
+        // acto para no retener uno de los ~16 que el navegador permite.
+        try {
+            const lose = gl.getExtension('WEBGL_lose_context');
+            if (lose) lose.loseContext();
+        } catch (_) { /* el contexto se pierde al soltar la referencia */ }
+        webglCache = true;
     }
 
     async function renderTextToPNG(params) {

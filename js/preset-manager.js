@@ -630,6 +630,16 @@
             if (!payload || payload.format !== PROJECT_FORMAT || typeof payload.settings !== 'object' || payload.settings === null) {
                 throw new Error('presets:' + safe + ':formato: volver a guardar el preset desde el editor.');
             }
+            // Version del formato: fail-fast (constitucion IV/VII v3.2.0). Sin
+            // esta comprobacion un `.txm` v1 sin `lines` entraba por la puerta
+            // grande: `validarFormatoLineas` solo rechaza cuando el delta trae
+            // `overrides` 0-based o `sizing` global, asi que la version quedaba
+            // sin verificar y el preset se leia con una semantica distinta.
+            if (payload.version !== PROJECT_VERSION) {
+                throw new Error('presets:' + safe + ':formato:version (archivo v' + payload.version
+                    + ', se esperaba v' + PROJECT_VERSION
+                    + '): volver a guardar el preset desde el editor.');
+            }
             return { kind: 'txm', data: payload };
         }
         throw new Error('presets:' + safe + ':recurso:ausente');

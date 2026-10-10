@@ -879,95 +879,12 @@ fieldset legend label {
     display: none;
 }
 
-/* ===== ICON GALLERY ===== */
-#tt-icon-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-#tt-icon-search-input,
-#tt-background-search-input {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 8px;
-    background: var(--tt-bg-panel-2);
-    color: var(--tt-text);
-    border: 1px solid var(--tt-border-input);
-    border-radius: var(--tt-radius-sm);
-}
-
-#tt-icon-search-input:focus,
-#tt-background-search-input:focus {
-    border-color: var(--tt-accent);
-    outline: none;
-}
-
-#tt-icon-gallery {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-    list-style: none;
-    padding: 0;
-}
-
-#tt-icon-gallery li {
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: var(--tt-radius-sm);
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--tt-bg-panel);
-    transition: border-color var(--tt-transition);
-}
-
-#tt-icon-gallery li:hover {
-    border-color: var(--tt-accent);
-}
-
-#tt-icon-gallery li.selected {
-    border-color: var(--tt-accent);
-    background: var(--tt-accent-dark);
-}
-
-#tt-icon-gallery li img {
-    width: 100%;
-    height: auto;
-    max-height: 50px;
-    object-fit: contain;
-}
-
-/* ===== BACKGROUND GALLERY ===== */
-#tt-background-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-#tt-background-gallery {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    list-style: none;
-    padding: 0;
-}
-
-#tt-background-gallery li {
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: var(--tt-radius-sm);
-    aspect-ratio: 16/9;
-    overflow: hidden;
-    transition: border-color var(--tt-transition);
-}
-
-#tt-background-gallery li:hover {
-    border-color: var(--tt-accent);
-}
-
-#tt-background-gallery li.selected {
-    border-color: var(--tt-accent);
-}
+/* ===== ICON GALLERY / BACKGROUND GALLERY ===== */
+/* Retiradas en RC61: eran codigo inalcanzable en controls.js (un `return` en la
+   primera linea) y arrastraban 136 URLs de cdn.textstudio.com incrustadas. Sus
+   contenedores no existian en index.html, asi que este CSS nunca aplicaba a nada.
+   Los iconos y fondos viven en el catalogo `img` del plugin y se eligen con la
+   galeria unificada (galeria.js). */
 
 /* ===== PALETTE EDITOR ===== */
 .tt-palette {
@@ -1212,31 +1129,12 @@ fieldset legend label {
 }
 
 /* ===== LOADING SPINNERS ===== */
-#tt-icon-list-loading,
-#tt-background-list-loading {
-    display: none;
-    width: 40px;
-    height: 40px;
-    margin: 20px auto;
-    border: 3px solid var(--tt-border-soft);
-    border-top-color: var(--tt-accent);
-    border-radius: 50%;
-    animation: tt-spin 1s linear infinite;
-}
-
-@keyframes tt-spin {
-    to { transform: rotate(360deg); }
-}
+/* Sin reglas ni @keyframes: los dos spinners eran de las galerias de iconos y
+   fondos retiradas en RC61 y `tt-spin` no lo usaba nada mas (verificado). */
 
 /* ===== NO RESULT MESSAGES ===== */
-#tt-icon-list-no-result,
-#tt-background-list-no-result {
-    display: none;
-    padding: 20px;
-    text-align: center;
-    color: var(--tt-text-muted);
-    font-size: 13px;
-}
+/* Sin reglas: los unicos -no-result del CSS eran de las galerias de iconos y
+   fondos retiradas en RC61, y no hay equivalente vivo al que aplicarle. */
 
 /* ===== TEXTURE SELECTS (blendmode, repeat, position, size) ===== */
 .tt-blendmode-select,
@@ -1291,14 +1189,6 @@ fieldset legend label {
         border-left: none;
         border-top: 1px solid var(--tt-border);
     }
-
-    #tt-icon-gallery {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    #tt-background-gallery {
-        grid-template-columns: repeat(2, 1fr);
-    }
 }
 
 /* ===== ANTI-DRAG: evitar ghost de drag nativo en los controles ===== */
@@ -1308,8 +1198,7 @@ fieldset legend label {
 #tt ul.tt-menu,
 #tt #tt-custom-menu,
 #tt .tt-gradient-picker,
-#tt .tt-preset-list li,
-#tt .tt-palette-styles {
+#tt .tt-preset-list li {
     user-select: none;
     -webkit-user-select: none;
 }
@@ -1328,58 +1217,15 @@ fieldset legend label {
 }
 
 /* ===== Editor de estilos de la paleta (fill.palette.styles) ===== */
-.tt-palette-styles ul {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.tt-palette-styles li {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.tt-palette-styles input[type="color"] {
-    width: 100%;
-    height: 26px;
-    padding: 2px;
-    cursor: pointer;
-}
-
-.tt-palette-styles .tt-palette-style-remove {
-    background: transparent;
-    border: 1px solid var(--tt-border-soft, #444);
-    border-radius: 4px;
-    color: var(--tt-text-muted, #aaa);
-    cursor: pointer;
-    padding: 2px 6px;
-    font-size: 11px;
-}
-
-.tt-palette-styles .tt-palette-style-remove:hover {
-    color: var(--tt-text, #fff);
-    border-color: var(--tt-accent, #4a90d9);
-}
-
-#tt-fill-palette-add-style-btn {
-    width: 100%;
-    padding: 6px;
-    cursor: pointer;
-    border: 1px dashed var(--tt-border-soft, #444);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--tt-text-muted, #aaa);
-    font-size: 12px;
-}
-
-#tt-fill-palette-add-style-btn:hover {
-    color: var(--tt-text, #fff);
-    border-color: var(--tt-accent, #4a90d9);
-}
+/* CSS retirado en RC61: `.tt-palette-styles` y `#tt-fill-palette-add-style-btn`
+   nunca se crearon (no estan en index.html ni en ningun js), asi que estas
+   reglas no aplicaban a nada. El boton "Edit" del <div class="tt-palette"> de
+   index.html quedo sin handler por la misma razon.
+   `fill.palette.styles` SIGUE soportado por el motor (editor.js, migracion en
+   caliente) y viaja en el .txm: es la via de COMPATIBILIDAD con presets de
+   TextStudio. La UI para editar esa lista NO debe crearse: ya existe
+   `fill.layers` (controles de relleno, boton "+ Add style") y duplicarla seria
+   tener dos formas de editar lo mismo (§7, sin rutas dobles). */
 
 /* ===== FILL LAYERS UI (Fase 19) ===== */
 .tt-fill-layers {

@@ -175,11 +175,15 @@ textmuy/
    son las bases de los recursos del plugin. `PresetManager.presetUrlBase()` devuelve
    `urls.presetsBase`; `fetchPreset`, `ensureThumbnail` y `api.js` DEBEN usarla (nunca
    hardcodear `'presets/'` ni bases relativas del módulo).
-5. **Formato `.txm`**: payload `{format:'textmuy-project', version:1, name, settings}`
+5. **Formato `.txm`**: payload `{format:'textmuy-project', version:2, name, settings}`
    donde `settings` es el **DELTA** contra los defaults (`diffSettings` /
    `settingsFromDelta`). El `.json` crudo de TextStudio es SOLO de importación.
+   La **version se valida al leer** (fail-fast, constitución IV/VII v3.2.0): un
+   `.txm` v1 se rechaza con causa `presets:<nombre>:formato:version`, aunque no
+   declare `lines` — antes la version no se comprobaba y un preset viejo entraba
+   en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC59**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC61**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -392,6 +396,106 @@ no depende de la geometria unica y por eso va primero.
   registra al nivel de `bindLineStyleTabs()` y se aplica en el arranque.
 
 **Estado del feature**: Bloques A, B, C y D1-D3 cerrados (US1-US5 y el nucleo de US6). US6 queda a medias solo en la parte diferida a R9 (rotacion y curva por linea).
+
+### 7.18 RC61 — fuera los 136 URLs de TextStudio y los proxies CORS
+
+Segunda pasada de la auditoría, sobre lo que quedaba diferido a decisión del
+administrador. **Todo lo borrado era codigo inalcanzable o una fuga de datos.**
+
+- ✅ **Fuera las galerias propias de iconos y fondos** (`controls.js`). Las dos
+  funciones, `initIconGallery()` y `initBackgroundGallery()`, empezaban con un
+  **`return`** en la primera linea util: todo lo que venia despues era
+  inalcanzable. Encima arrastraban **136 URLs de `cdn.textstudio.com`**
+  incrustadas (45 cliparts SVG + 91 fondos JSON + las miniaturas `.webp`
+  derivadas), contra §5 (los recursos son datos del plugin) y §4.2 (cero fetches
+  a terceros fuera del puente). Y el HTML **no tenia sus contenedores**
+  (`#tt-icon-gallery`, `#tt-background-gallery`, los search, los `-list` y los
+  `-no-result`): verificado por barrido de los 22 IDs `tt-*` del CSS contra
+  `index.html`. Las funciones quedan como stub documentado y los iconos/fondos se
+  eligen con la galeria unificada (`galeria.js`) sobre el catalogo `img`.
+  `controls.js`: 2.647 → 2.389 lineas.
+- ✅ **CSS huerfano limpiado** (`style.css`, ~95 lineas). El mismo barrido de IDs
+  encontro **11 huerfanos**, cinco mas de los previstos: `#tt-icon-list`,
+  `#tt-background-list`, los dos `-list-loading` y `#tt-background-list-no-result`.
+  Se fue tambien **`@keyframes tt-spin`**, tras verificar que no lo usaba nada mas
+  (era la animacion de esos spinners). `style.css`: 1.993 → 1.884 lineas,
+  llaves 292/292.
+- ✅ **Fuera los proxies CORS publicos del importador.** `allorigins.win`,
+  `corsproxy.io` y `codetabs.com` recibian **la URL que pega el administrador**:
+  en un panel de WordPress eso es una fuga de datos involuntaria hacia un destino
+  no auditable. Eran ademas la unica via (desde el iframe, leer textstudio.com
+  directo lo bloquea CORS). Ahora: `fetch` directo y, si el navegador no puede,
+  un aviso que dice **como** pegar el HTML/JSON a mano. La extraccion
+  (`window.__PRESET__` / JSON-LD) se conserva y dejo de tragarse los errores: los
+  dos `catch(e) {}` vacios ahora informan la causa.
+  **Pendiente por diseño**: lo correcto es un `op=fetch-remoto` en el motor (§3),
+  para que la peticion salga del servidor del plugin. No se puede hacer solo
+  desde el modulo.
+- ⚠️ **Sin tocar**: los 5 `confirm()`/`prompt()` nativos (borrar preset, nombre de
+  preset, nueva categoria, borrar fuente, borrar imagen). No son fuga ni riesgo de
+  seguridad, y reemplazarlos exige inventar un componente inline que hoy no existe
+  y que **ninguna suite cubre**: hacerlo a ciegas, sin navegador, es peor que
+  dejarlos.
+- ✅ **CSS del editor de `palette.styles` retirado** (`style.css`, 53 lineas). El
+  barrido de IDs del CSS contra `index.html` lo marco como huerfano y se confirmo
+  en la segunda pasada: `.tt-palette-styles` y `#tt-fill-palette-add-style-btn`
+  **no se crean nunca** (no estan en el HTML ni en ningun `js`), y el boton
+  *Edit* del `<div class="tt-palette">` de `index.html` quedo sin handler.
+  **`fill.palette.styles` NO se toca**: sigue soportado por el motor
+  (`editor.js::migrateLegacyFillLayers`, verificado en Node: capa con
+  `repeat: method` y los estilos mapeados) y viaja en el `.txm`. Es la via de
+  **compatibilidad con presets de TextStudio**. La UI para editar esa lista
+  **no debe crearse**: ya existe `fill.layers` (controles de relleno, boton
+  "+ Add style") y duplicarla seria tener dos formas de editar lo mismo (§7).
+
+### 7.17 RC60 — auditoría: fail-fast del `.txm`, `eval` y la guarda que no guardaba
+
+Cierre de la auditoría completa del módulo. Las 38 suites siguen en verde y el
+bump quedó en **RC60**. Cuatro arreglos, todos con regresión en Node:
+
+- ✅ **La versión del `.txm` se valida al leer** (era un agujero de fail-fast).
+  `api.js::loadPresetByName` y `preset-manager.js::fetchPreset` comprobaban
+  `format` y `settings` pero **nunca `version``, y `validarFormatoLineas` solo
+  rechaza cuando el delta trae `overrides` 0-based o `sizing` global. Un `.txm`
+  v1 sin `lines` entraba en silencio y el render salía con defaults donde el
+  delta ya no significaba lo mismo. Ahora: `presets:<nombre>:formato:version`.
+  La deteció la suite nueva sobre un fixture real: `neon-glow.txm` de los uploads
+  del administrador está **en v1** y pasaba el portón (los otros dos, v2).
+  El rechazo no se cachea, igual que un fallo de red: el retry reevalúa.
+- ✅ **AGENTS.md §4.5 decía `version:1`** mientras `preset-manager.js` escribía
+  `PROJECT_VERSION = 2`. Corregido a v2 y documentado el fail-fast. Quien leyera
+  solo la regla crítica escribía un preset que el propio módulo rechazaría.
+- ✅ **Fuera el `eval()` de las burbujas de slider** (`controls.js`). Los 11
+  sliders resolvían `data-bubble` con `eval()` sobre un atributo del DOM, en
+  cada render: ejecución de código arbitrario heredable por cualquier input
+  nuevo. Ahora `data-bubble` es un **nombre de formato** (`pct` / `pct-directo` /
+  `grado`) y `textoBubble()` compone el texto. Cero `eval` ejecutable.
+- ✅ **Una sola composición de `ctx.font`** (RC39). `autoFitText` y
+  `fitSingleLine` armaban el valor a mano y quedaban fuera del punto único de
+  `aplicarFuente`. Extraída `componerFuente(s, px)`: la usan las tres, y la
+  familia sigue llegando entrecomillada de `familiaDeFuente`.
+- ✅ **La guarda de entorno no guardaba.** `tests/entorno.test.js` pasaba la ruta
+  **absoluta** a `esTextoDelModulo()`, que compara contra nombres **relativos**
+  con `/`: en Windows ningún `js/...` coincidía, así que el barrido real solo veía
+  los 2 arraigados. Los 90 "archivos verificados" que imprimía eran los de
+  extensión suelta; `.editorconfig` y `.gitattributes` —los dos que fijan charset
+  y EOL— estaban en **CRLF en el worktree** con la suite en verde. Ahora normaliza
+  a relativo con `/`, valida **81 archivos** y exige que los arraigados entren.
+  Verificado **por inyección**: con CRLF en `.editorconfig` la suite falla.
+- ✅ **Higiene**: borrados los 3 `.cjs` de 0 bytes versionados
+  (`diag-maxfont`, `generar-presets`, `visible-editor`; el segundo entró vacío en
+  `4e75650`); `estilo-tema.test.js` ya anuncia su OK como las demás; los `alert()`
+  del importador pasaron a estado en línea (`#tt-import-status`) y el mensaje en
+  inglés se tradujo; `assertWebGLDisponible()` cachea el resultado y suelta el
+  contexto (creaba uno por item de `renderBatch` sin `loseContext`, acercándose al
+  límite de ~16 que los motores sí respetan).
+
+⚠️ **Pendiente por decisión del administrador, no por olvido**: quedan 4
+`confirm()`/`prompt()` nativos (borrar preset, nombre de preset, nueva categoría,
+borrar fuente) porque no tienen equivalente inline obvio; los 136 URLs de
+`cdn.textstudio.com` incrustadas en `controls.js` (974-1175) y los proxies CORS
+públicos del importador, que son decisiones de producto (§4.2/§5: los recursos
+son datos del plugin). Está documentado en la auditoría, no implementado.
 
 ### 7.16 RC58 — cierre de US6 y bloque D4 (rotación y curva por línea)
 
