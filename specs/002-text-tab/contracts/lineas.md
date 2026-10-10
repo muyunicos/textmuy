@@ -67,9 +67,13 @@ FR-015, FR-019, FR-021. Es interno al modulo.
 ## 4. Alcance por linea (desviacion de FR-016, 2026-10-04)
 
 FR-016 pedia "todo estilo y layout por linea". Al implementar se fijo el alcance
-real, para que el contrato y el codigo digan lo mismo:
+real. **Desde `003-option-schema` la fuente de verdad del alcance es el
+`OPTION_SCHEMA`** (`{id, nombre, type, default, scope}`, ver
+`../003-option-schema/contracts/opciones.md` §1-2): cada hoja declara su `scope`
+(`global` | `linea`) y `isGlobalPath` lo consulta, en vez de listas hardcodeadas.
+La tabla de abajo es un RESUMEN legible; el dato vive en el schema.
 
-**Global de bloque** (nunca entra a overrides de linea):
+**Global de bloque** (nunca entra a overrides de linea; `scope:'global'`):
 
 | Ruta | Motivo |
 |---|---|
@@ -80,9 +84,10 @@ real, para que el contrato y el codigo digan lo mismo:
 | `rotate`, `distort` | **Globales hasta el bloque D4.** Aplican al bloque compuesto entero al final del render. Hacerlos por linea exige partir el pipeline en una capa por linea (componer cada linea con su estilo resuelto, aplicarle su giro o su curva, y recien despues apilar), que es un cambio de arquitectura del render: ver D4 en `tasks.md`. |
 | `lettering.flag`, `lettering.boggle`, `lettering.reverseOverlap`, `lettering.blendmode` | Actuan sobre el bloque completo. |
 
-**Por linea**: `align`, `letterSpacing`, **`lineHeight`**, `font.*`, `fill.*`,
-`outline.*`, `depth.*`, `depth2.*`, `bevel.*`, `shadow.*`, `specular.*`,
-`lettering.shadow`, `lettering.active`, `icon.*`, y `canvas.maxFontSize`.
+**Por linea** (`scope:'linea'`): `align`, `letterSpacing`, **`lineHeight`**,
+`font.*`, `fill.*`, `outline.*`, `depth.*`, `depth2.*`, `bevel.*`, `shadow.*`,
+`specular.*`, `lettering.shadow`, `lettering.active`, `icon.*`, y
+`canvas.maxFontSize`. Ver el schema para el detalle completo hoja por hoja.
 
 - **R-L4.1**: Una ruta de la tabla global MUST escribirse en la base aunque el
   target activo sea L1/L2/L3, para no crear overrides huerfanos. La unica

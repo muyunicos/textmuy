@@ -371,16 +371,22 @@
             code: null
         }
     };
-    // OPTION_REGISTRY: genera el mapa de todas las opciones configurables
-    // Recorre defaultSettings y devuelve path -> {id, type, default}
-    function OPTION_REGISTRY() {
-        const registry = {};
+    // ===== OPTION_SCHEMA (003-option-schema, contracts/opciones.md §1) =====
+    // Fuente UNICA de identidad y alcance de cada opcion, derivada de
+    // defaultSettings. Reemplaza OPTION_REGISTRY (que no tenia consumidores) y las
+    // listas GLOBAL_PATHS/CANVAS_POR_LINEA: el `scope` de cada hoja lo calcula
+    // scopeDe(), la unica funcion de alcance. Walk de hojas:
+    //   path -> {id, nombre, type, default, scope}
+    function OPTION_SCHEMA() {
+        const schema = {};
 
         function walk(obj, prefix) {
-            if (obj === null || obj === undefined) return;
-
+            if (obj === undefined) return;  // undefined no es una opcion
             const isArray = Array.isArray(obj);
-            const isPlainObject = typeof obj === 'object' && !isArray;
+            // null es una HOJA con default nulo (p.ej. fill.texture.src, icon.src),
+            // NO un grupo vacio: debe entrar al schema para que el fail-fast la
+            // conozca y no rechace un preset que setee esa textura por id.
+            const isPlainObject = obj !== null && typeof obj === 'object' && !isArray;
 
             if (isPlainObject || isArray) {
                 const keys = isArray ? [...obj.keys()] : Object.keys(obj);
@@ -391,12 +397,19 @@
             } else {
                 const path = prefix || 'root';
                 const id = path.replace(/[^a-z0-9_-]/gi, '_').toLowerCase().replace(/_+/g, '_');
-                registry[path] = { id: id, type: typeof obj, default: obj };
+                const raiz = path.split('.')[0];
+                schema[path] = {
+                    id: id,
+                    nombre: (NOMBRE_MENU[raiz] || raiz),
+                    type: obj === null ? 'null' : typeof obj,
+                    default: obj,
+                    scope: scopeDe(path)
+                };
             }
         }
 
         walk(defaultSettings, '');
-        return registry;
+        return schema;
     }
 
 
@@ -1147,10 +1160,24 @@
         const sourceWidth = Math.ceil(textBlockWidth + calcExtraWidth(s, fontSizePx)) + offscreenGutter * 2;
         const sourceHeight = textBlockHeight;
         const needsExpandedTextLayer = rotationValue > 0.0001 || Math.abs(arcAngle) >= 0.1;
-        const textLayerWidth = needsExpandedTextLayer
+        // RC63: la sombra exterior y la extrusion 3D se PROYECTAN fuera del glyph
+        // base (distance/size/length), no alrededor como el outline. Con margin 0
+        // y el autoFit al maximo el texto llenaba el tile y la sombra se SALIA del
+        // borde de textLayer, recortandose ahi (el "fantasma" cortado que se veia en
+        // las miniaturas de la galeria). Antes la capa solo se expandia con rotacion
+        // o curva; sourceWidth/sourceHeight ya incluian el extra de estos efectos
+        // (calcExtraWidth) pero no se usaban. Ahora, con un efecto desbordante, la
+        // capa se dimensiona por el contenido real y el recorte + encaje se encargan
+        // de que entre completo en el area util.
+        const efectoDesbordante =
+            isActive(s, 'shadow.outer') || isActive(s, 'shadow.outer2') ||
+            isActive(s, 'shadowOuter') || isActive(s, 'shadowOuter2') ||
+            isActive(s, 'depth') || isActive(s, 'depth2');
+        const capaExpandida = needsExpandedTextLayer || efectoDesbordante;
+        const textLayerWidth = capaExpandida
             ? Math.max(canvasWidth, sourceWidth, rotationValue > 0.0001 ? offscreenSide : 0)
             : canvasWidth;
-        const textLayerHeight = needsExpandedTextLayer
+        const textLayerHeight = capaExpandida
             ? Math.max(canvasHeight, sourceHeight, rotationValue > 0.0001 ? offscreenSide : 0)
             : canvasHeight;
         const textLayer = acquireCanvas(textLayerWidth, textLayerHeight);
@@ -3071,30 +3098,57 @@
     // `distort` (bloque D4: hoy se aplican al bloque entero al final del render)
     // y los letterings que actuan sobre todo el bloque. Todo lo demas es por
     // linea (FR-016), incluido `lineHeight`.
-    const GLOBAL_PATHS = [
+    // ===== ALCANCE POR OPCION (003-option-schema, contracts/opciones.md §2) =====
+    // Fuente UNICA del alcance. Reemplaza GLOBAL_PATHS + CANVAS_POR_LINEA.
+    // Precedencia: una EXCEPCION por-linea gana sobre el prefijo global que la
+    // contiene (p.ej. canvas.maxFontSize bajo canvas).
+    // ALCANCE_LINEA: excepciones explicitas por linea dentro de un grupo global.
+    const ALCANCE_LINEA = ['canvas.maxFontSize'];
+    // ALCANCE_GLOBAL: raices/subrutas de bloque. Lo NO listado es por linea.
+    const ALCANCE_GLOBAL = [
         'text', 'canvas', 'lines', 'download', 'processing',
         'rotate', 'distort',
         'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
     ];
 
-    // Unica EXCEPCION dentro de `canvas` (2026-10-04, decision del usuario):
-    // "Max Font Size" es global en All pero con una linea activa manda sobre ESA
-    // linea. Sigue siendo un PORCENTAJE relativo al lienzo, nunca px fijos: el
-    // canvas es dinamico (500 px o 5000 px) y el texto debe seguir al tamano que
-    // necesite el cliente.
-    const CANVAS_POR_LINEA = ['canvas.maxFontSize'];
+    // Etiqueta ES del menu por raiz de ruta (para OPTION_SCHEMA.nombre).
+    const NOMBRE_MENU = {
+        text: 'TEXT', font: 'TEXT', align: 'TEXT', rotate: 'TEXT',
+        lineHeight: 'TEXT', letterSpacing: 'TEXT', distort: 'TEXT',
+        mergeGradients: 'TEXT',
+        fill: '3D & FILLING', lettering: '3D & FILLING',
+        depth: '3D & FILLING', depth2: '3D & FILLING',
+        outline: 'OUTLINES', outline2: 'OUTLINES',
+        bevel: 'SHADOWS', specular: 'SHADOWS', shadow: 'SHADOWS',
+        shadowInner: 'SHADOWS', shadowInner2: 'SHADOWS',
+        shadowOuter: 'SHADOWS', shadowOuter2: 'SHADOWS',
+        icon: 'ICON', background: 'BACKGROUND',
+        canvas: 'CANVAS', download: 'DOWNLOAD', processing: 'PROCESSING',
+        lines: 'LINEAS'
+    };
+
+    // Contenedores dinamicos: su interior es valido aunque no este en
+    // defaultSettings (contracts/opciones.md §3). El fail-fast de rutas los respeta.
+    const RUTAS_DINAMICAS = ['fill.layers', 'lines.line', 'lines.inherit'];
+
+    // Scope de una ruta ('global' | 'linea'). Antes era isGlobalPath con dos
+    // listas; ahora una sola precedencia compartida por OPTION_SCHEMA.
+    function scopeDe(path) {
+        if (!path) return 'linea';
+        if (ALCANCE_LINEA.indexOf(path) !== -1) return 'linea';
+        if (ALCANCE_LINEA.some(function (p) { return path.indexOf(p + '.') === 0; })) return 'linea';
+        if (ALCANCE_GLOBAL.some(function (g) {
+            return path === g || path.indexOf(g + '.') === 0;
+        })) return 'global';
+        return 'linea';
+    }
 
     // Lineas direccionables: solo L1..L3. Las demas filas del texto resuelven
     // como All (R-L1.4).
     const MAX_LINE = 3;
 
     function isGlobalPath(path) {
-        if (!path) return false;
-        if (CANVAS_POR_LINEA.indexOf(path) !== -1) return false;
-        if (CANVAS_POR_LINEA.some(function (p) { return path.indexOf(p + '.') === 0; })) return false;
-        return GLOBAL_PATHS.some(function (g) {
-            return path === g || path.indexOf(g + '.') === 0;
-        });
+        return scopeDe(path) === 'global';
     }
 
     // Acepta el numero (2) y el nombre de linea ('L2'): el padre se expresa
@@ -4700,7 +4754,8 @@ function clone(obj) {
         setTargetedSetting: setTargetedSetting,
         getEffectiveSetting: getEffectiveSetting,
         resolveLineSettings: resolveLineSettings,
-        OPTION_REGISTRY: OPTION_REGISTRY,
+        OPTION_SCHEMA: OPTION_SCHEMA,
+        RUTAS_DINAMICAS: RUTAS_DINAMICAS,
         updateUIFromLineTarget: updateUIFromLineTarget,
         getLineSizing: getLineSizing,
         setLineInherit: setLineInherit,

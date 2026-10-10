@@ -256,7 +256,54 @@
         return settings;
     }
 
+    /**
+     * Fail-fast de rutas (003-option-schema, contracts/opciones.md §4).
+     *
+     * Valida que las rutas hoja del delta existan en OPTION_SCHEMA. CONSERVADOR:
+     *  - los ARRAYS se permiten completos (p.ej. fill.gradient.colors[], que en
+     *    defaults esta vacio y por eso no genera hojas en el schema);
+     *  - los CONTENEDORES DINAMICOS (fill.layers, lines.line, lines.inherit) se
+     *    permiten con todo su subarbol;
+     *  - una ruta cuya RAIZ no es una opcion de defaultSettings se permite (puede
+     *    ser un campo de extension): solo se rechaza un TYPO/obsoleto bajo una
+     *    raiz conocida (p.ej. fill.colorx).
+     * Rechazo con `presets:<nombre>:ruta_desconocida:<ruta>`, sin aplicar nada.
+     */
+    function esContenedorDinamico(path) {
+        const din = (window.TextEditor && window.TextEditor.RUTAS_DINAMICAS) || [];
+        return din.some(function (d) { return path === d || path.indexOf(d + '.') === 0; });
+    }
+    function validarRutasDelta(delta, nombre) {
+        const TE = window.TextEditor;
+        const schema = (TE && typeof TE.OPTION_SCHEMA === 'function') ? TE.OPTION_SCHEMA() : null;
+        const defaults = getDefaults();
+        if (!schema || !defaults || typeof defaults !== 'object') return;  // sin schema: no valida
+        const raices = Object.keys(defaults);
+        (function walk(node, prefix) {
+            if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+            Object.keys(node).forEach(function (k) {
+                const path = prefix ? prefix + '.' + k : k;
+                if (esContenedorDinamico(path)) return;   // subarbol dinamico permitido
+                const v = node[k];
+                if (Array.isArray(v)) return;              // array completo permitido
+                if (v && typeof v === 'object') {
+                    const raiz = path.split('.')[0];
+                    if (raices.indexOf(raiz) === -1) return;  // raiz desconocida: permitir
+                    walk(v, path);
+                    return;
+                }
+                // Hoja: raiz conocida Y ruta inexistente -> rechazo.
+                const raiz = path.split('.')[0];
+                if (raices.indexOf(raiz) === -1) return;
+                if (!Object.prototype.hasOwnProperty.call(schema, path)) {
+                    throw new Error('presets:' + ((nombre) || '?') + ':ruta_desconocida:' + path);
+                }
+            });
+        })(delta, '');
+    }
+
     function settingsFromDelta(delta) {
+        validarRutasDelta(delta, delta && delta.name);
         const settings = JSON.parse(JSON.stringify(getDefaults()));
         applyDelta(settings, delta);
         validarFormatoLineas(settings);

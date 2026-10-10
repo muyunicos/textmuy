@@ -90,7 +90,7 @@ textmuy/
 │                             utils/ se carga: la descarga usa createObjectURL + <a
 │                             download>, el blur usa ctx.filter nativo y el SVG (cuando
 │                             exista) NO dependera de potrace/svgo.
-└── tests/                 <- 38 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 41 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -102,11 +102,13 @@ textmuy/
                               area-util, avance-lineas, encaje-final,
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
                               lineas-formato, fuente-por-linea,
-                              estilo-tema)
+                              estilo-tema, sombra-no-recortada, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
                               research, data-model, contracts, quickstart, tasks)
+└── specs/003-option-schema/ <- Spec del schema unico de opciones + fail-fast de rutas
+                              (spec, contracts/opciones.md, tasks)
 ```
 
 ## 3. Flujo de trabajo
@@ -183,7 +185,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC62**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC64**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -447,6 +449,76 @@ administrador. **Todo lo borrado era codigo inalcanzable o una fuga de datos.**
   **compatibilidad con presets de TextStudio**. La UI para editar esa lista
   **no debe crearse**: ya existe `fill.layers` (controles de relleno, boton
   "+ Add style") y duplicarla seria tener dos formas de editar lo mismo (§7).
+
+### 7.20 RC64 — la sombra exterior se recortaba en el borde de las miniaturas
+
+Defecto visible en la hoja `tm-presets/thumbs.webp` (galeria de estilos): en cada
+tile con `shadow.outer` aparecia un **"fantasma" cortado** en la esquina inferior
+derecha — una copia del texto, en el COLOR de la sombra (magenta en neon-glow,
+rosa en arcade-neon), recortada por el borde del tile. El unico tile limpio era
+`script-dorado`, el unico sin `shadow.outer`. Verificado decodificando el WebP
+punto a píxel (PIL), no por la vista: el color del fantasma coincidia con
+`shadow.outer.fill.color` de cada preset.
+
+- 🔴 **Causa raiz en el dimensionado de `textLayer`.** `calcExtraWidth` YA
+  contabilizaba el extra de la sombra (`distance*2 + size*2`) y lo vertia en
+  `sourceWidth/sourceHeight`, **pero** `needsExpandedTextLayer` solo usaba ese
+  tamano contenido cuando habia ROTACION o CURVA. Con `shadow.outer` y sin
+  rotacion, `textLayer` media EXACTO el canvas (200x100 en la miniatura): la
+  sombra proyectada se salia del borde de la capa y se recortaba AHI, antes del
+  `trimTransparent` + encaje (que solo re-escalaban lo que sobrevivia).
+- ✅ **El fix** (`editor.js`): nuevo gate `efectoDesbordante`
+  (`shadow.outer/outer2` o `depth/depth2` — efectos que se PROYECTAN fuera del
+  glyph, no alrededor como el outline) que amplia `capaExpandida` a los dos
+  tamanos. La capa ya no se recorta contra su propio borde; el recorte por tinta
+  real + el encaje incondicional (§7.9) meten todo (texto+sombra) en el area
+  util. El outline NO activa el gate a proposit: es una protesis alrededor del
+  glyph y el autoFit ya le daba sitio (sin regresion).
+- ⚠️ **Preexistente, no de los presets nuevos**: neon-hero y retro-comic (del
+  administrador) mostraban el mismo fantasma; era un defecto del motor, mas
+  visible en las miniaturas chicas (200x100) donde el autoFit llena el tile.
+- **Verificado por inyeccion**: diagnostico de tamano de capa sobre los 6
+  presets — SIN fix todos componen 200x100 (sombra cortada); CON fix los 5 con
+  sombra componen 200x108 / 200x122 (excede el tile, sombra completa) y el que
+  no tiene sombra sigue en 200x100 exacto. Regresion nueva
+  `tests/sombra-no-recortada.test.js` (falla con el codigo anterior, pasa con el
+  fix): 40 suites en verde.
+
+### 7.21 RC64 — schema unico de opciones y fail-fast de rutas
+
+Spec `003-option-schema`. Unifica la identidad y el alcance de cada opcion, que
+estaban fragmentados en `OPTION_REGISTRY` (expuesto, sin consumidores), en las dos
+listas `GLOBAL_PATHS`/`CANVAS_POR_LINEA` y en el fallback de sync de `controls.js`.
+Esa duplicacion ya habia producido una lista desactualizada (RC58).
+
+- ✅ **`OPTION_SCHEMA()`** (`editor.js`), derivado de `defaultSettings`, es la unica
+  fuente de verdad: cada hoja declara `{id, nombre, type, default, scope}`.
+  `nombre` es la etiqueta ES del menu (TEXT/3D & FILLING/OUTLINES/SHADOWS/...).
+  Reemplaza a `OPTION_REGISTRY`, que se purga de la exportacion (sin consumidores).
+- ✅ **`scopeDe()` unico** para el alcance (`global` | `linea`), con la precedencia
+  excepcion-por-linea > prefijo-global (`canvas.maxFontSize` bajo `canvas`).
+  `isGlobalPath` lo consulta. Se purgan `GLOBAL_PATHS` y `CANVAS_POR_LINEA`.
+  `contracts/lineas.md` §4 deja de ser una tabla hardcodeada y apunta al schema.
+- ✅ **Fail-fast de rutas** (`preset-manager.js::settingsFromDelta`): un `.txm` con
+  una ruta inexistente bajo una raiz conocida se rechaza con
+  `presets:<n>:ruta_desconocida:<ruta>`, sin aplicar nada (vista intacta, VI).
+  **Conservador a proposito**: los ARRAYS se permiten completos (p.ej.
+  `fill.gradient.colors[]`, vacio en defaults), los CONTENEDORES DINAMICOS
+  (`fill.layers`, `lines.line`, `lines.inherit`) se permiten con su subarbol, y una
+  raiz que no es opcion de `defaultSettings` se permite (campo de extension). Asi
+  los 6 presets reales y los round-trips no dan falsos positivos.
+- ⚠️ **`null` es una hoja, no un grupo vacio**: el walk heredado paraba en `null` y
+  dejaba fuera del schema rutas reales como `fill.texture.src` o `icon.src`
+  (default `null`). Corregido: entran al schema (`type:'null'`) para que el
+  fail-fast no rechace un preset que setee una textura por id. Lo detecto el test
+  nuevo antes de pasarlo por bueno.
+- **Regresion nueva** `tests/option-schema.test.js`: cobertura de `defaultSettings`,
+  alcance de `isGlobalPath`, fail-fast (ruta inventada + raiz desconocida permitida
+  + dinamicos/arrays) y round-trip de los 6 presets reales sin rechazo. 41 suites.
+- **No cambia** el formato `.txm` (sigue siendo delta anidado, IV) ni el motor de
+  render ni `resolveLine`. La Mejora 3 (nombres/menus para regenerar la UI) queda
+  fuera: el campo `nombre` ya viaja en el schema, listo para consumirse.
+
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
 
@@ -878,9 +950,11 @@ puente limpio y escenario sin puente):
   causa `ambito:id:motivo`), `tileDeId` (tile=`id-1`), `huecoParaAlta` (reutiliza el
   tombstone más bajo), walker `mapImgRefs`/`hasNumericImgRefs` (refs de imagen por id)
   y `geometriaTiles` (proporción y columna del tile de galería desde `thumbs`).
-- **`editor.js`**: estado del proyecto (`createDefaultSettings`, `loadPreset`) y render
-  de todas las capas: fill/pattern/palette, outline, shadows, bevel, specular, icon,
-  background, lettering (blendmodes, textures).
+- **`editor.js`**: estado del proyecto (`createDefaultSettings`, `loadPreset`),
+  `OPTION_SCHEMA` (fuente unica de identidad + alcance por opcion, derivada de
+  `defaultSettings`; `isGlobalPath` la consulta) y render de todas las capas:
+  fill/pattern/palette, outline, shadows, bevel, specular, icon, background,
+  lettering (blendmodes, textures).
 - **`controls.js`**: binding de la UI al settings (inputs, sub-menús STYLES, anti-drag,
   bindCanvasDimension, gradient colors).
 - **`galeria.js`**: componente único de galería de imágenes (tabs, búsqueda, subida,
@@ -899,6 +973,8 @@ puente limpio y escenario sin puente):
   El CRUD físico va por el motor (`op=editar`; Google = solo lectura).
 - **`preset-manager.js`**: CRUD de presets por el motor, formato `.txm`, miniaturas,
   `presetUrlBase()`, `getBridge()` y los listados iniciales que llegan por el puente.
+  `settingsFromDelta` valida las rutas del delta contra `OPTION_SCHEMA` y rechaza
+  con causa una ruta desconocida (`presets:<n>:ruta_desconocida:<ruta>`, fail-fast).
 - **`api.js`**: API pública (`renderTextToPNG`, `renderBatch`, `loadPresetById`,
   `prepareImgRefs`, `clearPresetCache`) y cache de presets + catálogos (1 fetch por
   recurso; no cachea fallos). Resolución de refs de imagen por id (fail-fast con causa
@@ -1088,7 +1164,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 38 suites Node (verdes el 2026-10-04 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 41 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -1138,6 +1214,7 @@ node tests/lineas-ciclos.test.js      # US6: anti-ciclos por ambas aristas, sin 
 node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas ausentes conservadas
 node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga por identidad, fallo nombrado
 node tests/estilo-tema.test.js      # el estilo disenado con una muestra se aplica a CUALQUIER texto
+node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC64)
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
