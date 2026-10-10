@@ -3736,7 +3736,7 @@ function clone(obj) {
             s = targetSettings;
         } else {
             // Estado nuevo desde defaults: nada de la vista sobrevive.
-            state.settings = JSON.parse(JSON.stringify(defaultSettings()));
+            state.settings = createDefaultSettings();
             s = state.settings;
         }
 
@@ -3829,7 +3829,7 @@ function clone(obj) {
         } else if (!targetSettings) {
             // El preset no declara estilos por linea: vuelven al default en vez
             // de sobrevivir de la vista.
-            s.lines = JSON.parse(JSON.stringify(defaultSettings().lines));
+            s.lines = createDefaultSettings().lines;
         }
 
         // Outline with enhanced validation (modern TextStudio structure)

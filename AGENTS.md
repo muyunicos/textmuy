@@ -183,7 +183,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC61**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC62**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -447,6 +447,32 @@ administrador. **Todo lo borrado era codigo inalcanzable o una fuga de datos.**
   **compatibilidad con presets de TextStudio**. La UI para editar esa lista
   **no debe crearse**: ya existe `fill.layers` (controles de relleno, boton
   "+ Add style") y duplicarla seria tener dos formas de editar lo mismo (§7).
+
+### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
+
+Defecto visto en produccion (muyunicos.com, RC61): al tocar un tile de la galeria
+de presets la consola mostraba `TypeError: defaultSettings is not a function` y el
+preset no cargaba. **No era un problema de cache**: el `?v=RC61` del log coincide
+con el repo.
+
+- 🔴 **`editor.js::loadPreset` llamaba `defaultSettings()` como si fuera funcion.**
+  `defaultSettings` es un **objeto** (`const defaultSettings = {...}`); la funcion
+  que devuelve una copia limpia es `createDefaultSettings()`. El error estaba en
+  las dos lineas de la rama `else` (la que corre cuando se carga **sin**
+  `targetSettings`, o sea el camino real de la galeria:
+  `PresetManager.loadPreset(name)` -> `TextEditor.loadPreset(settings)`):
+  - linea 3739: `state.settings = JSON.parse(JSON.stringify(defaultSettings()))`
+  - linea 3832: `s.lines = JSON.parse(JSON.stringify(defaultSettings().lines))`
+  Ambas ahora usan `createDefaultSettings()`.
+- ⚠️ **Por que ninguna suite lo veia**: las 39 suites anteriores pasaban SIEMPRE
+  `target` como 2o argumento de `loadPreset`, que toma la rama `if (targetSettings)`
+  y nunca ejecuta el `else` con el bug. La rama sin-target es justo la que usa la
+  galeria. **Leccion**: un contrato con dos ramas necesita cobertura de AMBAS.
+- ✅ **Regresion nueva**: `tests/preset-load-sintarget.test.js` carga un preset
+  (con y sin `lines`) por el camino sin-target y exige que no lance. Verificado que
+  **falla con el codigo anterior** (`defaultSettings is not a function` en
+  editor.js:3739) y **pasa con el arreglo**. 40 suites en verde.
+
 
 ### 7.17 RC60 — auditoría: fail-fast del `.txm`, `eval` y la guarda que no guardaba
 
