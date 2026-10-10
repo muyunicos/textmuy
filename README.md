@@ -28,7 +28,7 @@ Jerarquía documental: `.specify/memory/constitution.md` > `AGENTS.md` > resto.
 ## Pruebas (desde la raíz del módulo)
 
 ```powershell
-# Todas las suites Node (21; frena en la primera que falle):
+# Todas las suites Node (41; frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
 
 # Sintaxis de todos los scripts (node --check acepta un archivo por vez):
