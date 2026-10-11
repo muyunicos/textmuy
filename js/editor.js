@@ -1112,12 +1112,8 @@
 
         // RC32: refs numericas de imagen (number o string "47") se resuelven
         // via prepareImgRefs; hasta entonces se omiten (cero 404 de ruido).
-        function esRefImgNumerica(v) {
-            if (typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 1) return true;
-            if (typeof v === 'string' && window.TextMuyCatalog && window.TextMuyCatalog.esIdNumerico
-                && window.TextMuyCatalog.esIdNumerico(v)) return true;
-            return false;
-        }
+        // El helper es de MODULO (esRefImgNumerica, abajo): lo usan los
+        // cargadores y el motor de capas de relleno.
         // Load icon image if needed (refs numericas se resuelven via
         // prepareImgRefs; hasta entonces se omiten, cero 404 de ruido)
         if (isActive(s, 'icon') && safeGet(s, 'icon.src') && !esRefImgNumerica(safeGet(s, 'icon.src'))) {
@@ -1327,7 +1323,24 @@
     }
 
     // Load icon image
+    // RC68: las refs NUMERICAS de imagen (id de img.json, number o string
+    // "6") solo se resuelven via prepareImgRefs; hasta entonces los
+    // cargadores las omiten. Sin el guard, `img.src = 6` se coerciona a URL
+    // RELATIVA ("modules/textmuy/6") y produce 404 (medido en produccion al
+    // aplicar una imagen desde la galeria).
+    function esRefImgNumerica(v) {
+        if (typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= 1) return true;
+        if (typeof v === 'string') {
+            // Id numerico directo (sin depender de que TextMuyCatalog este
+            // cargado): "6" NUNCA puede ser una URL de imagen valida.
+            if (/^[0-9]+$/.test(String(v).trim()) && +String(v).trim() >= 1) return true;
+            if (window.TextMuyCatalog && window.TextMuyCatalog.esIdNumerico
+                && window.TextMuyCatalog.esIdNumerico(v)) return true;
+        }
+        return false;
+    }
     function loadIconImage(src) {
+        if (esRefImgNumerica(src)) return;
         if (state.iconImg && state.iconImg.src === src) return;
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1343,6 +1356,11 @@
 
     // Load texture image (LRU-cached)
     function loadTextureImage(src, callback) {
+        if (esRefImgNumerica(src)) {
+            // RC68: ref numerica sin resolver: se omite (cero 404 relativos).
+            if (callback) callback(null);
+            return;
+        }
         if (!src) {
             if (callback) callback(null);
             return;
@@ -1459,6 +1477,7 @@
 
     // Load background image
     function loadBackgroundImage(src) {
+        if (esRefImgNumerica(src)) return; // RC68: ref numerica: omitir (404 relativos)
         if (state.bgImg && state.bgImg.src === src) return;
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1974,7 +1993,7 @@
             } else {
                 const img = state.textureImages[style.texture.src];
                 if (!img) {
-                    if (style.texture.src && typeof style.texture.src !== 'number') loadTextureImage(style.texture.src);
+                    if (style.texture.src && !esRefImgNumerica(style.texture.src)) loadTextureImage(style.texture.src);
                     ctx.restore();
                     return;
                 }
@@ -3996,9 +4015,16 @@ function clone(obj) {
             if (preset.fill.gradient) {
                 s.fill.gradient.active = Boolean(preset.fill.gradient.active);
                 if (preset.fill.gradient.angle !== undefined) s.fill.gradient.angle = clampValue(preset.fill.gradient.angle, 0, 360, 0);
+                // RC68: copiar los STOPS, como hacen los otros 9 sitios de
+                // gradiente de loadPreset (outline/shadow/depth/background).
+                // Antes solo se calculaban startColor/endColor con
+                // rgbToHex(colors[0]) — pero colors[0] es un stop
+                // {color,pos}, no {r,g,b}: quedaba basura y colors VACIO, con
+                // lo que migrateLegacyFillLayers caia al fallback de color
+                // plano (default blanco): "la letra queda blanca al cargar un
+                // preset con gradiente" (medido con cyber-pop).
                 if (preset.fill.gradient.colors && preset.fill.gradient.colors.length >= 2) {
-                    s.fill.gradient.startColor = rgbToHex(preset.fill.gradient.colors[0]);
-                    s.fill.gradient.endColor = rgbToHex(preset.fill.gradient.colors[1]);
+                    s.fill.gradient.colors = JSON.parse(JSON.stringify(preset.fill.gradient.colors));
                 }
             }
             if (preset.fill.texture) {

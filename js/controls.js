@@ -64,6 +64,19 @@
         editor.render();
     }
 
+    // RC68: al aplicar una imagen desde la galeria se escribe el ID numerico
+    // en el settings (contrato R2) y render() lo omite hasta resolverlo. Este
+    // helper replica el camino de loadPreset: resuelve refs id->URL via
+    // TextMuyAPI.prepareImgRefs (catalogo img.json cacheado + puente) y
+    // repinta. Sin puente/catalogo la imagen se omite sin 404 (el motor ya
+    // guarda los cargadores contra refs numericas).
+    function repintarConRefsResueltas() {
+        if (!editor || !window.TextMuyAPI || !window.TextMuyAPI.prepareImgRefs) return;
+        window.TextMuyAPI.prepareImgRefs(editor.getSettings()).then(function () {
+            if (editor.render) editor.render();
+        }).catch(function (_) { /* sin puente: omitida sin 404 */ });
+    }
+
         // Gating por target: la barra unica siempre visible en
         // TEXT/STYLES/ICON (oculta en BACKGROUND/DOWNLOAD); el grupo Canvas
         // Size (data-global-only) solo visible en All.
@@ -941,6 +954,9 @@
                     setNestedSetting('background.active', true);
                     setNestedSetting('background.fill.image.active', true);
                     setNestedSetting('background.fill.image.src', src);
+                    // RC68: resolver el id -> URL y repintar (mismo camino que
+                    // loadPreset); sin esto el fondo no se ve al aplicar.
+                    repintarConRefsResueltas();
                 }, sec, {
                     preview: true,
                     controls: {
@@ -1482,6 +1498,10 @@
                     layers[layerIdx].styles[styleIdx].type = 'texture';
                     layers[layerIdx].styles[styleIdx].active = true;
                     setFillLayers(layers);
+                    // RC68: resolver el id -> URL y repintar; sin esto la
+                    // textura no se ve al aplicar y el motor pedia el id como
+                    // URL relativa (404 .../textmuy/6).
+                    repintarConRefsResueltas();
                 }, sec, {
                     preview: true,
                     controls: {

@@ -90,7 +90,7 @@ textmuy/
 │                             utils/ se carga: la descarga usa createObjectURL + <a
 │                             download>, el blur usa ctx.filter nativo con fallback manual
 │                             propio (RC66) y el SVG (cuando exista) NO dependera de potrace/svgo.
-└── tests/                 <- 43 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 44 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -103,7 +103,7 @@ textmuy/
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
                               lineas-formato, fuente-por-linea,
                               estilo-tema, sombra-no-recortada, sombra-blur,
-                              sombra-posicion, option-schema)
+                              sombra-posicion, carga-gradient-imgrefs, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -186,7 +186,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC67**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC68**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -636,6 +636,43 @@ en (516,310), con el texto en (300,200).
   las coordenadas de cada `drawImage` y exige composites en (-w/2, -h/2)
   para sombra exterior, sombra interior y relieve (con stub de
   `BevelWebGLEngine` inyectado, sin GPU). 43 suites en verde.
+
+
+### 7.25 RC68 — letra blanca con gradiente + 404 al aplicar una imagen de la galeria
+
+Dos defectos reportados por el usuario en produccion, con causas raiz distintas:
+
+- 🔴 **Letra blanca al cargar un preset con gradiente** (`cyber-pop`). De los 10
+  sitios de gradiente de `loadPreset` (outline x4, shadow x2, depth x2,
+  background, fill), el PRINCIPAL (`fill.gradient`) era el UNICO que no copiaba
+  `colors`: calculaba `startColor`/`endColor` con `rgbToHex(colors[0])`, pero
+  `colors[0]` es un STOP `{color,pos}` y no `{r,g,b}` — quedaba basura y el
+  array `colors` VACIO. `migrateLegacyFillLayers` (que exige >=2 stops) caia al
+  fallback de color plano = default BLANCO. Fix: copiar `colors` como los otros
+  sitios. Verificado en navegador: 24.851 px de color (cian 8.547 / magenta
+  2.206) contra los ~1.060 blancos que son el outline claro del propio preset.
+- 🔴 **"Aplicar" una imagen desde la galeria: preview OK pero al confirmar 404
+  (`GET .../modules/textmuy/6`) y la imagen no se ve.** La galeria guarda el ID
+  numerico en el settings (contrato R2) y el editor no lo resolvia al aplicar:
+  (a) los cargadores pedian `img.src = 6` como URL RELATIVA (caminos sin guard
+  del motor de capas de relleno y refs numerico-STRING del fondo); (b) la
+  imagen no se mostraba porque render() omite refs numericas hasta que
+  `prepareImgRefs` las resuelve (y eso solo pasaba al cargar presets).
+  Fix: (1) `esRefImgNumerica` pasa a helper de MODULO (detecta number y string
+  numerico sin depender de TextMuyCatalog) y guarda la entrada de los 3
+  cargadores (`loadIconImage`/`loadTextureImage`/`loadBackgroundImage`);
+  (2) `controls.js::repintarConRefsResueltas` replica el camino de `loadPreset`
+  (`prepareImgRefs` + render) y lo invocan los callbacks de aplicar de fondo y
+  textura de capa. Verificado en navegador: 0 `Image` con src relativo.
+- ⚠️ **Comportamiento documentado, no nuevo**: tras resolver, el estado queda
+  con URLs (igual que `loadPreset` hoy), asi que un preset guardado tras
+  aplicar puede llevar la URL en el `.txm`. Normalizar URL->id al guardar queda
+  como mejora aparte si se quiere el contrato R2 estricto.
+- **Regresion nueva** `tests/carga-gradient-imgrefs.test.js`: (A) `cyber-pop`
+  carga los 3 stops y la capa migrada es de tipo `gradient` (no el fallback
+  blanco); (B) refs numericas (number y string) no generan NINGUN `Image.src`
+  relativo y una URL real SI se carga (el guard no sobre-bloquea). 44 suites en
+  verde.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
@@ -1282,7 +1319,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 43 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 44 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -1335,6 +1372,7 @@ node tests/estilo-tema.test.js      # el estilo disenado con una muestra se apli
 node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC65)
 node tests/sombra-blur.test.js     # RC66: blur de sombras en espacio identidad + fallback manual + auto-test
 node tests/sombra-posicion.test.js # RC67: composites offscreen centrados en -w/2,-h/2 (sombra ext/int + bevel)
+node tests/carga-gradient-imgrefs.test.js # RC68: gradiente copiado al cargar + refs numericas sin 404
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
