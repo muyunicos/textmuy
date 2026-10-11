@@ -1729,9 +1729,14 @@
                 offsetCanvas.height = off.height;
                 const offsetCtx = offsetCanvas.getContext('2d');
                 offsetCtx.drawImage(off, offsetX, offsetY);
-                ctx.drawImage(offsetCanvas, 0, 0);
+                // RC67: compositar CENTRADO. El contenido de offsetCanvas vive
+                // en el centro de la imagen (se dibujo con la transformacion
+                // centrada del lienzo): drawImage(..., 0, 0) bajo el
+                // translate(w/2, h/2) lo dejaba en la esquina inferior-derecha
+                // (sombra corrida media capa, medida en navegador).
+                ctx.drawImage(offsetCanvas, -offsetCanvas.width / 2, -offsetCanvas.height / 2);
             } else {
-                ctx.drawImage(off, 0, 0);
+                ctx.drawImage(off, -off.width / 2, -off.height / 2);
             }
             if (mask) {
                 ctx.globalCompositeOperation = 'destination-out';
@@ -1761,9 +1766,10 @@
                     offsetCanvas.height = off.height;
                     const offsetCtx = offsetCanvas.getContext('2d');
                     offsetCtx.drawImage(off, offsetX, offsetY);
-                    ctx.drawImage(offsetCanvas, 0, 0);
+                    // RC67: mismo composite centrado que la rama con gradiente.
+                    ctx.drawImage(offsetCanvas, -offsetCanvas.width / 2, -offsetCanvas.height / 2);
                 } else {
-                    ctx.drawImage(off, 0, 0);
+                    ctx.drawImage(off, -off.width / 2, -off.height / 2);
                 }
                 if (mask) {
                     ctx.globalCompositeOperation = 'destination-out';
@@ -2425,17 +2431,21 @@
         ctx.save();
         const blendmode = shadowConfig.blendmode || 'source-atop';
         const targetAlpha = paintAlpha;
+        // RC67: composite CENTRADO. Los glifos de `layer` estan en su centro
+        // (se pintaron con translate(lineW/2, lineH/2) en espacio identidad):
+        // drawImage(..., 0, 0) bajo el translate del lienzo los dejaba corridos
+        // media capa hacia abajo-derecha.
         if (mask) {
             ctx.globalCompositeOperation = 'destination-in';
             ctx.globalAlpha = 1;
-            ctx.drawImage(layer, 0, 0);
+            ctx.drawImage(layer, -lineW / 2, -lineH / 2);
             ctx.globalCompositeOperation = blendmode;
             ctx.globalAlpha = targetAlpha;
-            ctx.drawImage(layer, 0, 0);
+            ctx.drawImage(layer, -lineW / 2, -lineH / 2);
         } else {
             ctx.globalCompositeOperation = blendmode;
             ctx.globalAlpha = targetAlpha;
-            ctx.drawImage(layer, 0, 0);
+            ctx.drawImage(layer, -lineW / 2, -lineH / 2);
         }
         ctx.restore();
     }
@@ -2710,7 +2720,11 @@
             if (bevelCanvas) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'source-over';
-                ctx.drawImage(bevelCanvas, 0, 0);
+                // RC67: composite CENTRADO. El relieve vive en el centro de
+                // bevelCanvas (los glifos se dibujaron con translate(w/2,h/2)):
+                // en (0,0) bajo la transformacion centrada caia a la esquina
+                // inferior-derecha, recortado.
+                ctx.drawImage(bevelCanvas, -bevelCanvas.width / 2, -bevelCanvas.height / 2);
                 ctx.restore();
                 return;
             }
@@ -2788,7 +2802,8 @@
             if (specularCanvas) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
-                ctx.drawImage(specularCanvas, 0, 0);
+                // RC67: mismo composite centrado que la sombra y el relieve.
+                ctx.drawImage(specularCanvas, -specularCanvas.width / 2, -specularCanvas.height / 2);
                 ctx.restore();
             }
         }

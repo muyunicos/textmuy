@@ -90,7 +90,7 @@ textmuy/
 │                             utils/ se carga: la descarga usa createObjectURL + <a
 │                             download>, el blur usa ctx.filter nativo con fallback manual
 │                             propio (RC66) y el SVG (cuando exista) NO dependera de potrace/svgo.
-└── tests/                 <- 42 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 43 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -102,7 +102,8 @@ textmuy/
                               area-util, avance-lineas, encaje-final,
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
                               lineas-formato, fuente-por-linea,
-                              estilo-tema, sombra-no-recortada, sombra-blur, option-schema)
+                              estilo-tema, sombra-no-recortada, sombra-blur,
+                              sombra-posicion, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -185,7 +186,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC66**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC67**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -601,6 +602,40 @@ Al apagar "Outer Shadow #1" desaparecia: la capa culpable era la sombra exterior
   canvas traiga transformacion centrada (falla con el codigo anterior);
   (3) la rama manual devuelve por putImageData; (4) el modo auto cae al manual
   cuando el cuadradito no se esparce. 42 suites en verde.
+
+
+### 7.24 RC67 — las capas offscreen se pegaban corridas media capa (sombra centrada en la esquina)
+
+Tras RC66 la sombra salio por fin DIFUMINADA, pero el usuario vio que seguia
+mal ubicada: "su centro esta en su esquina superior izquierda / se centra en la
+esquina inferior derecha del canvas". Medido en navegador (Playwright + Chrome
+real, preset `retro-comic` en 600x400): la bbox de la sombra quedaba centrada
+en (516,310), con el texto en (300,200).
+
+- 🔴 **Causa raiz: el composite de las capas offscreen usaba `drawImage(img,
+  0, 0)` bajo la transformacion CENTRADA del lienzo.** El contenido de la capa
+  (sombra, relieve) se dibuja en el CENTRO de la imagen (se pinta con la misma
+  transformacion centrada, `setTransform(ctx.getTransform())` o
+  `translate(w/2,h/2)`). Con `drawImage(..., 0, 0)` la ESQUINA de la imagen
+  cae en el centro del lienzo y el contenido, centrado en la imagen, termina
+  en la esquina inferior-derecha, recortado a un cuarto. El propio codigo lo
+  documentaba en otro efecto (`drawTextStrokeAligned`: "la transformacion debe
+  resetearse, sino el dibujo cae a media capa de distancia"); la sombra y el
+  relieve no lo hacian.
+- ✅ **Fix: compositar CENTRADO** — `ctx.drawImage(img, -img.width/2,
+  -img.height/2)` en los 8 sitios: sombra exterior (2 ramas x offset/sin
+  offset, 4 sitios), sombra interior (3 sitios, rama mask y sin mask) y
+  relieve WebGL `drawBevel` (1 sitio). El specular (1 sitio) lleva el mismo
+  composite corregido; su fuente sigue siendo `state.canvas` en vez de la
+  capa de texto (pendiente aparte, nadie lo usa).
+- ✅ **Medido en navegador tras el fix**: sombra aislada de `retro-comic`
+  centrada en (299,191) [antes 516,310]; render completo con todas las capas:
+  tinta oscura centrada en (303,191), bbox [192,84 → 413,298] alrededor del
+  centro del lienzo.
+- ✅ **Regresion nueva** `tests/sombra-posicion.test.js`: mock que registra
+  las coordenadas de cada `drawImage` y exige composites en (-w/2, -h/2)
+  para sombra exterior, sombra interior y relieve (con stub de
+  `BevelWebGLEngine` inyectado, sin GPU). 43 suites en verde.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
@@ -1247,7 +1282,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 42 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 43 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -1299,6 +1334,7 @@ node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga p
 node tests/estilo-tema.test.js      # el estilo disenado con una muestra se aplica a CUALQUIER texto
 node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC65)
 node tests/sombra-blur.test.js     # RC66: blur de sombras en espacio identidad + fallback manual + auto-test
+node tests/sombra-posicion.test.js # RC67: composites offscreen centrados en -w/2,-h/2 (sombra ext/int + bevel)
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
