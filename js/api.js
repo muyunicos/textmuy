@@ -620,6 +620,11 @@
         if (!pendientes.length) return { estado: 'listo', total: total, dibujados: total, fallos: 0 };
         var render = opciones.renderTile || renderDeAmbito(ambito);
         var fallos = 0, hechos = 0;
+        // RC70: presets FANTASMA (recurso ausente en el servidor) -> celda
+        // vacia, sin bloquear la hoja; y fallos reales CON nombre para el
+        // aviso (antes la causa no decia cual preset rompia la generacion).
+        var fantasmas = [];
+        var fallosConNombre = [];
         // F1: dibuja en memoria; cada celda descarga SOLO su fuente (I5).
         // El render lleva un TOPE: una fuente que se cuelga (sin red, promesa
         // abierta) no puede congelar la galeria entera. Al vencer se cuenta como
@@ -640,11 +645,24 @@
                 var ok = null;
                 try { ok = await conTope(render(it, thumbs.w | 0, thumbs.h | 0), topeMs); }
                 catch (_) { ok = null; }
-                if (ok) {
+                if (ok && ok.fantasma) {
+                    // Celda FANTASMA: el recurso no existe (preset borrado por
+                    // fuera de la galeria). Se dibuja una celda VACIA (no hay
+                    // nada que mostrar) y NO cuenta como fallo: la hoja se
+                    // persiste y el resto de las miniaturas no se bloquea.
+                    // I3 sigue firme para los fallos reales (transitorios).
+                    var vacio = document.createElement('canvas');
+                    vacio.width = thumbs.w | 0;
+                    vacio.height = thumbs.h | 0;
+                    it.canvasListo = vacio;
+                    dibujados[ambito + ':' + it.id] = vacio;
+                    fantasmas.push(String(it.file || it.nombre || it.id).replace(/\.txm$/i, ''));
+                } else if (ok) {
                     it.canvasListo = ok;
                     dibujados[ambito + ':' + it.id] = ok;
                 } else {
                     fallos++;
+                    fallosConNombre.push(String(it.file || it.nombre || it.id).replace(/\.txm$/i, ''));
                 }
                 hechos++;
                 if (typeof opciones.onProgress === 'function') {
@@ -659,8 +677,10 @@
         if (fallos > 0) {
             return {
                 estado: 'error',
-                causa: ambito + ':hoja:celdas:' + fallos + ':pendientes',
-                total: total, dibujados: hechos - fallos, fallos: fallos
+                causa: ambito + ':hoja:celdas:' + fallos + ':pendientes' +
+                    (fallosConNombre.length ? ' (' + fallosConNombre.slice(0, 5).join(', ') + ')' : ''),
+                total: total, dibujados: hechos - fallos, fallos: fallos,
+                fantasmas: fantasmas
             };
         }
         var res = null;
@@ -689,7 +709,7 @@
         }
         invalidarCatalogo(ambito);
         invalidarSpriteCanonico(ambito);
-        return { estado: 'generado', total: total, dibujados: hechos, fallos: 0 };
+        return { estado: 'generado', total: total, dibujados: hechos, fallos: 0, fantasmas: fantasmas };
     }
 
     // Corre un render de celda con tope de tiempo. Resuelve null al vencer (se
@@ -749,6 +769,12 @@
         loadCatalogoSync: loadCatalogoSync,
         urlDeImgRef: urlDeImgRef,
         prepareImgRefs: prepareImgRefs,
+        // RC70: EXPORTADA (antes faltaba). La usan las miniaturas de presets
+        // (preset-manager.thumbnailCanvas) para esperar TODAS las fuentes
+        // usadas (base + por linea); sin la export, el camino degradaba en
+        // silencio a renderToCanvasConFuente (solo la base) y las lineas con
+        // fuente propia salian con la tipografia del sistema.
+        ensureFontReady: ensureFontReady,
         invalidarCatalogo: invalidarCatalogo,
         invalidarDibujados: invalidarDibujados,
         ensureSpriteCanonico: ensureSpriteCanonico,

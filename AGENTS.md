@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC69**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC70**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -704,6 +704,39 @@ Tres defectos del flujo "guardar preset" reportados en produccion:
   `fillStylePreview` nunca emite `url(<id numerico>)` (number y string) y una
   URL real sigue; (C2a) `renderPresetTile('retro-comic')` espera a
   `ensureFontReady` con las refs [1,2,3] (base + L2 + L3). 45 suites en verde.
+
+
+### 7.27 RC70 — presets fantasma bloqueaban TODAS las miniaturas + ensureFontReady sin exportar
+
+Dos hallazgos tras la validacion en produccion del flujo de guardar preset:
+
+- 🔴 **`ensureFontReady` NO estaba exportada en `TextMuyAPI`** (api.js). El fix
+  RC69 de "miniaturas con todas las fuentes" comprobaba
+  `window.TextMuyAPI.ensureFontReady`, daba falsy y degradaba en silencio al
+  camino viejo (`renderToCanvasConFuente`, solo la fuente base): las lineas
+  con fuente propia seguian saliendo con la tipografia del sistema. El stack
+  de produccion lo delato (`thumbnailCanvas -> renderToCanvasConFuente`).
+  Fix: exportada (una linea) + regresion de export en
+  `tests/render-dependencias.test.js`.
+- 🔴 **Presets FANTASMA bloqueaban todas las miniaturas.** El usuario borro
+  `.txm` de prueba POR FUERA de la galeria (FTP): `presets.json` seguia
+  listandolos. El generador de la hoja intentaba dibujar esas celdas -> fetch
+  404 -> 2 fallos -> por I3 NO se persistia la hoja -> "no se generaron las
+  imagenes / hoja:celdas:2:pendientes". Ahora:
+  - `renderPresetTile` devuelve un marcador `{fantasma}` cuando el `.txm` no
+    existe (`recurso:ausente`) en vez de fallar.
+  - El nucleo de generacion dibuja la celda fantasma como **canvas VACIO**
+    (no hay nada que mostrar) y NO cuenta fallo: la hoja se persiste y el
+    resto de las miniaturas se recupera. Los fallos REALES (transitorios)
+    siguen impidiendo la escritura (I3 intacto) y la causa ahora NOMBRA los
+    presets: `hoja:celdas:2:pendientes (rari, choto)`.
+  - El estado de la galeria avisa: "Presets sin archivo: rari, choto
+    (borralos desde la galeria)" — borrarlos desde la UI manda `op=baja`, que
+    repara el catalogo y la proxima generacion ya no trae el fantasma.
+- **Regresiones**: `hoja-generacion.test.js` caso 11 (fantasma -> celda vacia
+  + hoja persistida; fantasma + fallo real -> 0 escrituras con causa nombrada;
+  caso 3 actualizado al nombre en la causa) y `guardar-miniaturas.test.js`
+  (marcador fantasma de `rari`). 45 suites en verde.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)

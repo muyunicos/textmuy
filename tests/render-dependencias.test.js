@@ -44,6 +44,11 @@ require('../js/fonts.js');
 require('../js/editor.js');
 require('../js/api.js');
 const API = global.window.TextMuyAPI;
+// RC70: ensureFontReady DEBE estar exportada: las miniaturas de presets la
+// usan para esperar TODAS las fuentes (base + por linea). Sin la export el
+// camino degradaba en silencio a renderToCanvasConFuente (solo la base) y
+// las lineas con fuente propia salian con la tipografia del sistema.
+assert.equal(typeof API.ensureFontReady, 'function', 'ensureFontReady exportada en TextMuyAPI');
 
 (async function () {
     // 1. Las dos dependencias arrancan JUNTAS: el segundo "inicio" ocurre antes

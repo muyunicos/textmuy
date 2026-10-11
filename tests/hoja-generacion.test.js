@@ -136,7 +136,7 @@ const celda = id => ({ w: 180, h: 30, id });
     assert.equal(r3.estado, 'error', 'con un fallo => error (no "generado")');
     assert.equal(r3.fallos, 1, 'cuenta el fallo');
     assert.equal(escrituras.length, 0, 'I3: con fallos NO se escribe la hoja');
-    assert.equal(r3.causa, 'fonts:hoja:celdas:1:pendientes', 'I6: causa con ambito y motivo');
+    assert.equal(r3.causa, 'fonts:hoja:celdas:1:pendientes (Marker)', 'I6: causa con ambito, motivo y NOMBRE de la celda que fallo (RC70)');
 
     // ---------------------------------------------------------------------
     // 4. Motor que rechaza => error con causa exacta, sin mensaje generico.
@@ -254,6 +254,44 @@ const celda = id => ({ w: 180, h: 30, id });
     assert.equal(o10.pad, true, 'img: pad para encajar el original');
     assert.equal(o10.items.length, 2);
     assert.equal(o10.items[0].url, 'https://test/img/a.svg', 'img: el item lleva la URL del original (base imagenesBase)');
+
+    // ---------------------------------------------------------------------
+    // 11. RC70: celdas FANTASMA (recurso ausente en el servidor, p.ej. un
+    //     preset borrado por fuera de la galeria). Se dibujan como celda
+    //     VACIA y NO bloquean la hoja; los fallos REALES siguen impidiendo
+    //     la escritura y la causa los nombra.
+    // ---------------------------------------------------------------------
+    reiniciar();
+    data.items = [[1, 'Bangers', 'display', 'Bangers'], [2, 'Marker', 'handwriting', 'Marker'], [3, 'MUY-Alegria', 'custom', 'MUY-Alegria.ttf']];
+    instalarThumbEngine({ certifica: true });
+    const r11a = await API.asegurarHojaCompleta('fonts', {
+        renderTile: function (it) {
+            if (String(it.file) === 'Marker') return { fantasma: true };
+            if (String(it.file) === 'MUY-Alegria.ttf') return null; // fallo real
+            return celda(it.id);
+        }
+    });
+    assert.equal(r11a.estado, 'error', 'un fallo real sigue impidiendo la escritura');
+    assert.equal(escrituras.length, 0, 'I3: con fallo real NO se escribe');
+    assert.ok(r11a.causa.indexOf('MUY-Alegria') >= 0, 'la causa nombra la celda real que fallo: ' + r11a.causa);
+    assert.deepEqual(r11a.fantasmas, ['Marker'], 'el fantasma se reporta aparte, no como fallo');
+
+    reiniciar();
+    data.items = [[1, 'Bangers', 'display', 'Bangers'], [2, 'Marker', 'handwriting', 'Marker'], [3, 'MUY-Alegria', 'custom', 'MUY-Alegria.ttf']];
+    instalarThumbEngine({ certifica: true });
+    const r11b = await API.asegurarHojaCompleta('fonts', {
+        renderTile: function (it) {
+            if (String(it.file) === 'Marker') return { fantasma: true };
+            return celda(it.id);
+        }
+    });
+    assert.equal(r11b.estado, 'generado', 'solo fantasmas => la hoja se persiste');
+    assert.equal(r11b.fallos, 0, 'el fantasma no cuenta como fallo');
+    assert.equal(escrituras.length, 1, 'se escribe la hoja con la celda vacia');
+    assert.deepEqual(r11b.fantasmas, ['Marker'], 'lista de fantasmas');
+    const celdaVacia = escrituras[0].items.find(function (i) { return String(i.file) === 'Marker'; });
+    assert.ok(celdaVacia && celdaVacia.canvasListo && celdaVacia.canvasListo.width === 180,
+        'la celda fantasma se dibuja como canvas VACIO del tamano del tile');
 
     // Bloque C: los filtros de categoria. El listado completo vive en `itemsBase`
 // (sin busqueda ni filtro); las pestanas se derivan de ahi y el clic vuelve a

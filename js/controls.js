@@ -2293,7 +2293,14 @@
                         if (version !== presetSpriteVersion) return null;
                         if (!hoja || !hoja.spriteImage) return null;
                         presetSpriteInfo = { spriteImage: hoja.spriteImage, spriteUrl: hoja.spriteUrl };
-                        setStatus('Miniaturas listas.');
+                        // RC70: avisar si quedaron presets FANTASMA (el .txm ya
+                        // no existe): se ven con su nombre y celda vacia; se
+                        // borran desde la galeria (op=baja repara el catalogo).
+                        if (s && s.fantasmas && s.fantasmas.length) {
+                            setStatus('Miniaturas listas. Presets sin archivo: ' + s.fantasmas.join(', ') + ' (borralos desde la galeria).');
+                        } else {
+                            setStatus('Miniaturas listas.');
+                        }
                         return presetSpriteInfo;
                     });
             }).catch(function() { return null; });

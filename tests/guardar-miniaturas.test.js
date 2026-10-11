@@ -130,6 +130,18 @@ assert.equal(Controls.fillStylePreview({ type: 'texture', texture: { src: 'https
     const refs = TextEditor.fuentesPorLinea(aseguradas[0]).map(function (f) { return f.ref; }).sort(function (a, b) { return a - b; });
     assert.deepEqual(refs, [1, 2, 3],
         'se aseguran base + fuentes por linea (antes solo la base: L2/L3 salian con la fuente del sistema)');
+
+    // RC70: preset FANTASMA (el .txm no existe pero el catalogo lo lista):
+    // devuelve el marcador {fantasma}, no null (la hoja dibuja celda vacia).
+    global.fetch = function (url) {
+        if (/rari\.txm$/.test(url)) {
+            return Promise.resolve({ ok: false, status: 404 });
+        }
+        return Promise.reject(new Error('fetch inesperado: ' + url));
+    };
+    const fantasma = await PM.renderPresetTile('rari');
+    assert.ok(fantasma && fantasma.fantasma === true, 'un preset sin archivo devuelve el marcador fantasma');
+    assert.equal(fantasma.nombre, 'rari', 'el marcador nombra al preset');
 })().then(function () {
     console.log('OK: guardar-miniaturas.test.js (preview sin url(id) + miniaturas con todas las fuentes)');
 }).catch(function (e) {

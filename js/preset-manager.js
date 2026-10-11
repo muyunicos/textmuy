@@ -461,6 +461,17 @@
         try {
             return await tarea;
         } catch (e) {
+            const causa = (e && e.message) || String(e);
+            if (/recurso:ausente/.test(causa)) {
+                // RC70: preset FANTASMA (el .txm ya no existe pero el catalogo
+                // aun lo lista, p.ej. borrado por fuera de la galeria). Se
+                // devuelve un marcador: el nucleo de la hoja dibuja una celda
+                // VACIA en su lugar y NO bloquea las miniaturas del resto; la
+                // galeria lo muestra con su nombre para poder borrarlo desde
+                // la UI (op=baja repara el catalogo).
+                console.warn('Preset sin archivo (fantasma):', name, '(' + causa + ')');
+                return { fantasma: true, causa: causa, nombre: safe };
+            }
             canvasCache.delete(safe);
             console.warn('No se pudo dibujar la miniatura del preset', name, e);
             return null;
