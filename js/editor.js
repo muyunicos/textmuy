@@ -1472,23 +1472,169 @@
         img.src = src;
     }
 
-    // Blur de un canvas con el filtro nativo ctx.filter. El vendor StackBlur se
-    // retiro junto con js/utils/: el blur nativo difumina TAMBIEN el canal alpha y
-    // va acelerado por el navegador (GPU/Skia), mientras StackBlur.canvasRGB no
-    // tocaba el alpha (daba halos en las sombras) y corria en CPU. El guard por
-    // si el contexto no soporta filter: en ese caso el blur simplemente no aplica.
-    function applyBlur(canvas, radius) {
+    // Blur de un canvas de sombra. RC66: dos correcciones sobre el blur nativo:
+    //
+    // 1. ESPACIO IDENTIDAD. El canvas de la sombra trae la transformacion
+    //    CENTRADA del llamador (offCtx.setTransform(ctx.getTransform())).
+    //    clearRect/drawImage deben correr con la transformacion en identidad:
+    //    sin resetearla, el clear solo barria el cuadrante inferior-derecho y
+    //    el difuminado se pegaba corrido media capa. La sombra sobrevivia como
+    //    copia DURA desplazada abajo-derecha (medido en navegador real, Chrome
+    //    con GPU: 757 px duros y centro del blob en 149,110 contra el 110,80
+    //    esperado; con el reset: 0 px duros y centrado en 110,76).
+    //
+    // 2. FALLBACK MANUAL. ctx.filter declara la propiedad en todos los
+    //    navegadores modernos pero el efecto depende de la GPU: en entornos de
+    //    renderizado por software la propiedad existe y NO produce efecto, y
+    //    el guard de `undefined` no alcanzaba. detectarBlurNativo() corre UN
+    //    auto-test de un cuadradito (una sola vez por sesion): si no se
+    //    esparce, todas las sombras van por boxBlurData, determinista y sin
+    //    vendors (StackBlur fue retirado y no se reintroduce).
+    let blurNativoDisponible = null;
+
+    function detectarBlurNativo() {
+        if (blurNativoDisponible !== null) return blurNativoDisponible;
+        blurNativoDisponible = false;
+        try {
+            const S = 60, RADIO = 6;
+            const cv = document.createElement('canvas');
+            cv.width = S; cv.height = S;
+            const c = cv.getContext('2d');
+            if (typeof c.filter === 'undefined') return blurNativoDisponible;
+            const contar = function (canvas) {
+                const d = canvas.getContext('2d').getImageData(0, 0, S, S).data;
+                let n = 0;
+                for (let i = 3; i < d.length; i += 4) if (d[i] >= 30) n++;
+                return n;
+            };
+            c.fillStyle = '#ffffff';
+            c.fillRect(S / 2 - 6, S / 2 - 6, 12, 12);
+            const antes = contar(cv);
+            const tmp = document.createElement('canvas');
+            tmp.width = S; tmp.height = S;
+            const tc = tmp.getContext('2d');
+            tc.filter = 'blur(' + RADIO + 'px)';
+            tc.drawImage(cv, 0, 0);
+            c.clearRect(0, 0, S, S);
+            c.drawImage(tmp, 0, 0);
+            const despues = contar(cv);
+            blurNativoDisponible = despues > antes * 1.3;
+        } catch (_) { blurNativoDisponible = false; }
+        return blurNativoDisponible;
+    }
+
+    // Box blur separable de 3 pasadas (~gaussiano) sobre un buffer RGBA.
+    // Funcion pura de datos: la usan el fallback y las pruebas de Node sin
+    // canvas real. Difumina los 4 canales (alpha incluido, como ctx.filter).
+    function boxBlurData(data, w, h, radius) {
+        const src = new Uint8ClampedArray(data);
+        const buf = new Uint8ClampedArray(src.length);
+        const pasadas = [
+            Math.max(1, Math.round(radius / 3)),
+            Math.max(1, Math.round(radius / 2)),
+            Math.max(1, Math.round(radius))
+        ];
+        for (let p = 0; p < 3; p++) {
+            const r = pasadas[p];
+            boxPassH(src, buf, w, h, r);
+            boxPassV(buf, src, w, h, r);
+        }
+        return src;
+    }
+    // Pasada horizontal con ventana deslizante (muestreo clamp a los bordes).
+    function boxPassH(s, d, w, h, r) {
+        const div = 2 * r + 1;
+        for (let y = 0; y < h; y++) {
+            const fila = y * w;
+            const i0 = fila * 4;
+            let ra = s[i0] * (r + 1), ga = s[i0 + 1] * (r + 1), ba = s[i0 + 2] * (r + 1), aa = s[i0 + 3] * (r + 1);
+            for (let x = 1; x <= r; x++) {
+                const i = (fila + x) * 4;
+                ra += s[i]; ga += s[i + 1]; ba += s[i + 2]; aa += s[i + 3];
+            }
+            for (let x = 0; x < w; x++) {
+                const o = (fila + x) * 4;
+                d[o] = ra / div; d[o + 1] = ga / div; d[o + 2] = ba / div; d[o + 3] = aa / div;
+                const xIn = Math.min(w - 1, x + r + 1);
+                const xOut = Math.max(0, x - r);
+                const iIn = (fila + xIn) * 4;
+                const iOut = (fila + xOut) * 4;
+                ra += s[iIn] - s[iOut];
+                ga += s[iIn + 1] - s[iOut + 1];
+                ba += s[iIn + 2] - s[iOut + 2];
+                aa += s[iIn + 3] - s[iOut + 3];
+            }
+        }
+    }
+    // Pasada vertical con ventana deslizante (muestreo clamp a los bordes).
+    function boxPassV(s, d, w, h, r) {
+        const div = 2 * r + 1;
+        for (let x = 0; x < w; x++) {
+            const i0 = x * 4;
+            let ra = s[i0] * (r + 1), ga = s[i0 + 1] * (r + 1), ba = s[i0 + 2] * (r + 1), aa = s[i0 + 3] * (r + 1);
+            for (let y = 1; y <= r; y++) {
+                const i = (y * w + x) * 4;
+                ra += s[i]; ga += s[i + 1]; ba += s[i + 2]; aa += s[i + 3];
+            }
+            for (let y = 0; y < h; y++) {
+                const o = (y * w + x) * 4;
+                d[o] = ra / div; d[o + 1] = ga / div; d[o + 2] = ba / div; d[o + 3] = aa / div;
+                const yIn = Math.min(h - 1, y + r + 1);
+                const yOut = Math.max(0, y - r);
+                const iIn = (yIn * w + x) * 4;
+                const iOut = (yOut * w + x) * 4;
+                ra += s[iIn] - s[iOut];
+                ga += s[iIn + 1] - s[iOut + 1];
+                ba += s[iIn + 2] - s[iOut + 2];
+                aa += s[iIn + 3] - s[iOut + 3];
+            }
+        }
+    }
+
+    // modo: 'auto' (deteccion cacheada) | 'nativo' | 'manual'. Las pruebas de
+    // Node fuerzan 'nativo'/'manual' para cubrir las dos ramas sin GPU.
+    function applyBlur(canvas, radius, modo) {
         if (radius <= 0 || canvas.width === 0 || canvas.height === 0) return;
         const ctx = canvas.getContext('2d');
-        if (typeof ctx.filter === 'undefined') return;
-        const tmp = document.createElement('canvas');
-        tmp.width = canvas.width;
-        tmp.height = canvas.height;
-        const tmpCtx = tmp.getContext('2d');
-        tmpCtx.filter = `blur(${radius}px)`;
-        tmpCtx.drawImage(canvas, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(tmp, 0, 0);
+        const usarNativo = (modo === 'manual') ? false : (modo === 'nativo' ? true : detectarBlurNativo());
+        if (usarNativo) {
+            const tmp = document.createElement('canvas');
+            tmp.width = canvas.width;
+            tmp.height = canvas.height;
+            const tmpCtx = tmp.getContext('2d');
+            tmpCtx.filter = `blur(${radius}px)`;
+            tmpCtx.drawImage(canvas, 0, 0);
+            // RC66: clearRect/drawImage en ESPACIO IDENTIDAD. El canvas de la
+            // sombra trae la transformacion centrada del llamador; sin el
+            // reset, el clear barria solo el cuadrante inferior-derecho y el
+            // difuminado se pegaba corrido (sombra dura abajo-derecha).
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(tmp, 0, 0);
+            ctx.restore();
+        } else {
+            try {
+                const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = boxBlurData(img.data, canvas.width, canvas.height, radius);
+                let nd = null;
+                try { nd = new ImageData(data, canvas.width, canvas.height); } catch (_) { nd = null; }
+                if (!nd && ctx.createImageData) {
+                    nd = ctx.createImageData(canvas.width, canvas.height);
+                    if (nd && nd.data && nd.data.set) nd.data.set(data);
+                }
+                if (!nd) return;
+                // putImageData es SIEMPRE en espacio de pixeles, pero se resetea
+                // igual por coherencia con la rama nativa.
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.putImageData(nd, 0, 0);
+                ctx.restore();
+            } catch (_) {
+                // Sin acceso a los pixeles (contexto/mock sin getImageData):
+                // el blur simplemente no aplica, como el guard anterior.
+            }
+        }
     }
 
     // Helper por-linea: itera las lineas con su config efectiva (base + delta
@@ -4785,7 +4931,12 @@ function clone(obj) {
     MAX_LINE: MAX_LINE,
     lineFontSizes: lineFontSizes,
         flagWaveAt: flagWaveAt,
-        flagWaveSlopes: flagWaveSlopes
+        flagWaveSlopes: flagWaveSlopes,
+        // RC66: blur de sombras (nativo con auto-test + fallback manual).
+        // Expuesto para las suites: las dos ramas se fuerzan con el modo.
+        applyBlur: applyBlur,
+        boxBlurData: boxBlurData,
+        detectarBlurNativo: detectarBlurNativo
     };
 
 })();

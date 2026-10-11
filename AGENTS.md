@@ -88,9 +88,9 @@ textmuy/
 │                             FileSaver/Sortable/gif-encoder/potrace/toastify-js/util en
 │                             el refactor 03ea16e, y pica/stackblur/svgo en RC59. Nada de
 │                             utils/ se carga: la descarga usa createObjectURL + <a
-│                             download>, el blur usa ctx.filter nativo y el SVG (cuando
-│                             exista) NO dependera de potrace/svgo.
-└── tests/                 <- 41 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+│                             download>, el blur usa ctx.filter nativo con fallback manual
+│                             propio (RC66) y el SVG (cuando exista) NO dependera de potrace/svgo.
+└── tests/                 <- 42 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -102,7 +102,7 @@ textmuy/
                               area-util, avance-lineas, encaje-final,
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
                               lineas-formato, fuente-por-linea,
-                              estilo-tema, sombra-no-recortada, option-schema)
+                              estilo-tema, sombra-no-recortada, sombra-blur, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -185,7 +185,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC65**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC66**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -558,6 +558,49 @@ formato rechazado en cada guardado.
   fuente principal de datos del editor), pero no garantiza al 100% que un preset
   hecho a mano no traiga otro campo exotico; en desarrollo eso es aceptable (si
   aparece, se agrega al allowlist con su causa). Bajarlo a "solo warn" es de una linea.
+
+
+### 7.23 RC66 — la sombra exterior salia como COPIA DURA corrida abajo-derecha
+
+El usuario confirmo el sintoma en `retro-comic` (y era preexistente): una copia
+**dura** del texto, en el color de la sombra, desplazada hacia abajo-derecha.
+Al apagar "Outer Shadow #1" desaparecia: la capa culpable era la sombra exterior.
+
+- 🔴 **Causa raiz en `editor.js::applyBlur` (bug real, NO del navegador).**
+  El canvas de la sombra trae la transformacion CENTRADA del llamador
+  (`offCtx.setTransform(ctx.getTransform())`). `applyBlur` corria
+  `clearRect`/`drawImage` **sin resetear esa transformacion**: el clear solo
+  barria el cuadrante inferior-derecho y el difuminado se pegaba corrido media
+  capa. La copia dura sobrevivia en un cuadrante. Medido en navegador real
+  (Chrome + GPU NVIDIA D3D11): 757 px duros y centro del blob en 149,110
+  contra el 110,80 esperado; con el reset: **0 px duros** y centrado.
+- ✅ **Verificado end-to-end con el preset real**: render de `retro-comic` con
+  el codigo del modulo en Chrome (Playwright + datos de `uploads/pmu`):
+  **VIEJO** = 2.282 px de sombra DURA con bbox pegado a la esquina
+  (485,267→578,385 en un lienzo 600x400); **NUEVO** = **0 duros / 15.951
+  suaves**. El blur nativo (ctx.filter) SI funcionaba: el diagnostico de un
+  cuadradito lo confirmo en la misma maquina (el texto con blur se esparce
+  142→220 px).
+- ✅ **Espacio identidad**: `applyBlur` hace `save()` +
+  `setTransform(1,0,0,1,0,0)` antes de `clearRect`/`drawImage`/`putImageData`
+  y `restore()`. Vale para las dos ramas (nativa y manual).
+- ✅ **Fallback manual con auto-test** (decision del usuario: Opcion B).
+  `detectarBlurNativo()` corre UNA vez por sesion: dibuja un cuadradito de
+  12x12 y mide si se esparce con el blur nativo. Si no (ctx.filter declarado
+  pero sin efecto — pasa en renderizado por software), todas las sombras van
+  por `boxBlurData` (box blur separable de 3 pasadas, puro, sin vendors:
+  StackBlur fue retirado y no se reintroduce). `applyBlur(canvas, radio,
+  modo)` admite `'auto'|'nativo'|'manual'` para que las suites cubran las dos
+  ramas sin GPU.
+- ⚠️ **Falso positivo del auto-test original corregido**: un puntito de 2 px
+  difuminado queda tan tenue que el umbral de alpha lo daba por "blur roto"
+  (0 px). El cuadradito es de 12x12 y el criterio es comparativo
+  (despues > antes * 1.3), no un umbral absoluto.
+- **Regresion nueva** `tests/sombra-blur.test.js`: (1) boxBlurData difumina un
+  buffer real; (2) la rama nativa limpia y pega en espacio identidad aunque el
+  canvas traiga transformacion centrada (falla con el codigo anterior);
+  (3) la rama manual devuelve por putImageData; (4) el modo auto cae al manual
+  cuando el cuadradito no se esparce. 42 suites en verde.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
@@ -1204,7 +1247,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 41 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 42 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -1255,6 +1298,7 @@ node tests/lineas-formato.test.js     # US6: .txm v2, delta estricto, lineas aus
 node tests/fuente-por-linea.test.js  # US6: fuente propia por linea, una carga por identidad, fallo nombrado
 node tests/estilo-tema.test.js      # el estilo disenado con una muestra se aplica a CUALQUIER texto
 node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC65)
+node tests/sombra-blur.test.js     # RC66: blur de sombras en espacio identidad + fallback manual + auto-test
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }
