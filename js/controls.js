@@ -73,6 +73,10 @@
     function repintarConRefsResueltas() {
         if (!editor || !window.TextMuyAPI || !window.TextMuyAPI.prepareImgRefs) return;
         window.TextMuyAPI.prepareImgRefs(editor.getSettings()).then(function () {
+            // RC69: re-renderizar tambien la UI de capas de relleno, para que
+            // la preview de la textura muestre la URL resuelta (o el
+            // placeholder neutro), nunca url(<id>) con 404.
+            try { renderFillLayersUI(); } catch (_) { /* sin UI de capas */ }
             if (editor.render) editor.render();
         }).catch(function (_) { /* sin puente: omitida sin 404 */ });
     }
@@ -1140,7 +1144,23 @@
             return 'linear-gradient(90deg, ' + stops + ')';
         }
         if (style.type === 'texture' && style.texture && style.texture.src) {
-            return 'url(' + style.texture.src + ') center/cover';
+            const srcTex = style.texture.src;
+            // RC69: ref numerica (id de img.json) sin resolver: NUNCA emitir
+            // url(<id>) — el navegador la pediria como URL relativa
+            // (.../modules/textmuy/26 -> 404). Si el catalogo en memoria la
+            // resuelve (urlDeImgRef), se muestra la preview real.
+            const esNumerica = typeof srcTex === 'number' ||
+                (typeof srcTex === 'string' && /^[0-9]+$/.test(String(srcTex).trim()));
+            if (esNumerica) {
+                try {
+                    if (window.TextMuyAPI && window.TextMuyAPI.urlDeImgRef) {
+                        const resuelta = window.TextMuyAPI.urlDeImgRef(srcTex);
+                        if (resuelta) return 'url(' + resuelta + ') center/cover';
+                    }
+                } catch (_) { /* sin catalogo: placeholder */ }
+                return '#2a2a2a'; // placeholder neutro hasta resolver
+            }
+            return 'url(' + srcTex + ') center/cover';
         }
         return (style.color && typeof style.color === 'string') ? style.color : '#ffffff';
     }
@@ -2208,6 +2228,12 @@
             if (ev.detail && ev.detail.ambito === 'tm-presets') {
                 presetSpriteVersion++;
                 presetSpriteInfo = null;
+                // RC69: con la galeria ABIERTA, regenerar la hoja de una (antes
+                // habia que reabrirla o recargar la pagina: tras guardar un
+                // preset quedaban todos sin miniaturas hasta el recargo).
+                if (gallery.classList.contains('open')) {
+                    cargarPresetSprite().then(populate);
+                }
             }
         });
         // RC37: la hoja de miniaturas de presets se LEE por la ruta canonica
@@ -2423,6 +2449,8 @@
     // Expose init
     window.Controls = {
         init: init,
-        refreshUndoControls: refreshUndoControls
+        refreshUndoControls: refreshUndoControls,
+        // RC69: expuesta para las suites (regresion del url(<id>) con 404).
+        fillStylePreview: fillStylePreview
     };
 })();

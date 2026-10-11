@@ -90,7 +90,7 @@ textmuy/
 │                             utils/ se carga: la descarga usa createObjectURL + <a
 │                             download>, el blur usa ctx.filter nativo con fallback manual
 │                             propio (RC66) y el SVG (cuando exista) NO dependera de potrace/svgo.
-└── tests/                 <- 44 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 45 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -103,7 +103,8 @@ textmuy/
                               lineas-resolucion, lineas-tamano, lineas-ciclos,
                               lineas-formato, fuente-por-linea,
                               estilo-tema, sombra-no-recortada, sombra-blur,
-                              sombra-posicion, carga-gradient-imgrefs, option-schema)
+                              sombra-posicion, carga-gradient-imgrefs,
+                              guardar-miniaturas, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
                               + text-tab.browser.js (spec 002, pendiente de escribir)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
@@ -186,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC68**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC69**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -673,6 +674,36 @@ Dos defectos reportados por el usuario en produccion, con causas raiz distintas:
   blanco); (B) refs numericas (number y string) no generan NINGUN `Image.src`
   relativo y una URL real SI se carga (el guard no sobre-bloquea). 44 suites en
   verde.
+
+
+### 7.26 RC69 — guardar preset: 404 del preview de textura y miniaturas sin fuente por linea
+
+Tres defectos del flujo "guardar preset" reportados en produccion:
+
+- 🔴 **404 (`GET .../modules/textmuy/26`) al guardar/recargar.** La preview de
+  un estilo de TEXTURA en la UI de capas de relleno
+  (`controls.js::fillStylePreview`) armaba `background: url(<src crudo>)`. Con
+  la ref NUMERICA sin resolver (id de img.json) el navegador pedia la URL
+  RELATIVA "26" -> 404. Fix: las refs numericas se resuelven con
+  `urlDeImgRef` (catalogo en memoria) o devuelven un placeholder neutro; una
+  URL real se sigue mostrando. `repintarConRefsResueltas` ademas re-renderiza
+  la UI de capas tras resolver (la preview muestra la URL real, no el id).
+- 🔴 **"Quedan todos sin miniaturas" al guardar.** `savePreset` invalida la
+  hoja `tm-presets` (correcto), pero la galeria ABIERTA solo regeneraba al
+  reabrir/recargar. Fix: el listener de `textmuy:sprite-invalidado` regenera
+  la hoja de una si la galeria esta abierta (`cargarPresetSprite().then
+  (populate)`).
+- 🔴 **Miniaturas con fuente por defecto en las lineas con fuente propia.**
+  `thumbnailCanvas` esperaba SOLO la fuente base (`renderToCanvasConFuente`):
+  un preset con fuente por linea (retro-comic L2/L3) salia con la tipografia
+  del sistema en esas lineas. Fix: `thumbnailCanvas` espera a
+  `TextMuyAPI.ensureFontReady` (todas las fuentes usadas, base + por linea,
+  con causa por fallo); si una fuente no llega, la celda falla con causa en
+  vez de persistir una miniatura con tipografia equivocada (I3).
+- **Regresion nueva** `tests/guardar-miniaturas.test.js`: (C1)
+  `fillStylePreview` nunca emite `url(<id numerico>)` (number y string) y una
+  URL real sigue; (C2a) `renderPresetTile('retro-comic')` espera a
+  `ensureFontReady` con las refs [1,2,3] (base + L2 + L3). 45 suites en verde.
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)
@@ -1319,7 +1350,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 44 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 45 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress.
@@ -1373,6 +1404,7 @@ node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven +
 node tests/sombra-blur.test.js     # RC66: blur de sombras en espacio identidad + fallback manual + auto-test
 node tests/sombra-posicion.test.js # RC67: composites offscreen centrados en -w/2,-h/2 (sombra ext/int + bevel)
 node tests/carga-gradient-imgrefs.test.js # RC68: gradiente copiado al cargar + refs numericas sin 404
+node tests/guardar-miniaturas.test.js   # RC69: preview sin url(id) + miniaturas con todas las fuentes
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

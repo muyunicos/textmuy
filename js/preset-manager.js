@@ -393,6 +393,10 @@
     // RC39 (001-fix-bugs-01): la miniatura ESPERA a la fuente declarada. Antes
     // se dibujaba de inmediato y, si la fuente aun no habia bajado, la
     // miniatura del preset se guardaba con la tipografia del sistema.
+    // RC69: se espera a TODAS las fuentes usadas (base + una por linea) via
+    // TextMuyAPI.ensureFontReady. renderToCanvasConFuente solo aseguraba la
+    // fuente principal: un preset con fuente propia por linea (retro-comic
+    // L2/L3) quedaba en la miniatura con la tipografia del sistema.
     async function thumbnailCanvas(settings) {
         const editor = window.TextEditor;
         if (!editor || !editor.renderToCanvas) throw new Error('Editor not ready');
@@ -403,7 +407,12 @@
         const c = document.createElement('canvas');
         c.width = THUMB_WIDTH;
         c.height = THUMB_HEIGHT;
-        if (editor.renderToCanvasConFuente) {
+        if (window.TextMuyAPI && window.TextMuyAPI.ensureFontReady) {
+            // Fallo con causa por fuente (la celda se cuenta como fallida en
+            // vez de persistir una miniatura con tipografia equivocada).
+            await window.TextMuyAPI.ensureFontReady(s);
+            editor.renderToCanvas(c, s);
+        } else if (editor.renderToCanvasConFuente) {
             await editor.renderToCanvasConFuente(c, s);
         } else {
             editor.renderToCanvas(c, s);
