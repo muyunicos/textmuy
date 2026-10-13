@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC70**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC71**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -737,6 +737,26 @@ Dos hallazgos tras la validacion en produccion del flujo de guardar preset:
   + hoja persistida; fantasma + fallo real -> 0 escrituras con causa nombrada;
   caso 3 actualizado al nombre en la causa) y `guardar-miniaturas.test.js`
   (marcador fantasma de `rari`). 45 suites en verde.
+
+### 7.28 RC71 — renderBatch espera el catálogo de fuentes (primera vista previa)
+
+🔴 **La primera vista previa del comprador fallaba SIEMPRE** con
+`fuente:fonts:54:ausente o invalido`; al reintentar (F5) funcionaba. Causa:
+`render-core.html` declara `RenderCore.ready` en cuanto cargan los scripts, SIN
+esperar a que `fonts.json` (async: fetch + puente `textmuy-bridge-ready`) este
+indexado. El puente del plugin dispara `renderBatch` de inmediato y
+`ensureFontReady -> loadFont(id) -> resolveFontId(id)` corre antes de
+`indexarCatalogo()`: `getFontById(id)` da null y lanza aunque la fuente EXISTA
+en el servidor. Es determinista: en el reintento el catalogo ya estaba cacheado
+en `userFontsPromise`. En el plugin eso tumbaba la vista previa ("no hay vista
+previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
+
+- Fix: `renderBatch` (api.js) hace `await FontLoader.loadUserFonts()` ANTES del
+  bucle. Es idempotente y cacheada, asi que no frena los renders siguientes; el
+  `.catch` no traga el error real (si la fuente de verdad falta,
+  `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
+- Bump `?v=RC71` en `index.html` y `render-core.html`.
+
 
 
 ### 7.19 RC62 — cargar un preset de la galeria rompia el editor (`defaultSettings is not a function`)

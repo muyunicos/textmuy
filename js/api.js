@@ -331,6 +331,18 @@
         items = items || [];
         options = options || {};
         if (!window.TextEditor || !window.ExportManager) throw new Error('TextMuy has not finished loading');
+        // RC71: el catalogo de fuentes (fonts.json) es async. Sin esperarlo, el
+        // primer render de la sesion corre antes de indexarCatalogo() y falla con
+        // fonts:<id>:ausente o invalido (la fuente existe en el servidor pero el
+        // catalogo aun no llego). Era determinista: la primera vista previa del
+        // comprador fallaba y al reintentar funcionaba porque el catalogo ya
+        // estaba cacheado en la promesa. loadUserFonts es idempotente y cacheada,
+        // asi que esperarla aca no frena los renders siguientes. El catch no traga
+        // el error real: si la fuente de verdad no existe, ensureFontReady lo
+        // sigue reportando con causa (constitucion VI / FR-005).
+        if (window.FontLoader && typeof window.FontLoader.loadUserFonts === 'function') {
+            await window.FontLoader.loadUserFonts().catch(function () { /* el fallo real lo informa ensureFontReady con causa */ });
+        }
         const out = [];
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
