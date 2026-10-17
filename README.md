@@ -14,6 +14,8 @@ puente del plugin muestra un estado de error claro y accionable.
 | `docs/entorno-desarrollo.md` | Entorno de desarrollo: Windows + PowerShell 7, Spec Kit + Cline, verificaciones y diagnóstico. |
 | `.specify/memory/constitution.md` | Constitución del módulo (jerarquía documental). |
 | `specs/001-fix-bugs-01/` | Spec SDD del lote de correcciones (spec, plan, tasks, quickstart). |
+| `specs/002-text-tab/` | Spec SDD de la correccion de la pestana TEXT (US1-US6, bloques A-D). |
+| `specs/003-option-schema/` | Spec SDD del schema unico de opciones + fail-fast de rutas. |
 
 Jerarquía documental: `.specify/memory/constitution.md` > `AGENTS.md` > resto.
 

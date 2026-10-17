@@ -557,7 +557,6 @@
         if (/^[^:]+(:[^:]*)?$/.test(s) && /^[^@!?<>{}[\]\\/]+(:[^:@!?<>{}[\]\\/]*)?$/.test(s)) {
             var familia = googleFamilyOf(s);
             var existente = idsPorNombreRegistro(familia)[0];
-var existente = idsPorNombreRegistro(familia)[0];
             if (existente !== undefined) return existente;
             // R-C1.7: con el catalogo PENDIENTE no se inventa identidad. El
             // editor arranca antes de que el puente entregue el catalogo, y
@@ -567,8 +566,6 @@ var existente = idsPorNombreRegistro(familia)[0];
             if (!catalogoListo()) {
                 throw new Error('fonts:' + s + ':catalogo no disponible todavia (se reintenta al cargar)');
             }
-            var idNuevo = siguienteIdFuenteVirtual();
-            if (existente !== undefined) return existente;
             var idNuevo = siguienteIdFuenteVirtual();
             setFontById(idNuevo, normEntry(idNuevo, familia, s, { online: true }));
             nameToKeyMap[familia] = 'user-' + idNuevo;
@@ -884,6 +881,23 @@ var existente = idsPorNombreRegistro(familia)[0];
      * de confirmar e invalidar las caches. NUNCA rechaza: false ante fallos,
      * true cuando el motor confirma la baja.
      */
+    // POST op=baja al motor (scope=fonts). Compartido por deleteFontFromCatalog
+    // (baja por id de catalogo) y deleteCustomFont (baja de subida de sesion):
+    // antes cada una armaba el mismo FormData + fetch y jscpd lo marcaba.
+    // Resuelve {ok, res} o null si no hay puente (nunca lanza).
+    function postBajaFuente(archivo) {
+        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
+        if (!(bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor)) return Promise.resolve(null);
+        var fd = new FormData();
+        fd.append('op', 'baja');
+        fd.append('_wpnonce', bridge.nonces.motor);
+        fd.append('scope', 'fonts');
+        fd.append('file', archivo);
+        return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) {
+                return r.json().then(function (res) { return { ok: r.ok, res: res, bridge: bridge }; });
+            }).catch(function () { return { ok: false, res: null, bridge: bridge }; });
+    }
     /**
      * Baja REAL de una fuente IDENTIFICADA POR SU ID DE CATALOGO (op=baja,
      * scope=fonts). Es la ruta que usa la galeria: desde RC39 la identidad de
@@ -894,25 +908,13 @@ var existente = idsPorNombreRegistro(familia)[0];
      * fisico en el servidor. Devuelve Promise<boolean> y nunca rechaza.
      */
     function deleteFontFromCatalog(id) {
-        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-        if (!(bridge && bridge.urls && bridge.urls.motor && bridge.nonces && bridge.nonces.motor)) {
-            return Promise.resolve(false);
-        }
         var entry = catalogFonts[id] || fontsById[id] || null;
         var archivo = entry && entry.file;
         if (!archivo || entry.online || !FONT_EXT_RE.test(archivo)) {
             return Promise.resolve(false); // Google: no hay fisico que borrar
         }
-        var fd = new FormData();
-        fd.append('op', 'baja');
-        fd.append('_wpnonce', bridge.nonces.motor);
-        fd.append('scope', 'fonts');
-        fd.append('file', archivo);
-        return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
-            .then(function (r) {
-                return r.json().then(function (res) { return { ok: r.ok, res: res }; });
-            }).then(function (o) {
-                if (!o.ok || !o.res || !o.res.success) return false;
+        return postBajaFuente(archivo).then(function (o) {
+                if (!o || !o.ok || !o.res || !o.res.success) return false;
                 // La identidad desaparece: sale del indice canonico y de cualquier
                 // entrada del registro que apuntara al mismo archivo.
                 delete fontsById[id];
@@ -922,36 +924,25 @@ var existente = idsPorNombreRegistro(familia)[0];
                 delete loadedFonts[id];
                 delete fontStates[id];
                 return true;
-            })
-            .catch(function () { return false; });
+            });
     }
 
     function deleteCustomFont(key) {
         var font = fontRegistry[key];
-        var bridge = window.PresetManager && window.PresetManager.getBridge ? window.PresetManager.getBridge() : null;
-
-        if (!(font && font.isServer && font.serverFile && bridge && bridge.urls && bridge.urls.motor
-            && bridge.nonces && bridge.nonces.motor)) {
+        if (!(font && font.isServer && font.serverFile)) {
             return Promise.resolve(false);
         }
         var archivo = font.serverFile;
-        var fd = new FormData();
-        fd.append('op', 'baja');
-        fd.append('_wpnonce', bridge.nonces.motor);
-        fd.append('scope', 'fonts');
-        fd.append('file', archivo);
-        return fetch(bridge.urls.motor, { method: 'POST', body: fd, credentials: 'same-origin' })
-            .then(async function (r) {
-                var res = await r.json();
-                if (!r.ok || !res || !res.success) return false;
+        return postBajaFuente(archivo)
+            .then(async function (o) {
+                if (!o || !o.ok || !o.res || !o.res.success) return false;
                 unregisterCustomFont(key);
-                if (Array.isArray(bridge.fuentes)) {
-                    bridge.fuentes = bridge.fuentes.filter(function (f) { return f.nombre !== archivo; });
+                if (o.bridge && Array.isArray(o.bridge.fuentes)) {
+                    o.bridge.fuentes = o.bridge.fuentes.filter(function (f) { return f.nombre !== archivo; });
                 }
                 await invalidarSpriteFuentes();
                 return true;
-            })
-            .catch(function () { return false; });
+            });
     }
 
     // (H-004) Sin carga legacy de fuentes personalizadas: el catalogo y la

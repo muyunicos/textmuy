@@ -5,23 +5,29 @@
     let editor = null;
     function init(editorInstance) { editor = editorInstance; }
 
-    function canvasFromSettings(settings) {
+    // Lienzo de exportacion + settings con fondo apagado (PNG siempre
+    // transparente: el damero es solo ayuda visual). Compartido por las dos
+    // rutas (sincrona y async con espera de fuente): antes cada una armaba lo
+    // mismo y jscpd lo marcaba como clon.
+    function prepararCanvasExport(settings) {
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(100, Math.min(8000, Number(settings.canvas.width) || 1920));
         canvas.height = Math.max(100, Math.min(8000, Number(settings.canvas.height) || 1080));
         const exportSettings = JSON.parse(JSON.stringify(settings));
-        // The PNG option is intentionally always transparent.  The checkerboard
-        // is a preview aid only and must never become exported pixels.
         exportSettings.background.active = false;
-        // Presets can use either the legacy background.image form or the
-        // current background.fill.image form.  Both must be disabled for a
-        // genuinely transparent export.
+        // Presets con la forma legacy background.image o la actual
+        // background.fill.image: ambas apagadas para un PNG transparente real.
         if (exportSettings.background.image) exportSettings.background.image.active = false;
         if (exportSettings.background.fill && exportSettings.background.fill.image) {
             exportSettings.background.fill.image.active = false;
         }
-        editor.renderToCanvas(canvas, exportSettings, { transparent: true });
-        return canvas;
+        return { canvas: canvas, exportSettings: exportSettings };
+    }
+
+    function canvasFromSettings(settings) {
+        const prep = prepararCanvasExport(settings);
+        editor.renderToCanvas(prep.canvas, prep.exportSettings, { transparent: true });
+        return prep.canvas;
     }
 
     // RC39 (001-fix-bugs-01): espera a que la fuente declarada este disponible
@@ -31,35 +37,26 @@
     // salida). Si la fuente no se puede cargar, lanza con causa y NO se
     // produce la imagen con otra tipografia (FR-005).
     async function canvasFromSettingsAsync(settings) {
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(100, Math.min(8000, Number(settings.canvas.width) || 1920));
-        canvas.height = Math.max(100, Math.min(8000, Number(settings.canvas.height) || 1080));
-        const exportSettings = JSON.parse(JSON.stringify(settings));
-        // El PNG es siempre transparente: el damero es solo ayuda visual.
-        exportSettings.background.active = false;
-        if (exportSettings.background.image) exportSettings.background.image.active = false;
-        if (exportSettings.background.fill && exportSettings.background.fill.image) {
-            exportSettings.background.fill.image.active = false;
-        }
+        const prep = prepararCanvasExport(settings);
         if (editor.renderToCanvasConFuente) {
-            await editor.renderToCanvasConFuente(canvas, exportSettings, { transparent: true });
+            await editor.renderToCanvasConFuente(prep.canvas, prep.exportSettings, { transparent: true });
         } else {
-            editor.renderToCanvas(canvas, exportSettings, { transparent: true });
+            editor.renderToCanvas(prep.canvas, prep.exportSettings, { transparent: true });
         }
-        return canvas;
+        return prep.canvas;
     }
 
     function toBlob(canvas) {
         return new Promise(function(resolve, reject) {
             canvas.toBlob(function(blob) {
                 if (blob) resolve(blob);
-                else reject(new Error('Could not create PNG'));
+                else reject(new Error('No se pudo crear el PNG'));
             }, 'image/png');
         });
     }
 
     async function download() {
-        if (!editor) throw new Error('Export manager has not been initialized');
+        if (!editor) throw new Error('El gestor de exportacion no fue inicializado');
         const blob = await toBlob(await canvasFromSettingsAsync(editor.getSettings()));
         saveBlob(blob, generateFileName());
         return blob;

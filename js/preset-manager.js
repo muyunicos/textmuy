@@ -446,15 +446,7 @@
         if (canvasCache.has(safe)) return canvasCache.get(safe);
         const tarea = (async function () {
             const entry = await fetchPreset(name);
-            let settings = entry.data;
-            if (entry.kind === 'txm') {
-                settings = settingsFromDelta(entry.data.settings);
-            } else if (window.TextEditor && window.TextEditor.createDefaultSettings
-                && window.TextEditor.loadPreset) {
-                const converted = window.TextEditor.createDefaultSettings();
-                window.TextEditor.loadPreset(entry.data, converted);
-                settings = converted;
-            }
+            const settings = normalizarSettingsEntrada(entry);
             return await thumbnailCanvas(settings);
         })();
         canvasCache.set(safe, tarea);
@@ -742,14 +734,28 @@
         throw new Error('presets:' + safe + ':recurso:ausente');
     }
 
+    // Conversion entry ({kind:'txm', data}) -> settings listos para render.
+    // La rama legacy quedo como red de seguridad: fetchPreset hoy solo
+    // devuelve 'txm', pero ensureThumbnail historicamente aceptaba payloads
+    // viejos y el helper la conserva para no cambiar su comportamiento.
+    function normalizarSettingsEntrada(entry) {
+        if (entry.kind === 'txm') return settingsFromDelta(entry.data.settings);
+        if (window.TextEditor && window.TextEditor.createDefaultSettings && window.TextEditor.loadPreset) {
+            const converted = window.TextEditor.createDefaultSettings();
+            window.TextEditor.loadPreset(entry.data, converted);
+            return converted;
+        }
+        return entry.data;
+    }
+
     async function loadPreset(name) {
         try {
             const entry = await fetchPreset(name);
-            const settings = settingsFromDelta(entry.data.settings);
+            const settings = normalizarSettingsEntrada(entry);
             if (window.TextEditor && window.TextEditor.loadPreset) window.TextEditor.loadPreset(settings);
             return settings;
         } catch (e) {
-            console.error('Failed to load preset:', name, e);
+            console.error('No se pudo cargar el preset:', name, e);
             return null;
         }
     }
@@ -773,21 +779,14 @@
         async function fallback() {
             try {
                 const entry = await fetchPreset(name);
-                let settings = entry.data;
-                if (entry.kind === 'txm') {
-                    settings = settingsFromDelta(entry.data.settings);
-                } else if (window.TextEditor && window.TextEditor.createDefaultSettings && window.TextEditor.loadPreset) {
-                    const converted = window.TextEditor.createDefaultSettings();
-                    window.TextEditor.loadPreset(entry.data, converted);
-                    settings = converted;
-                }
+                const settings = normalizarSettingsEntrada(entry);
                 // Miniatura en memoria (data-URL) para poblar el sprite; NO persiste
                 // ningun .webp junto al .txm: el sheet vive en thumbs/{scope}.webp.
                 const url = await thumbnailDataUrl(settings);
                 thumbnailCache.set(name, url);
                 return url;
             } catch (e) {
-                console.warn('Could not render thumbnail for', name, e);
+                console.warn('No se pudo dibujar la miniatura del preset', name, e);
                 return null;
             }
         }

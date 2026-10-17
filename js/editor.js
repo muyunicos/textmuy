@@ -590,7 +590,7 @@
     function init(canvasId) {
         state.canvas = document.getElementById(canvasId);
         if (!state.canvas) {
-            console.error('Canvas element not found:', canvasId);
+            console.error('Elemento canvas no encontrado:', canvasId);
             return;
         }
         state.ctx = state.canvas.getContext('2d');

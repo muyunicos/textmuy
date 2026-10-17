@@ -109,7 +109,7 @@
             try {
                 this.gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
                 if (!this.gl) {
-                    console.warn('WebGL not supported, falling back to canvas specular');
+                    console.warn('WebGL no disponible, usando brillo 2D');
                     return false;
                 }
 
@@ -126,14 +126,14 @@
                 this.gl.linkProgram(this.program);
 
                 if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
-                    console.error('Shader program link error:', this.gl.getProgramInfoLog(this.program));
+                    console.error('Error al enlazar el programa de sombreado:', this.gl.getProgramInfoLog(this.program));
                     return false;
                 }
 
                 this.initialized = true;
                 return true;
             } catch (e) {
-                console.error('WebGL initialization error:', e);
+                console.error('Error al iniciar WebGL:', e);
                 return false;
             }
         }
@@ -144,7 +144,7 @@
             this.gl.compileShader(shader);
 
             if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-                console.error('Shader compile error:', this.gl.getShaderInfoLog(shader));
+                console.error('Error al compilar el sombreado:', this.gl.getShaderInfoLog(shader));
                 this.gl.deleteShader(shader);
                 return null;
             }

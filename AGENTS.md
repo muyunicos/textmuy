@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC71**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC73**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones

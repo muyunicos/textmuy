@@ -397,6 +397,14 @@
         if (!base) throw new Error(ambito + ':sprite:sin_puente');
         return base.replace(/\/$/, '') + '/thumbs.webp';
     }
+    function cargarImagen(url) {
+        return new Promise(function (res) {
+            var img = new Image();
+            img.onload = function () { res(img); };
+            img.onerror = function () { res(null); };
+            img.src = url;
+        });
+    }
     function cargarImagenSprite(url) {
         if (spriteCache[url]) return spriteCache[url];
         // Revalidacion condicional (fetch cache:no-cache): 304 reutiliza la
@@ -406,12 +414,7 @@
             .then(function (r) { return r.ok ? r.blob() : null; })
             .then(function (blob) {
                 if (!blob) return null;
-                return new Promise(function (res) {
-                    var img = new Image();
-                    img.onload = function () { res(img); };
-                    img.onerror = function () { res(null); };
-                    img.src = URL.createObjectURL(blob);
-                });
+                return cargarImagen(URL.createObjectURL(blob));
             });
         spriteCache[url] = p;
         p.then(function (img) { if (!img) delete spriteCache[url]; });
@@ -482,17 +485,7 @@
         if (!parsed || !parsed.items || !parsed.thumbs) return null;
         var base = spriteBaseDe(ambito);
         if (!base) return null;
-        var items = [];
-        for (var id = 1; id <= parsed.maxId; id++) {
-            var e = parsed.items[id];
-            if (e && e.file) {
-                var it = { nombre: String(id), id: id, titulo: e.titulo, file: e.file, online: !!e.online };
-                it.url = (!e.online && !/^(https?:)?\/\//i.test(e.file)) ? base + e.file : '';
-                items.push(it);
-            } else {
-                items.push({ nombre: String(id), id: id }); // hueco estable
-            }
-        }
+        var items = itemsCanonicos(parsed, base);
         var res = null;
         try {
             res = await window.ThumbEngine.ensureSprite({
@@ -543,12 +536,7 @@
         if (ambito === 'img') {
             return function (it) {
                 if (!it || !it.url) return null;
-                return new Promise(function (res) {
-                    var img = new Image();
-                    img.onload = function () { res(img); };
-                    img.onerror = function () { res(null); };
-                    img.src = it.url;
-                });
+                return cargarImagen(it.url);
             };
         }
         return function () { return null; };
