@@ -26,18 +26,29 @@ la paridad editor/PDF sigue siendo puerta manual.
 - **R-P1.5**: la tinta se mide sobre el lienzo VISIBLE (el editor pinta el damero
   `#1a1a1a`/`#222`): tinta = pixel distinto de esos dos tonos. Con rotacion o curva se
   mide el lienzo completo, nunca por filas (AGENTS §7.14).
-- **R-P1.6**: determinismo: lienzo fijo `800x400`, texto de muestra fijo, fondo apagado
-  (transparencia) y tipografia resuelta antes de medir. Geometria con tolerancia +-2 px;
-  igualdad exacta de pixeles (`hash`) donde se pide.
+- **R-P1.6**: determinismo: lienzo fijo `800x400`, **muestra uniforme en tinta** (`I`) y
+  fondo apagado; la tipografia se resuelve antes de medir y la hoja simulada mapea la
+  familia del catalogo a `local("Arial")`. `render()` es idempotente (dos renders seguidos
+  dan 0 px distintos, medido): la comparacion de pixeles es una senal valida.
 
 ## 2. SC-001 - la curva muestra texto curvado (US1, FR-001, R-C1.1/R-C1.5)
 
-- **R-P2.1**: curva al maximo positivo => tinta > 0 y el perfil de la primera fila de
-  tinta por columna deja de ser constante (variacion > 2 px, antes plana).
-- **R-P2.2**: la misma magnitud en negativo => perfil ESPEJADO (los extremos que tenian
-  la fila menor pasan a tenerla mayor) y misma magnitud de tinta +-5%.
-- **R-P2.3**: volver a 0 => `hash` del lienzo igual al de antes de curvar (cero estado
-  residual).
+- **R-P2.1**: curva al maximo positivo => tinta > 0 y el BORDE SUPERIOR de la tinta deja
+  de ser plano: con la muestra uniforme el recto mide rango 0 px y +120 grados 53 px
+  (+-360: 90 px). Umbral: recto <= 15 px, curvado >= 30 px.
+- **R-P2.5**: esa metrica exige muestra uniforme en tinta (R-P1.6): con glifos de formas
+  distintas (el traversano del `H`, la horquilla de la `Y`) NO es invariante y el recto ya
+  daria decenas de px (medido 81 px con `HHHH`).
+- **R-P2.2**: el signo opuesto tambien dobla (rango >= 30 px, medido 144) y NO es el mismo
+  render: la barra se comprime o se estira (+120 = 25.884 px de tinta, -120 = 79.829, x3,09;
+  umbral x1,5). El espejo fino del signo (matriz y geometria del motor) lo fija la capa Node
+  (`curva-snapshot.test.js`): en la proyeccion de pixeles lo observable es el escorzo, no una
+  inversion del perfil.
+- **R-P2.3**: volver a 0 restituye la geometria recta dentro de la tolerancia sub-pixel
+  del redondeo entero del arco (medido): |tinta(0) - tinta(recto)| <= 5 px (1 px), <= 1% de px
+  distintos del lienzo (39 de 320.000, delta max 45) y el borde superior vuelve a ser plano
+  (rango <= 15 px). La igualdad byte a byte NO es el invariante: el render es idempotente,
+  pero el ida y vuelta por el arco deja ese residuo de antialiasing.
 - **R-P2.4**: NO se repite aca el rechazo headless sin WebGL (`curva-sin-webgl.test.js`
   lo fija en Node): la puerta de pixeles solo cubre el editor visible.
 

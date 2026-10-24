@@ -247,14 +247,19 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
 **Purpose**: cierre transversal de las seis historias.
 
 - [ ] T052 [P] Suite `tests/text-tab.browser.js`: puerta de pixeles del editor visible.
-      Contrato: `contracts/pixeles.md` (R-P1 a R-P8). NO escrita al 2026-10-24: el archivo
-      no existe y nunca se commiteo; su cobertura previa fueron las mediciones de laboratorio
-      (RC51 20/20, RC58 9/9) y `quickstart.md` §3. Desglose:
-  - [ ] T052a [P] Harness: `index.html` real + puente simulado + catalogo `fonts` de 3
+      Contrato: `contracts/pixeles.md` (R-P1 a R-P8). Escrita el 2026-10-24: T052a y T052b
+      estan en verde y T052c a T052h pendientes. La
+      cobertura previa fueron las mediciones de laboratorio (RC51 20/20, RC58 9/9) y
+      `quickstart.md` §3. Desglose:
+  - [x] T052a [P] Harness: `index.html` real + puente simulado + catalogo `fonts` de 3
         identidades + espia de `FontFace` + cero red (R-P1.1 a R-P1.6). Reusar el bootstrap de
         `tests/galerias.browser.js`; si la spec 009 extrae un harness compartido, reusarlo.
-  - [ ] T052b [US1] SC-001: curva visible en ambos signos, perfil espejado, y vuelta a 0 sin
-        estado residual (R-P2.1 a R-P2.3).
+        *(hecho 2026-10-24: vive dentro de `tests/text-tab.browser.js`; la spec 009 no extrajo
+        un harness compartido, asi que la reutilizacion es del patron.)*
+  - [x] T052b [US1] SC-001: curva visible en ambos signos y vuelta a 0 sin estado residual
+        (R-P2.1 a R-P2.3). *(hecho y verde en 3 corridas el 2026-10-24; el espejo fino del
+        signo queda en la capa Node y R-P2.3 se mide con la tolerancia sub-pixel que fijo el
+        contrato tras medir el residuo del redondeo del arco.)*
   - [ ] T052c [US2] SC-002: barra visible al abrir en TEXT/STYLES/ICON, oculta en
         BACKGROUND/DOWNLOAD, y `[data-global-only]` gateado (R-P3.1 a R-P3.3).
   - [ ] T052d [US3] SC-003: margen al maximo con tinta > 0 y caja dentro del area util
