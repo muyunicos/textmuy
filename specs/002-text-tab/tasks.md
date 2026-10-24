@@ -216,7 +216,12 @@ preset, recargar y comprobar que vuelve identico.
 - [x] T039 [US6] En `js/editor.js`, sustituir `lines.{activeTarget,overrides,sizing}` global por el modelo de `data-model.md`: `lines.inherit` (padre ALL u otra linea), overrides propios por linea y `sizing` **dentro** de cada linea (`{ref, mode, pct}`), con claves 1-based
 - [x] T040 [US6] En `js/editor.js`, implementar la resolucion en tres pasos con deteccion de ciclos de cualquier longitud, incluidos los mixtos (herencia + tamano), con causa `lines:<detalle>:ciclo` y vista intacta
 - [x] T041a [US6] Purga v1 de las listas duplicadas (RC51/RC58): `pruneGlobalOnlyOverrides` y `LINE_STYLE_PATHS`/`isLineStylePath` no existen, y las listas propias de `controls.js` desaparecieron (`isGlobalOnlyPath` delega en `editor.isGlobalPath`).
-- [ ] T041b [US6] Resto de la purga v1 (verificado 2026-10-24): `editor.js::resolveLineSettings` (+ export) lee `state.settings.lines.overrides` sin ningun consumidor y `catalog.js::mapImgRefs` recorre `lines.overrides` (regresion en `tests/img-refs.test.js`). Limpiar o justificar, y cerrar.
+- [x] T041b [US6] Resto de la purga v1 (cerrado en RC76, 2026-10-24): borrados
+      `editor.js::resolveLineSettings` (+ export) y `localApplyDelta` (que quedaba
+      huerfano); `controls.js::isGlobalOnlyPath` pasó a `esGlobalDeBloque`; y
+      `catalog.js::imgTargets` pasó de `lines.overrides` (v1) a `lines.line["<n>"]` (v2),
+      que era un DEFECTO: las refs de imagen declaradas por linea no se resolvian (el
+      test `img-refs` fijaba la forma v1, por eso pasaba).
 - [x] T042 [US6] En `js/editor.js`, conservacion de las lineas inexistentes: no podar L2/L3 cuando el texto tiene menos lineas y reactivarlas al recuperar las (FR-015)
 
 ### Implementation for User Story 6 - UI

@@ -254,18 +254,22 @@
         }
         cur[parts[parts.length - 1]] = value;
     }
-    /* Objetos a recorrer: base + cada override de lines (mismas hojas). */
+
+    /* Objetos a recorrer: base + el estilo propio de cada linea (mismas hojas).
+     * v2 (002-text-tab): `lines.line["<n>"]`, claves 1-based. La forma v1
+     * (`lines.overrides`) esta FUERA del formato (se rechaza con causa), asi que
+     * leerla dejaba sin resolver las refs de imagen declaradas por linea.
+     */
     function imgTargets(settings) {
         var out = [settings];
-        if (settings && settings.lines && settings.lines.overrides && typeof settings.lines.overrides === 'object') {
-            Object.keys(settings.lines.overrides).forEach(function (k) {
-                var v = settings.lines.overrides[k];
+        if (settings && settings.lines && settings.lines.line && typeof settings.lines.line === 'object') {
+            Object.keys(settings.lines.line).forEach(function (k) {
+                var v = settings.lines.line[k];
                 if (v && typeof v === 'object') out.push(v);
             });
         }
         return out;
-    }
-    /* Aplica fn a cada hoja de ref de imagen; muta in-place con el retorno
+    }    /* Aplica fn a cada hoja de ref de imagen; muta in-place con el retorno
      * (si fn devuelve otro valor, se escribe). fn puede lanzar con causa. */
     function mapImgRefs(settings, fn) {
         if (!settings || typeof settings !== 'object') return settings;

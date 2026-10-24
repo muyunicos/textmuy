@@ -211,5 +211,24 @@ function ajuste(settings, ruta, valor) {
     assert.equal(ED.familiaDeFuente(conPrevia), '"Permanent Marker"',
         'al confirmar, la familia efectivo es la del proyecto');
 
+    // 10. I-D1 (un default se define UNA vez, 2026-10-24): cargar un preset que
+    //     declara fuente no puede dejar un `font.size` distinto del default real
+    //     (`defaultSettings.font.size`). `loadPreset` traia literales (64) en tres
+    //     caminos; si alguno quedaba activo, el guardado emitia un delta de
+    //     `font.size` que no cambio nada (Const. IV: solo lo que cambia).
+    const defReal = ED.createDefaultSettings();
+    const casos = [
+        ["fuente sin tamano", function (t) { ED.loadPreset({ font: { src: 2 } }, t); }],
+        ["tamano no numerico", function (t) { ED.loadPreset({ font: { src: 2, size: "abc" } }, t); }],
+        ["font declarada como string", function (t) { t.font = "Bangers"; ED.loadPreset({ font: { name: "Permanent Marker" } }, t); }]
+    ];
+    casos.forEach(function (c) {
+        const t = ED.createDefaultSettings();
+        c[1](t);
+        const delta = PM.diffSettings(defReal, t).font || {};
+        assert.equal(t.font.size, defReal.font.size,
+            "I-D1 (" + c[0] + "): font.size en el default real, no un literal (dio " + t.font.size + ")");
+        assert.equal(delta.size, undefined, "I-D1 (" + c[0] + "): el delta no emite font.size");
+    });
     console.log('OK: preset-roundtrip.test.js');
 })().catch(function (e) { console.error(e.stack || e.message); process.exit(1); });

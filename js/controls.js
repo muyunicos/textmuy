@@ -33,7 +33,7 @@
     // su propia lista, que quedo desactualizada (marcaba `align`, `letterSpacing`
     // y `font.src` como globales cuando son por linea, y listaba un
     // `lines.sizing` que ya no existe).
-    function isGlobalOnlyPath(path) {
+    function esGlobalDeBloque(path) {
         if (editor && typeof editor.isGlobalPath === 'function') return editor.isGlobalPath(path);
         // Sin editor (arranque parcial): solo lo que nunca es por linea.
         return path === 'text' || path === 'canvas' || path === 'lines'
@@ -49,7 +49,7 @@
     // paths (text, canvas, layout...) always write to the base settings.
     function setNestedSetting(path, value) {
         if (!editor) return;
-        if (!isGlobalOnlyPath(path) && /^L\d+$/.test(editor.getLineTarget())) {
+        if (!esGlobalDeBloque(path) && /^L\d+$/.test(editor.getLineTarget())) {
             editor.setTargetedSetting(path, value);
         } else {
             const settings = editor.getSettings();

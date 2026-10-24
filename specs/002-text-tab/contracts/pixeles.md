@@ -30,6 +30,9 @@ la paridad editor/PDF sigue siendo puerta manual.
   fondo apagado; la tipografia se resuelve antes de medir y la hoja simulada mapea la
   familia del catalogo a `local("Arial")`. `render()` es idempotente (dos renders seguidos
   dan 0 px distintos, medido): la comparacion de pixeles es una senal valida.
+  El harness controla **lienzo + cap** (`canvas.width/height`, `canvas.maxFontSize`),
+  nunca `font.size`: el tamano pintado sale del ajuste al area util y del tope
+  (`contracts/lineas.md` §2.2).
 
 ## 2. SC-001 - la curva muestra texto curvado (US1, FR-001, R-C1.1/R-C1.5)
 

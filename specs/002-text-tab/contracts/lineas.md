@@ -50,6 +50,22 @@ FR-015, FR-019, FR-021. Es interno al modulo.
 - **R-L2.5**: Referencia a linea inexistente: la linea usa sus valores
   guardados o los de All; nunca falla el pintado.
 
+### 2.2 Los tres ejes del "tamano de una linea" (vocabulario, 2026-10-24)
+
+Tres mecanismos distintos comparten palabras parecidas; confundirlos es el error
+mas facil de cometer. `canvas.maxFontSize` es, ademas, la unica ruta `canvas.*`
+declarada `scope: linea` (`contracts/opciones.md` R-O1.3).
+
+| Eje | Dato | Default | Significado | NO es |
+|---|---|---|---|---|
+| Herencia de ESTILO | `lines.inherit["n"]` | ALL (delta vacio) | "igual que ALL" = **los mismos valores**: ALL con `maxFontSize=2` => L1/L2/L3 con 2 | un porcentaje |
+| Dimension | `lines.line["n"].sizing = {ref, refLine, mode, pct}` | `{ref:canvas, mode:fontsize, pct:100}` | `ref:canvas` = % del tamano del ajuste (**que es el de ALL**); `ref:linea` + `refLine:N` = % del tamano resuelto de esa linea; `pct:100` = **igual que la referencia** | % del lienzo, *salvo* que `ref` sea `canvas` |
+| Tope | `canvas.maxFontSize` y `lines.line["n"].canvas.maxFontSize` | 100 | **% del eje limitante del tamano base de esa linea**; `100` = sin recorte; sin declararlo se **hereda el de ALL** | el tamano del texto, ni un px |
+
+Consecuencia: "100 % de ALL" y "100 % del ajuste" dan el **mismo numero** (el tamano
+de ALL *es* el del ajuste) pero **no son lo mismo**: divergen en cuanto la linea
+referenciada declara su propia regla. El tamano pintado de una linea, con todo lo
+anterior resuelto, es `min(ajuste al area util, su tope)`.
 ## 3. Ciclos
 
 ### 3.1 Requisitos

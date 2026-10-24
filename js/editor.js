@@ -58,14 +58,14 @@
             blendmode: 'over',
             // Flag v2: wave model shared by Tilt/Rise (per-letter actions) and
             // Wave width/Wave shift/Shape (wave geometry). See flagWaveAt().
-            // GLOBAL (bloque completo): ver GLOBAL_ONLY_PATHS/isGlobalOnlyPath.
+            // GLOBAL (bloque completo): ver ALCANCE_GLOBAL/scopeDe (003-option-schema).
             flag: { active: false, tilt: 0, rise: 0, waveWidth: 100, waveShift: 0, shape: 'smooth', tiltMode: 'wave' },
             // Keys match the UI labels ("Max rotation", "Scatter height").
-            // GLOBAL (bloque completo): ver GLOBAL_ONLY_PATHS/isGlobalOnlyPath.
+            // GLOBAL (bloque completo): ver ALCANCE_GLOBAL/scopeDe (003-option-schema).
             boggle: { active: false, maxRotation: 40, scatterHeight: 50 },
             reverseOverlap: { letters: 1, lines: 0 },
-            // ESTILO por linea: lettering.shadow SI entra a lines.overrides
-            // (es una sombra proyectada mas, resuelta por forEachLineSetting).
+            // ESTILO por linea: lettering.shadow SI es por linea: vive en el estilo
+            // propio de la linea (`lines.line["n"]`), resuelto por forEachLineSetting.
             shadow: { active: false, size: 0.04, distance: 0.02, angle: 180, fill: { alpha: 1, color: { r: 0, g: 0, b: 0 } } }
         },
 
@@ -1062,7 +1062,7 @@
         const ctx = state.ctx;
         const s = state.settings;
 
-        const text = s.text || 'TEXT';
+        const text = s.text || defaultSettings.text;
 
         // The fixed pixel canvas never grows to fit the text; autoFitText()
         // shrinks the font instead. Zoom only changes the preview size.
@@ -3547,8 +3547,9 @@ function clone(obj) {
      *
      * El paso 3 NO calcula un `font.size` absoluto: `sizing` es METADATO del
      * sistema y lo consume `lineFontSizes`, que es donde estan los tamanos ya
-     * calculados. Calcularlo aqui metia un absoluto (el `font.size` guardado, 100
-     * por defecto) y al activar un "L1 · %" AGRANDABA las tres lineas en vez de
+     * calculados. Calcularlo aqui metia un absoluto (el `font.size` guardado, que NO
+     * es el tamano pintado: lo gobiernan el ajuste y `canvas.maxFontSize`) y al activar
+     * un "L1 · %" AGRANDABA las tres lineas en vez de
      * encogerlas.
      */
     function resolveLine(s, lineNo, memo) {
@@ -3712,8 +3713,7 @@ function clone(obj) {
     // land there via bindRange/bindCheckbox/etc.). Falls back to a minimal
     // id<-settingPath mapping so headless renders keep working without controls.js.
     var FALLBACK_LINE_SYNC_TABLE = [
-        ['tt-font-size-input', 'font.size'],
-        ['tt-font-weight-input', 'font.weight'],
+       ['tt-font-weight-input', 'font.weight'],
         ['tt-fill-active-input', 'fill.active'],
         ['tt-depth-length-input', 'depth.length'],
         ['tt-depth-angle-input', 'depth.angle'],
@@ -3828,9 +3828,10 @@ function clone(obj) {
 
         // Pasada 1: tamano propio o porcentaje sobre el tamano del ajuste.
         // `px` parte SIEMPRE de `fontSizePx` (el tamaño que el ajuste le dio a
-        // esta linea), NUNCA del `font.size` guardado: ese valor es un default
-        // (100) que no significa nada hasta que el ajuste lo recalcula, y usarlo
-        // como punto de partida descuadraba todo.
+        // esta linea), NUNCA del `font.size` de la base: ese campo NO gobierna el
+        // tamano pintado (lo gobiernan el ajuste al area util y `canvas.maxFontSize`,
+        // que es un TOPE en % del eje limitante, no un tamano). Ver defaultSettings
+        // .font.size y AGENTS 7.15.
         for (let li = 1; li <= direccionables; li++) {
             const resuelta = resolveLine(s, li, {});
             const sz = sizingOf(s, li);
@@ -3898,32 +3899,6 @@ function clone(obj) {
         return out;
     }
 
-    function localApplyDelta(target, delta) {
-        if (window.PresetManager && window.PresetManager.applyDelta) {
-            window.PresetManager.applyDelta(target, delta);
-            return target;
-        }
-        if (!delta || typeof delta !== 'object' || Array.isArray(delta)) return target;
-        Object.keys(delta).forEach(function(k) {
-            const v = delta[k];
-            if (v && typeof v === 'object' && !Array.isArray(v)) {
-                if (!target[k] || typeof target[k] !== 'object') target[k] = {};
-                localApplyDelta(target[k], v);
-            } else { target[k] = v; }
-        });
-        return target;
-    }
-
-    function resolveLineSettings(lineIdx) {
-        const base = JSON.parse(JSON.stringify(state.settings));
-        delete base.lines;
-        const ov = state.settings.lines && state.settings.lines.overrides
-            ? state.settings.lines.overrides[String(lineIdx)] : null;
-        if (ov) localApplyDelta(base, JSON.parse(JSON.stringify(ov)));
-        ensureFillIds(base.fill);
-        return base;
-    }
-
     // Convert a TextStudio color (hex string or {r,g,b[,a]}) to a plain hex string
     function colorToHex(color) {
         if (typeof color === 'string') return color;
@@ -3977,15 +3952,19 @@ function clone(obj) {
             s = state.settings;
         }
 
-        // Basic text properties with validation
-        if (preset.text !== undefined) s.text = String(preset.text || 'TEXT');
+        // I-D1 (higiene, 2026-10-24): los valores por defecto se DERIVAN de
+        // defaultSettings (fuente unica, mismo patron que OPTION_SCHEMA).
+        // Antes habia literales ('TEXT', 64) que envejecian: un font.size no
+        // numerico dejaba 64 en vez del default real y el guardado emitia un
+        // delta que no cambio nada (Const. IV).
+        if (preset.text !== undefined) s.text = String(preset.text || defaultSettings.text);
         if (preset.font) {
             if (!s.font || typeof s.font === 'string') {
-                s.font = { src: preset.font.src || preset.font.name || preset.font, size: 64, weight: 'normal' };
+                s.font = { src: preset.font.src || preset.font.name || preset.font, size: defaultSettings.font.size, weight: defaultSettings.font.weight };
             }
             if (preset.font.src) s.font.src = preset.font.src;
             if (preset.font.name) s.font.src = preset.font.name;
-            if (preset.font.size) s.font.size = clampValue(preset.font.size, 12, 140, 64);
+            if (preset.font.size) s.font.size = clampValue(preset.font.size, 12, 140, defaultSettings.font.size);
             if (preset.font.weight) s.font.weight = preset.font.weight;
         }
         if (preset.align) s.align = preset.align;
@@ -4539,8 +4518,7 @@ function clone(obj) {
         // TEXT section
         setInputValue('tt-text-textarea', s.text);
         setInputValue('tt-font-picker-input', s.font.src || s.font);
-        setInputValue('tt-font-size-input', s.font.size || 64);
-        setInputValue('tt-letter-spacing-input', s.letterSpacing || 0);
+       setInputValue('tt-letter-spacing-input', s.letterSpacing || 0);
         setInputValue('tt-line-height-input', s.lineHeight !== undefined ? s.lineHeight : 0);
         setInputValue('tt-distort-arc-angle-input', s.distort && s.distort.arc ? s.distort.arc.angle : 0);
         setInputValue('tt-rotate-input', s.rotate || 0);
@@ -4943,7 +4921,6 @@ function clone(obj) {
         setLineTarget: setLineTarget,
         setTargetedSetting: setTargetedSetting,
         getEffectiveSetting: getEffectiveSetting,
-        resolveLineSettings: resolveLineSettings,
         OPTION_SCHEMA: OPTION_SCHEMA,
         RUTAS_DINAMICAS: RUTAS_DINAMICAS,
         updateUIFromLineTarget: updateUIFromLineTarget,

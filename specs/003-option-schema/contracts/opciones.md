@@ -42,6 +42,10 @@ Deriva de `defaultSettings` (walk de hojas, reutilizando el criterio de
 del schema. `isGlobalPath` mantiene su firma y sus resultados (fijados por
 `tests/lineas-resolucion.test.js`).
 
+`contracts/lineas.md` §2.2 fija el VOCABULARIO del tamano por linea (herencia de estilo /
+dimension / tope): `ref:canvas` equivale a ALL (el tamano del ajuste) y
+`canvas.maxFontSize` es un TOPE en % del eje limitante, no un tamano. El `scope` de §1
+no dice nada sobre eso.
 ## 3. Rutas dinamicas (exentas del fail-fast)
 
 El validador de rutas (§4) debe reconocer y permitir estos contenedores, validando

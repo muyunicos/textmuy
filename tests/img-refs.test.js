@@ -75,7 +75,7 @@ assert.ok(PM && PM.uploadImage, 'PresetManager.uploadImage expuesto (mutaciones 
         fill: { texture: { active: true, src: 1 } },
         outline: { first: { fill: { texture: { active: true, src: 2 } } } },
         depth: { fill: { texture: { active: true, src: 1 } } },
-        lines: { overrides: { L1: { fill: { texture: { active: true, src: 2 } } } } },
+        lines: { line: { '1': { fill: { texture: { active: true, src: 2 } } } } },
         fill2: null
     };
     st.fill.layers = [{ styles: [{ type: 'texture', texture: { src: 1, repeat: 'repeat' } }] }];
@@ -85,7 +85,7 @@ assert.ok(PM && PM.uploadImage, 'PresetManager.uploadImage expuesto (mutaciones 
     assert.equal(st.fill.texture.src, 'img/a.webp');
     assert.equal(st.outline.first.fill.texture.src, 'img/b.svg');
     assert.equal(st.depth.fill.texture.src, 'img/a.webp');
-    assert.equal(st.lines.overrides.L1.fill.texture.src, 'img/b.svg');
+    assert.equal(st.lines.line['1'].fill.texture.src, 'img/b.svg');
     assert.equal(st.fill.layers[0].styles[0].texture.src, 'img/a.webp');
     assert.equal(fetchCalls, 1, 'un solo fetch de img.json (cache por ambito)');
 
@@ -114,9 +114,9 @@ assert.ok(PM && PM.uploadImage, 'PresetManager.uploadImage expuesto (mutaciones 
     assert.equal(API.urlDeImgRef('1'), 'img/a.webp');
     assert.equal(API.urlDeImgRef('img/x.png'), 'img/x.png');
 
-    // 6. walker puro: hasNumericImgRefs detecta (base + overrides + layers).
+    // 6. walker puro: hasNumericImgRefs detecta (base + estilo de linea + layers).
     assert.equal(CAT.hasNumericImgRefs({ fill: { texture: { src: 5 } } }), true);
-    assert.equal(CAT.hasNumericImgRefs({ lines: { overrides: { L2: { icon: { src: 7 } } } } }), true);
+    assert.equal(CAT.hasNumericImgRefs({ lines: { line: { '2': { icon: { src: 7 } } } } }), true);
     assert.equal(CAT.hasNumericImgRefs({ fill: { texture: { src: 'img/a.webp' } } }), false);
 
     // 7. RC34: invalidarCatalogo descarta la copia en memoria del ambito; la
