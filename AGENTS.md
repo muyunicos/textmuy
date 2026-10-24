@@ -90,7 +90,7 @@ textmuy/
 │                             utils/ se carga: la descarga usa createObjectURL + <a
 │                             download>, el blur usa ctx.filter nativo con fallback manual
 │                             propio (RC66) y el SVG (cuando exista) NO dependera de potrace/svgo.
-└── tests/                 <- 45 suites Node (catalog-unified, tile-geometria, fonts-catalog,
+└── tests/                 <- 46 suites Node (catalog-unified, tile-geometria, fonts-catalog,
                               img-refs, preset-cache, preset-ambito, preset-delta,
                               preset-load, distort-engine, flag-wave, pattern-block-box,
                               controls-init, galeria-items, invalidacion, sprite-canonico,
@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC77**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC78**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -756,6 +756,66 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `.catch` no traga el error real (si la fuente de verdad falta,
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
+
+### 7.34 RC78 — el panel de Font Size no escribia la PROPORCION (cuatro defectos de UI + dos de motor)
+
+Decision del administrador (2026-10-24): **Modo (Proporcional|Ancho) + Ref (ALL|L1..L3) +
+Proporcion (%) + Tope (% del canvas)**, con el default (Proporcional + ALL + 100 % + tope 100 %)
+dejando **todas las lineas iguales**. El motor resolvia la proporcion desde RC52
+(`lineas-tamano` lo fijaba) y **ninguna UI la escribia**: el unico slider estaba atado a
+`canvas.maxFontSize` (el TOPE, `controls.js:503`) y `setLineSizing` solo escribia
+`ref/mode/refLine`.
+
+Los cuatro defectos reportados, con su causa medida:
+- 🔴 **"no hay opcion de que L2 sea el 50 % de ALL"**: `sizing.pct` no tenia NINGUN control.
+  Ahora hay un slider de **Proporcion** (1..300 %).
+- 🔴 **"50 % de L1 no cambia de tamaño"**: el select escribia `{ref:'linea',refLine:1}` con
+  `pct` en 100 (default) => L2 = L1 = ALL.
+- 🔴 **"Ancho no funciona para nada"**: `mode:'width'` **ignoraba `pct`** (objetivo = ancho de la
+  ref, exacto) y medía el texto **PROPIO** al tamaño de la referencia en vez del texto de la
+  referencia => el modo copiaba el tamaño y el deslizador se deshabilitaba. Ahora
+  `ancho(Ln) = ancho_de_tinta(Lx) x pct/100` (menor, igual o mayor que el 100 %).
+- 🔴 **"L2 al 10 % del canvas y ALL se achica"**: ese slider ES el tope global cuando el target
+  es All. Con una linea activa el bloque global ahora se **oculta** y el tope de esa linea vive
+  en el panel (asi el control deja de significar dos cosas).
+
+Dos defectos de MOTOR que destapo la suite de la ruta de escritura (invisibles antes porque
+ningun test tocaba la UI):
+- 🔴 **`mergeDelta` borraba la regla de tamaño**: filtra los metadatos del sistema (`sizing`,
+  `inherit`) para que no contaminen el estilo resuelto, pero `setTargetedSetting` lo usaba para
+  reconstruir la ENTRADA guardada => **cualquier ajuste de la linea borraba su `sizing`**
+  (medido: L2 al 150 % de ancho -> mover el tope -> L2 vuelve al 100 %). Ahora la entrada lo
+  conserva.
+- 🔴 **`measureTextWidth` no compone la fuente**: mide caracter a caracter contra el `ctx.font`
+  VIGENTE, asi que el ancho objetivo salia medido con la fuente de la medicion anterior (el modo
+  Ancho estaba doblemente roto). Ahora se compone antes (`componerFuente`).
+
+- ✅ **Panel (`contracts/lineas.md` §5)**: `Modo` (Proporcional | Ancho), `Ref` (ALL | L1 | L2 |
+  L3; nunca la propia, via `opcionesValidas`), `Proporcion` (1..300 %) y `Tope` (% del canvas)
+  con **"Heredar de ALL"** (boton que BORRA la clave propia: `clearTargetedSetting`, nuevo).
+  El panel MUESTRA lo resuelto (`getEffectiveSetting` + `getLineFontPx`) y **no escribe nada**
+  hasta que se mueve un control; su **frase de estado** declara la relacion y el px (pre-encaje,
+  "≈"). Con una linea activa el bloque global (Max Font Size) se oculta.
+- ✅ **R-L2.9**: Proporcional/ALL/100 **no deja delta**: `setLineSizing` poda la regla por
+  defecto y la entrada vacia (IV). **R-L2.10**: pintar el panel no materializa el tope.
+- ✅ **Purga**: la rama muerta `patch.fontSizePx` de `setLineSizing` (escribia px absolutos y
+  borraba el `pct`; la constitucion exige porcentajes, R-L4.3), el binding de
+  `#tt-font-size-input` (input que NO existe en `index.html`) y un `lines.overrides` v1 que
+  `setLineTarget` creaba. El px propio por linea queda como **campo avanzado** (R-L2.3) sin
+  control; la frase de estado lo declara si esta y desactiva el panel.
+- ✅ **Medido en el navegador** (`tests/text-tab.browser.js`, **T066**): con el DOM REAL, mover el
+  slider de Proporcion a 50 % deja el alto de tinta de L2 en la mitad del de L1; Ancho al 50 %
+  deja su ancho en la mitad; el tope de L2 al 10 % la achica **sin tocar a ALL** (que sigue en
+  100) y L1 conserva su alto; el boton borra el tope propio y poda la entrada.
+- ⚠️ **Hallazgo declarado**: en modo Ancho, `pct > 100` se TOPA con el ancho util del lienzo
+  (que es dinamico y sigue al texto) => 150 % puede dar lo mismo que 100 %. El >100 % exacto se
+  cubre en Node (`lineas-tamano`), donde el area es fija.
+- **Regresiones**: `lineas-tamano` (Proporcional ALL 50 %, Ancho 50/100/150, `ref:all`,
+  retrocompatibilidad de `pct` ausente, tope por linea que NO toca ALL) y **suite nueva
+  `tests/lineas-escritura.test.js`**: la RUTA DE ESCRITURA del panel (modo, ref, proporcion,
+  tope, heredar) + que el tope de ALL no cambia + que la regla sobrevive a otro ajuste de la
+  linea. **46 suites** en verde.
+- Bump `?v=RC78` en `index.html` (con `css/style.css`) y `render-core.html`.
 
 ### 7.33 RC77 — el tope por linea vuelve a medirse contra el AREA (y la linea puede pasar de ALL)
 
@@ -1458,14 +1518,16 @@ puente limpio y escenario sin puente):
   `textmuy:line-target-updated`); los inputs marcan `data-line-override="1/0"`
   (propio vs heredado). Al cargar preset se resetea el target a All y se podan
   overrides huerfanos globales (`pruneGlobalOnlyOverrides`).
-- ✅ **Tamano por linea con referencia (`lines.sizing`)**: config global del
-  sistema de lineas (`{ref:'canvas'|'line', refLine, mode:'fontsize'|'width'}`).
-  `ref:'canvas'` = autoFit historico. `ref:'line'` = la linea objetivo copia el
-  tamano resuelto de otra linea (fontsize) o se ajusta a su ancho con el alto
-  restante del canvas (width). UI: barra unica fija All/L1/L2/L3
+- ✅ **Tamano por linea con referencia (`lines.sizing`)**: POR LINEA
+  (`{ref:'canvas'|'all'|'linea', refLine, mode:'fontsize'|'width', pct}`).
+  `ref:'canvas'`/`'all'` = proporcion del tamaño de ALL (el del ajuste);
+  `ref:'linea'` = la linea objetivo copia el tamaño resuelto de otra linea
+  (fontsize) o lleva su ANCHO de tinta a `pct` % del de la otra (width). UI
+  (RC78): barra unica fija All/L1/L2/L3
   (`#tt-line-target-bar`, visible solo en TEXT/STYLES/ICON), grupo Canvas Size
-  oculto en L1/L2/... (`data-global-only`), selector Sizing ref en Max Font
-  Size (solo en L1/L2/...). Render: `lineFontSizes()` + `state.lineFontPx` +
+  oculto en L1/L2/... (`data-global-only`) y **panel de Font Size** (Modo + Ref +
+  Proporcion + Tope) en lugar del viejo "Sizing ref" (`contracts/lineas.md` §5).
+  Render: `lineFontSizes()` + `state.lineFontPx` +
   `drawTextLines` con avances acumulados (sin superposicion).
 
 ## 8. Dificultades del entorno (IMPORTANTE AL TRABAJAR AQUÍ)
@@ -1561,7 +1623,7 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 45 suites Node (verdes el 2026-10-24 con Node 22.20.0 sobre pwsh 7.6.8). La
+Hay 46 suites Node (verdes el 2026-10-24 con Node 22.20.0 sobre pwsh 7.6.8). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
 motor/miniaturas simulados, no sustituye la prueba en WordPress. Corrida en
@@ -1622,6 +1684,7 @@ node tests/sombra-posicion.test.js # RC67: composites offscreen centrados en -w/
 node tests/sombra-no-recortada.test.js    # RC63/RC65: shadow.outer/depth expanden la capa (sombra no recortada)
 node tests/carga-gradient-imgrefs.test.js # RC68: gradiente copiado al cargar + refs numericas sin 404
 node tests/guardar-miniaturas.test.js   # RC69: preview sin url(id) + miniaturas con todas las fuentes
+node tests/lineas-escritura.test.js      # RC78: la RUTA DE ESCRITURA del panel de Font Size (modo/ref/proporcion/tope)
 
 # Todas las suites de una vez (frena en la primera que falle):
 Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { throw "FALLO: $($_.Name)" } }

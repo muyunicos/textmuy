@@ -330,6 +330,50 @@ mismo angulo en todas las lineas, sin aviso). Es peor que dejarlos globales.
 
 ---
 
+## Phase 11: Panel de Font Size (Modo + Ref + Proporcion + Tope)
+
+**Defecto de origen (medido 2026-10-24)**: el motor soporta la proporcion desde RC52
+(`tests/lineas-tamano.test.js` lo fija) pero **ninguna UI la escribia**: el unico slider
+estaba atado a `canvas.maxFontSize` (el *tope*, `controls.js:503`) y `setLineSizing` solo
+escribia `ref/mode/refLine`. Lo reportado por el administrador: "no hay opcion de que L2
+sea el 50% de ALL"; "50% de L1 no cambia de tamano" (el `pct` quedaba en 100); "Ancho no
+funciona para nada" (`mode:'width'` ignoraba `pct` y el slider se deshabilitaba); "L2 al
+10% del canvas y ALL se achica" (el slider del tope, **en All**, escribe la base).
+Ademas: ninguna suite cubria la **ruta de escritura** de la UI, y por eso paso inadvertido.
+
+Contrato: `contracts/lineas.md` §2.2 (los cuatro valores), §2.1 (R-L2.1..R-L2.3) y **§5**
+(mapeo control -> dato, R-L2.6..R-L2.10).
+
+- [x] T058 Contrato + vocabulario. *(hecho 2026-10-24: `lineas.md` 2.1/2.2/2.3/5, con la
+      prosa rota de 2.2/2.3 reparada y el cross-ref R-L4.4 -> R-L4.3 corregido.)*
+- [x] T059 Motor: `mode:'width'` aplica `pct` (`lineFontSizes`); `pct` ausente = 100 (R-L2.7).
+- [x] T060 Motor: `sizingOf` acepta `ref:'all'` como alias de `'canvas'` al leer (R-L2.1).
+- [x] T061 Motor: purga de lo inalcanzable: rama `patch.fontSizePx` de `setLineSizing`
+      (`editor.js:3702-3706`) y el binding muerto de `#tt-font-size-input`
+      (`controls.js:510`), que no existe en `index.html` (verificado: 0 coincidencias).
+- [x] T062 UI: `#tt-line-size-mode-input`, `#tt-line-size-ref-input`,
+      `#tt-line-size-pct-input` (1..300), `#tt-line-size-cap-input` (1..100) +
+      `#tt-line-size-cap-inherit` + `#tt-line-size-estado` (bloque Font Size de `index.html`).
+- [x] T063 UI: handlers en `controls.js` (escriben `sizing` por `editor.setLineSizing` y el
+      tope por `setNestedSetting('canvas.maxFontSize', ...)`) + `refrescarLineasUI` que
+      muestra lo **resuelto** (`getEffectiveSetting`, `getLineFontPx`) sin materializar el 100.
+- [x] T064 [P] `tests/lineas-tamano.test.js`: Ancho con `pct` 50/100/150, Proporcional ALL
+      50, cascada con Ancho, tope por linea que NO toca ALL, `pct` intacto sin `fontSizePx`,
+      alias `'all'`.
+- [x] T065 [P] Suite nueva `tests/lineas-escritura.test.js`: la ruta de ESCRITURA (modo, ref,
+      `pct`, tope, "Heredar de ALL" que BORRA la clave) y que `settings.canvas.maxFontSize`
+      de la base NO cambia al tocar una linea.
+- [x] T066 [P] Puerta de pixeles: con el DOM real, Proporcional 50% = mitad de tinta de L1;
+      Ancho 150% = 1,5 x el ancho de L1; tope 10% en L2 = L2 recortada y ALL intacta; el px
+      de la burbuja ~ lo pintado.
+- [x] T067 Cierre: bump `?v=RC78` (index + render-core + css), `AGENTS.md` 7.34, puerta verde.
+      *(hechos el 2026-10-24: motor (`pct` en Ancho + `ref:all` + purgas), UI
+      (panel Modo/Ref/Proporcion/Tope + R-L2.9/R-L2.10), suites `lineas-tamano` (extendida) y
+      `lineas-escritura` (nueva: la RUTA DE ESCRITURA), y T066 en `text-tab.browser.js` sobre el DOM
+      real. Dos defectos de MOTOR destapados al cubrir la UI: `mergeDelta` borraba `sizing` al
+      escribir otro ajuste y `measureTextWidth` no componia la fuente. Ver `AGENTS.md` 7.34.)*
+
+---
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -407,6 +451,8 @@ node tests\lineas-formato.test.js
    final y el formato `.txm` v2.
 5. Cada bloque sube `?v=RCn` en `index.html` y `render-core.html` y se valida en la
    pestana del plugin antes de pasar al siguiente.
+6. **Panel de Font Size** (Phase 11, fix de US6): el panel no escribia la proporcion. Va
+   **antes** de D4 por prioridad del administrador (2026-10-24).
 
 ---
 

@@ -9,7 +9,7 @@
       familia del template/preset activo (google:"Familia:wght@...") via
       ensureGoogleFontBySpec() justo antes de renderizar. Al abrir: cero fuentes. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=RC77">
+    <link rel="stylesheet" href="css/style.css?v=RC78">
 </head>
 <body>
     <div id="content">
@@ -83,15 +83,45 @@
                                         </div>
                                     </div>
                                     <div class="tt-option">
+                                        <div id="tt-line-sizing-global" data-line-sizing-global>
                                         <label class="tt-label" for="tt-canvas-max-font-size-input">
                                             <span id="tt-max-font-size-label-text">Max Font Size (1 character)</span>
                                             <span class="tt-global-hint" id="tt-max-font-size-hint" title="Tope del texto completo: afecta a todas las lineas">global</span>
                                         </label>
                                         <div class="tt-range-bubble"><input type="range" min="0" max="100" step="1" value="100" id="tt-canvas-max-font-size-input" data-bubble="pct-directo"><output>100%</output></div>
-                                        <label class="tt-label" for="tt-line-sizing-ref-input" data-line-sizing-label hidden><span>Sizing ref:</span></label>
-                                        <select id="tt-line-sizing-ref-input" data-line-sizing-ref hidden>
-                                            <option value="canvas">Canvas</option>
-                                        </select>
+                                        </div>
+                                        <!-- Panel de Font Size de la linea activa (RC78). Dos selects
+                                             dicen A QUE se compara (Modo, Ref) y dos sliders CUANTO
+                                             (Proporcion, Tope); la frase de estado lo repite en
+                                             palabras. El panel MUESTRA lo resuelto y solo escribe al
+                                             cambiar (R-L2.6/R-L2.10); el boton "Heredar de ALL" borra
+                                             el tope propio para que vuelva a mandar el de ALL.
+                                             Contrato: contracts/lineas.md 5. -->
+                                        <div id="tt-line-sizing-panel" data-line-sizing-panel hidden>
+                                            <div class="tt-line-sizing-row">
+                                                <label class="tt-label" for="tt-line-sizing-mode-input" data-line-sizing-label><span>Modo:</span></label>
+                                                <select id="tt-line-sizing-mode-input" data-line-sizing-mode>
+                                                    <option value="fontsize">Proporcional</option>
+                                                    <option value="width">Ancho</option>
+                                                </select>
+                                            </div>
+                                            <div class="tt-line-sizing-row">
+                                                <label class="tt-label" for="tt-line-sizing-ref-input" data-line-sizing-label><span>Ref:</span></label>
+                                                <select id="tt-line-sizing-ref-input" data-line-sizing-ref>
+                                                    <option value="canvas">ALL</option>
+                                                </select>
+                                            </div>
+                                            <div class="tt-line-sizing-row">
+                                                <label class="tt-label" for="tt-line-sizing-pct-input" data-line-sizing-label><span>Proporcion:</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="1" max="300" step="1" value="100" id="tt-line-sizing-pct-input" data-bubble="pct-directo"><output>100%</output></div>
+                                            </div>
+                                            <div class="tt-line-sizing-row">
+                                                <label class="tt-label" for="tt-line-sizing-cap-input" data-line-sizing-label><span>Tope (% canvas):</span></label>
+                                                <div class="tt-range-bubble"><input type="range" min="1" max="100" step="1" value="100" id="tt-line-sizing-cap-input" data-bubble="pct-directo"><output>100%</output></div>
+                                                <button type="button" id="tt-line-sizing-cap-reset" data-line-sizing-cap-reset hidden>Heredar de ALL</button>
+                                            </div>
+                                            <div class="tt-line-sizing-estado" id="tt-line-sizing-estado" role="status"></div>
+                                        </div>
                                     </div>
                                     <div class="tt-option">
                                         <label class="tt-label" for="tt-canvas-margin-input"><span>Margin:</span></label>
@@ -1391,22 +1421,22 @@
         </div>
     </div>
 
-    <script src="js/catalog.js?v=RC77"></script>
-    <script src="js/fonts.js?v=RC77"></script>
-    <script src="js/effects/bevel-webgl.js?v=RC77"></script>
-    <script src="js/effects/specular-webgl.js?v=RC77"></script>
-    <script src="js/effects/distort-engine.js?v=RC77"></script>
-    <script src="js/preset-manager.js?v=RC77"></script>
-    <script src="js/gradient-picker.js?v=RC77"></script>
-    <script src="js/editor.js?v=RC77"></script>
+    <script src="js/catalog.js?v=RC78"></script>
+    <script src="js/fonts.js?v=RC78"></script>
+    <script src="js/effects/bevel-webgl.js?v=RC78"></script>
+    <script src="js/effects/specular-webgl.js?v=RC78"></script>
+    <script src="js/effects/distort-engine.js?v=RC78"></script>
+    <script src="js/preset-manager.js?v=RC78"></script>
+    <script src="js/gradient-picker.js?v=RC78"></script>
+    <script src="js/editor.js?v=RC78"></script>
     <!-- galeria: componente unificado de imagenes (TextMuyGaleria) usado por controls.js -->
-    <script src="js/galeria.js?v=RC77"></script>
+    <script src="js/galeria.js?v=RC78"></script>
     <!-- galeria de fuentes: CRUD fisico estilo galeria (TextMuyGaleriaFuentes) -->
-    <script src="js/fuentes-galeria.js?v=RC77"></script>
-    <script src="js/controls.js?v=RC77"></script>
-    <script src="js/export.js?v=RC77"></script>
-    <script src="js/api.js?v=RC77"></script>
-    <script src="js/main.js?v=RC77"></script>
+    <script src="js/fuentes-galeria.js?v=RC78"></script>
+    <script src="js/controls.js?v=RC78"></script>
+    <script src="js/export.js?v=RC78"></script>
+    <script src="js/api.js?v=RC78"></script>
+    <script src="js/main.js?v=RC78"></script>
 </body>
 </html>
 

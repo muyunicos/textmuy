@@ -517,8 +517,55 @@ strong {
 [data-line-sizing-ref][hidden],
 [data-line-sizing-label][hidden],
 [data-line-inherit][hidden],
-[data-line-inherit-label][hidden] {
+[data-line-inherit-label][hidden],
+[data-line-sizing-global][hidden],
+[data-line-sizing-panel][hidden] {
     display: none;
+}
+
+/* Panel de Font Size de la linea activa (RC78, contracts/lineas.md 5): dos selects
+   (Modo, Ref) + dos sliders (Proporcion, Tope) + la frase de estado. Con una linea
+   activa, el bloque global (Max Font Size) se oculta porque su tope vive en el panel. */
+#tt-line-sizing-panel {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--tt-border-input);
+    border-radius: 4px;
+    background: var(--tt-bg-panel-3);
+}
+
+.tt-line-sizing-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.tt-line-sizing-row .tt-label {
+    margin-bottom: 0;
+    min-width: 96px;
+    white-space: nowrap;
+}
+
+.tt-line-sizing-row select,
+.tt-line-sizing-row .tt-range-bubble {
+    flex: 1;
+}
+
+#tt-line-sizing-cap-reset {
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--tt-text-muted);
+    background: var(--tt-bg-panel-2);
+    border: 1px solid var(--tt-border-input);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.tt-line-sizing-estado {
+    font-size: 11px;
+    color: var(--tt-text-dim);
+    line-height: 1.4;
 }
 
 /* Selector de herencia y de tamano de la linea activa (002-text-tab D2) */

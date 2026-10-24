@@ -212,42 +212,121 @@
         sel.value = selTiene(sel, seleccionado) ? seleccionado : (valores[0] ? valores[0].valor : '');
     }
 
+        // ===== PANEL DE FONT SIZE POR LINEA (RC78, contracts/lineas.md 5) =====
+    // Dos selects (Modo, Ref) dicen A QUE se compara; dos sliders (Proporcion, Tope)
+    // dicen CUANTO. El panel MUESTRA lo RESUELTO y solo escribe al cambiar
+    // (R-L2.6/R-L2.10): el tope por linea no se materializa, y el boton "Heredar de
+    // ALL" BORRA la clave para que el tope de ALL vuelva a mandar.
+
+    // Opciones validas de Ref: ALL (solo en modo Proporcional) + las lineas que no
+    // cierran ciclo con la activa. `opcionesValidas` ya excluye la propia y filtra
+    // los ciclos transitivos por las dos aristas (R-L3.1).
+    function opcionesRefTamano(settings, lineNo, modo) {
+        const out = [];
+        if (modo !== 'width') out.push({ valor: 'canvas', texto: 'ALL' });
+        if (editor && editor.opcionesValidas && lineNo) {
+            editor.opcionesValidas(settings, lineNo, 'refLine').forEach(function (li) {
+                out.push({ valor: 'linea:' + li, texto: 'L' + li });
+            });
+        }
+        if (!out.length) out.push({ valor: 'canvas', texto: 'ALL' });
+        return out;
+    }
+
+    // 'linea:N' | 'canvas' -> campos de `setLineSizing`.
+    function camposDeRef(valor) {
+        const m = /^linea:(\d+)$/.exec(String(valor || ''));
+        if (m) return { ref: 'linea', refLine: parseInt(m[1], 10) };
+        return { ref: 'canvas', refLine: 0 };
+    }
+
+    // Entrada PROPIA de la linea (para saber si DECLARA el tope: ausente = hereda).
+    function entradaLineaUI(settings, lineNo) {
+        const ls = settings && settings.lines;
+        const e = ls && ls.line ? ls.line[String(lineNo)] : null;
+        return (e && typeof e === 'object') ? e : null;
+    }
+
+    // Frase de estado: la relacion RESUELTA en palabras + el px resultante (R-L2.8).
+    // El px es PRE-encaje (`getLineFontPx`), asi que se declara con "≈".
+    function textoEstadoTamano(settings, lineNo, sz, pxLinea, topePropio, pxPropio) {
+        const ref = (sz && sz.ref === 'linea' && sz.refLine) ? ('L' + sz.refLine) : 'ALL';
+        const pct = (sz && sz.pct) ? sz.pct : 100;
+        const partes = [];
+        if (pxPropio) {
+            partes.push('L' + lineNo + ': tamaño en px propio (campo avanzado, R-L2.3)');
+        } else {
+            partes.push('L' + lineNo + ' = ' + pct + ' % '
+                + ((sz && sz.mode === 'width') ? 'del ancho de ' : 'del tamaño de ') + ref);
+        }
+        partes.push(topePropio ? 'tope propio' : 'tope heredado de ALL');
+        if (pxLinea) partes.push('≈' + pxLinea + ' px');
+        return partes.join(' · ');
+    }
+
+    // Pinta el panel con los cuatro valores RESUELTOS (no escribe nada).
+    function pintarPanelTamano(settings, lineNo) {
+        const modoSel = document.getElementById('tt-line-sizing-mode-input');
+        const refSel = document.getElementById('tt-line-sizing-ref-input');
+        const pctInp = document.getElementById('tt-line-sizing-pct-input');
+        const capInp = document.getElementById('tt-line-sizing-cap-input');
+        const capReset = document.getElementById('tt-line-sizing-cap-reset');
+        const estado = document.getElementById('tt-line-sizing-estado');
+        const sz = (editor.getLineSizing && editor.getLineSizing()) || { ref: 'canvas', mode: 'fontsize', pct: 100 };
+        const modo = (sz.mode === 'width') ? 'width' : 'fontsize';
+        const entrada = entradaLineaUI(settings, lineNo);
+        const topePropio = !!(entrada && entrada.canvas && entrada.canvas.maxFontSize !== undefined);
+        const pxPropio = !!(entrada && entrada.font && Number(entrada.font.size) > 0);
+        const topeEfectivo = editor.getEffectiveSetting(lineNo - 1, 'canvas.maxFontSize');
+
+        if (modoSel) {
+            modoSel.value = modo;
+            modoSel.disabled = pxPropio;
+        }
+        if (refSel) {
+            pintarOpciones(refSel, opcionesRefTamano(settings, lineNo, modo),
+                (sz.ref === 'linea' && sz.refLine) ? ('linea:' + sz.refLine) : 'canvas');
+            refSel.disabled = pxPropio;
+        }
+        if (pctInp) {
+            pctInp.value = sz.pct;
+            pctInp.disabled = pxPropio;
+            if (typeof updateRangeFill === 'function') updateRangeFill(pctInp);
+        }
+        if (capInp) {
+            capInp.value = (typeof topeEfectivo === 'number' && topeEfectivo > 0) ? topeEfectivo : 100;
+            if (typeof updateRangeFill === 'function') updateRangeFill(capInp);
+        }
+        if (capReset) {
+            capReset.hidden = !topePropio;
+            capReset.title = topePropio
+                ? 'Quita el tope propio de esta linea: vuelve a mandar el de ALL'
+                : 'Esta linea hereda el tope de ALL';
+        }
+        if (estado) {
+            const px = (editor.getLineFontPx && editor.getLineFontPx()) || [];
+            estado.textContent = textoEstadoTamano(settings, lineNo, sz, px[lineNo - 1], topePropio, pxPropio);
+        }
+    }
+
+    // Escribe la regla de tamano de la linea activa y repinta panel + lienzo.
+    function aplicarTamanoLinea(campos) {
+        if (!editor || !editor.setLineSizing) return;
+        editor.setLineSizing(campos || {});
+        refrescarLineasUI();
+        editor.render();
+    }
+
         function refrescarLineasUI() {
         if (!editor) return;
         const target = editor.getLineTarget();
         const lineNo = parseInt(String(target).slice(1), 10) || 0;
         const isLine = /^L\d+$/.test(target);
         const settings = editor.getSettings() || {};
-        const sz = (isLine && editor.getLineSizing) ? editor.getLineSizing() : null;
-        const ref = (sz && sz.ref === 'linea') ? 'linea' : 'canvas';
-        const refLine = (sz && sz.refLine) || 0;
-        const mode = (sz && sz.mode) === 'width' ? 'width' : 'fontsize';
 
-        // --- Regla de tamano de la linea activa ---
-        // Se ofrecen SIEMPRE L1/L2/L3, se escriban o no: el texto del cuadro es
-        // una MUESTRA para disenar el estilo, no el contenido que recibe el
-        // cliente. Limitar las opciones a las lineas presentes ataba el diseno al
-        // texto de prueba (medido: con una sola linea, "Hereda de" solo ofrecia
-        // ALL y no habia forma de definir la estructura de lineas).
-        const refSel = document.getElementById('tt-line-sizing-ref-input');
-        const refLabel = document.querySelector('[data-line-sizing-label]');
-        if (refSel) {
-            const valores = [{ valor: 'canvas', texto: 'Canvas' }];
-            if (isLine && editor.opcionesValidas) {
-                editor.opcionesValidas(settings, lineNo, 'refLine').forEach(function (li) {
-                    valores.push({ valor: 'linea:' + li + ':fontsize', texto: 'L' + li + ' · %' });
-                    valores.push({ valor: 'linea:' + li + ':width', texto: 'L' + li + ' · ancho' });
-                });
-            }
-            pintarOpciones(refSel, valores,
-                ref === 'linea' ? ('linea:' + refLine + ':' + mode) : 'canvas');
-            refSel.hidden = !isLine;
-            refSel.setAttribute('data-line-sizing-active', sz ? '1' : '0');
-            if (refLabel) {
-                refLabel.hidden = !isLine;
-                refLabel.setAttribute('data-line-sizing-active', sz ? '1' : '0');
-            }
-        }
+        // --- Panel de tamano de la linea activa (Modo, Ref, Proporcion, Tope) -------
+        // El panel se pinta en el bloque de Font Size (mas abajo), con los valores
+        // RESUELTOS; aqui ya no hay nada que ofrecer por separado.
 
         // --- De quien hereda la linea activa ---
         const inhSel = document.getElementById('tt-line-inherit-input');
@@ -267,56 +346,84 @@
             if (inhLabel) inhLabel.hidden = !isLine;
         }
 
-        // --- "Max Font Size": global en All, de la linea activa con L1/L2/L3 ---------
-// Con una linea activa el control manda sobre ESA linea y la referencia
-// elegida en "Sizing ref:" decide a que se compara:
-    //   Canvas -> porcentaje del lado limitante del lienzo (relativo, no px)
-//   Lx ->   porcentaje del tamano de Lx
-//   ancho -> el tamano lo manda el ancho de la referencia (el control se apaga)
-// El valor SIEMPRE es relativo: el canvas es dinamico (500 px o 5000 px).
-    const maxLabel = document.getElementById('tt-max-font-size-label-text');
-    const maxHint = document.getElementById('tt-max-font-size-hint');
-    const maxInput = document.getElementById('tt-canvas-max-font-size-input');
-    if (maxLabel) maxLabel.textContent = isLine ? ('Max Font Size (' + target + ')') : 'Max Font Size (1 character)';
-    if (maxHint) {
-        maxHint.hidden = isLine;
-        if (!isLine) {
-            maxHint.setAttribute('title', 'Tope del texto completo: afecta a todas las lineas');
-        }
-    }
-    if (maxInput) {
-        const porAncho = isLine && ref === 'linea' && mode === 'width';
-        // Con referencia "ancho" el tamano lo decide el ancho de la referencia.
-        if (porAncho) {
-            maxInput.disabled = true;
-            maxInput.setAttribute('title', 'El tamano lo fija el ancho de la linea de referencia');
-        } else {
-            maxInput.disabled = false;
-            maxInput.removeAttribute('title');
-        }
-    }
+        // --- Font Size: control global en All, PANEL por linea con L1/L2/L3 ---------
+        // Con una linea activa el bloque global se oculta y mandan el Modo/Ref/
+        // Proporcion/Tope de ESA linea. Antes el slider global cambiaba de significado
+        // segun el target (en All era el tope de todo, en L2 el de L2) y no existia
+        // ningun control de proporcion: ese era el defecto que reporto el administrador.
+        const globalTamano = document.getElementById('tt-line-sizing-global');
+        const panelTamano = document.getElementById('tt-line-sizing-panel');
+        const maxLabel = document.getElementById('tt-max-font-size-label-text');
+        const maxHint = document.getElementById('tt-max-font-size-hint');
+        if (globalTamano) globalTamano.hidden = isLine;
+        if (panelTamano) panelTamano.hidden = !isLine;
+        if (maxLabel) maxLabel.textContent = 'Max Font Size (1 character)';
+        if (maxHint) maxHint.setAttribute('title', 'Tope del texto completo: afecta a todas las lineas');
+        if (isLine) pintarPanelTamano(settings, lineNo);
 }
     function bindLineSizingUI() {
+            // Modo: Proporcional | Ancho. Al cambiar, si la Ref actual no es valida en
+            // el modo nuevo (Ancho no ofrece ALL) se cae a la primera valida.
+            const modoSel = document.getElementById('tt-line-sizing-mode-input');
+            if (modoSel && !modoSel.dataset.bound) {
+                modoSel.dataset.bound = '1';
+                modoSel.addEventListener('change', function() {
+                    if (!editor || !editor.setLineSizing) return;
+                    const modo = this.value === 'width' ? 'width' : 'fontsize';
+                    const settings = editor.getSettings();
+                    const lineNo = parseInt(String(editor.getLineTarget()).slice(1), 10) || 0;
+                    const sz = editor.getLineSizing() || { ref: 'canvas', refLine: 0 };
+                    const validas = opcionesRefTamano(settings, lineNo, modo);
+                    let valor = (sz.ref === 'linea' && sz.refLine) ? ('linea:' + sz.refLine) : 'canvas';
+                    if (!validas.some(function (o) { return o.valor === valor; })) {
+                        valor = validas[0] ? validas[0].valor : 'canvas';
+                    }
+                    aplicarTamanoLinea(Object.assign({ mode: modo }, camposDeRef(valor)));
+                });
+            }
+
+            // Ref: a que se compara (ALL o una linea; nunca la propia).
             const refSel = document.getElementById('tt-line-sizing-ref-input');
             if (refSel && !refSel.dataset.bound) {
                 refSel.dataset.bound = '1';
                 refSel.addEventListener('change', function() {
-                    if (!editor) return;
-                    const v = String(this.value || 'canvas');
-                    if (v === 'canvas') {
-                        // Referencia al lienzo: el tope se mide sobre el lado
-                        // limitante del area util (relativo, no px fijos).
-                        editor.setLineSizing({ ref: 'canvas' });
-                    } else {
-                        const parts = v.split(':');
-                        editor.setLineSizing({
-                            ref: 'linea',
-                            refLine: parseInt(parts[1], 10) || 0,
-                            mode: parts[2] === 'width' ? 'width' : 'fontsize'
-                        });
-                    }
+                    if (!editor || !editor.setLineSizing) return;
+                    aplicarTamanoLinea(camposDeRef(String(this.value || 'canvas')));
+                });
+            }
+
+            // Proporcion (%): el valor que NO tenia control hasta RC78. Es lo que permite
+            // "L2 = 50 % de ALL" y, en modo Ancho, "L2 = 150 % del ancho de L1".
+            const pctInp = document.getElementById('tt-line-sizing-pct-input');
+            if (pctInp && !pctInp.dataset.bound) {
+                pctInp.dataset.bound = '1';
+                pctInp.addEventListener('input', function() {
+                    if (!editor || !editor.setLineSizing) return;
+                    aplicarTamanoLinea({ pct: Math.max(1, parseInt(this.value, 10) || 100) });
+                });
+            }
+
+            // Tope de la linea (% del canvas): `setNestedSetting` lo manda a la linea
+            // activa (`canvas.maxFontSize` tiene scope 'linea'), nunca a la base.
+            const capInp = document.getElementById('tt-line-sizing-cap-input');
+            if (capInp && !capInp.dataset.bound) {
+                capInp.dataset.bound = '1';
+                capInp.addEventListener('input', function() {
+                    const v = Math.max(1, Math.min(100, parseInt(this.value, 10) || 100));
+                    setNestedSetting('canvas.maxFontSize', v);
                     refrescarLineasUI();
-                    editor.render();
+                });
+            }
+
+            // "Heredar de ALL": BORRA el tope propio de la linea (R-L2.6), para que el
+            // tope de ALL vuelva a mandar sobre ella.
+            const capReset = document.getElementById('tt-line-sizing-cap-reset');
+            if (capReset && !capReset.dataset.bound) {
+                capReset.dataset.bound = '1';
+                capReset.addEventListener('click', function() {
+                    if (!editor || !editor.clearTargetedSetting) return;
+                    editor.clearTargetedSetting('canvas.maxFontSize');
+                    refrescarLineasUI();
                 });
             }
 
@@ -507,7 +614,9 @@
         bindFontWeight('tt-font-weight-input');
         bindCheckbox('tt-merge-gradients-input', 'mergeGradients');
         bindFontSelect('tt-font-picker-input');
-        bindRangeWithRender('tt-font-size-input', 'font.size', parseInt);
+        // RC78: aqui se registraba `tt-font-size-input` (font.size), un input que NO
+        // existe en index.html: registro muerto. El px propio por linea sigue vigente
+        // como campo avanzado (R-L2.3), pero sin control en el panel (contracts/lineas.md 5).
         bindRange('tt-letter-spacing-input', 'letterSpacing', parseFloat);
         // Line height: PORCENTAJE con base 0% = ajuste justo (R-L4.4). Ya no se
 // transforma: el valor que se escribe es el que se muestra.

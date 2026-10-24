@@ -3368,7 +3368,10 @@
     }
 
     // Referencia de dimensionamiento de una linea: `sizing` vive DENTRO de la
-    // linea ({ref, mode, pct}); el `sizing` global anterior desaparece (R-L2.1).
+    // linea ({ref, refLine, mode, pct}); el `sizing` global anterior desaparece
+    // (R-L2.1). `ref:'canvas'` y `ref:'all'` son el MISMO valor (ALL): el alias se
+    // acepta al leer para que el panel pueda rotular "ALL" sin cambiar el token
+    // guardado (dato persistido: AGENTS.md 10).
     function sizingOf(s, lineNo) {
         const e = lineEntry(s, lineNo);
         const sz = e && e.sizing;
@@ -3590,7 +3593,7 @@ function clone(obj) {
 
     function setLineTarget(target) {
         if (!state.settings.lines || typeof state.settings.lines !== 'object') {
-            state.settings.lines = { activeTarget: 'all', overrides: {} };
+            state.settings.lines = { activeTarget: 'all', inherit: {}, line: {} };
         }
         state.settings.lines.activeTarget = target;
         render();
@@ -3627,6 +3630,12 @@ function clone(obj) {
         const key = String(lineNo);
         const previa = (ls.line[key] && typeof ls.line[key] === 'object') ? ls.line[key] : {};
         const propia = mergeDelta({}, previa);
+        // RC78: `mergeDelta` filtra los METADATOS del sistema (`sizing`) a proposito,
+        // porque son REGLAS y no estilo (asi no se filtran a la resolucion del estilo).
+        // Aqui se reconstruye la ENTRADA guardada, asi que hay que conservarlos: sin
+        // esto, escribir cualquier ajuste de la linea BORRABA su regla de tamano
+        // (medido: L2 al 150 % de ancho -> mover el tope -> L2 vuelve al 100 %).
+        if (previa && previa.sizing) propia.sizing = clone(previa.sizing);
         setNested(propia, path, value);
         // Si el valor coincide con lo que la linea RESUELVE, no hace falta
         // override: solo viaja la diferencia (delta estricto, constitucion IV).
@@ -3681,9 +3690,10 @@ function clone(obj) {
         return sizingOf(state.settings, getLineTarget());
     }
 
-    // Fija la regla de tamano de la linea del target activo. Con referencia al
-    // canvas el control escribe px absolutos (FR-012); con referencia a linea
-    // escribe el porcentaje, para que la cadena siga viva.
+    // Fija la regla de tamano de la linea del target activo. Escribe SIEMPRE la
+    // proporcion RELATIVA (`{ref, refLine, mode, pct}`), nunca px absolutos: es lo
+    // que mantiene viva la cadena (si la referencia crece, la linea la sigue) y lo
+    // que exige la constitucion (R-L4.3). RC78 purgo la antigua rama de px.
     function setLineSizing(patch) {
         const lineNo = normalizeLineNo(getLineTarget());
         if (!lineNo) { render(); return; }
@@ -3699,13 +3709,43 @@ function clone(obj) {
             pct: Math.max(1, Number(patch.pct !== undefined ? patch.pct : actual.pct) || 100)
         };
         if (nueva.ref === 'linea') nueva.refLine = normalizeLineNo(patch.refLine !== undefined ? patch.refLine : actual.refLine);
-        if (ref === 'canvas' && patch.fontSizePx) {
-            // Con referencia al canvas el tamano es absoluto (FR-012).
-            delete nueva.pct;
-            setNested(entrada, 'font.size', Math.max(1, Math.round(patch.fontSizePx)));
+        // RC78: aqui vivia una rama `patch.fontSizePx` que escribia un px absoluto y
+        // borraba el `pct`. Ningun llamador la usaba (la UI nunca mando px) y la
+        // constitucion exige porcentajes relativos, nunca px fijos (R-L4.3): se purga.
+        // R-L2.9: una regla Proporcional/ALL/100 es identica a no tener regla, asi que
+        // no se escribe (el panel puede volver al default sin dejar un delta vacio, IV).
+        if (nueva.ref === 'canvas' && nueva.mode === 'fontsize' && nueva.pct === 100) {
+            delete entrada.sizing;
+        } else {
+            entrada.sizing = nueva;
         }
-        if (Object.keys(nueva).length) entrada.sizing = nueva;
-        ls.line[key] = entrada;
+        pruneEmpty(entrada);
+        if (Object.keys(entrada).length) ls.line[key] = entrada;
+        else delete ls.line[key];
+        render();
+    }
+
+    // Borra una ruta PROPIA de la linea del target activo y poda lo que queda vacio
+    // (RC78): el panel de Font Size lo usa para que el tope vuelva a heredarse de ALL
+    // (R-L2.6). Sin esto la clave solo se podia pisar, nunca quitar, y el tope de ALL
+    // no podia volver a mandar sobre esa linea.
+    function clearTargetedSetting(path) {
+        const lineNo = normalizeLineNo(getLineTarget());
+        if (!lineNo) { render(); return; }
+        const ls = linesOf(state.settings) || {};
+        const key = String(lineNo);
+        const entrada = (ls.line && ls.line[key] && typeof ls.line[key] === 'object') ? ls.line[key] : null;
+        if (!entrada) { render(); return; }
+        const keys = String(path).split('.');
+        let nodo = entrada;
+        for (let i = 0; i < keys.length - 1; i++) {
+            nodo = nodo && nodo[keys[i]];
+            if (!nodo || typeof nodo !== 'object') { render(); return; }
+        }
+        delete nodo[keys[keys.length - 1]];
+        pruneEmpty(entrada);
+        if (Object.keys(entrada).length) ls.line[key] = entrada;
+        else delete ls.line[key];
         render();
     }
     // Sync simple controls from the effective settings of the active line target.
@@ -3878,18 +3918,33 @@ function clone(obj) {
             if (!cambio) break;
         }
 
-        // mode 'width': la linea se ajusta al ANCHO objetivo con el alto restante del
-        // lienzo (R-L2.2). `ref:linea` usa el ancho de su referencia; `ref:canvas` usa
-        // el ancho del AREA UTIL (funciona como un margen izquierdo/derecho).
+        // mode 'width' (R-L2.2): el ancho de tinta de la linea se lleva a `pct` % del
+        // ancho de tinta de su REFERENCIA, con el alto restante del lienzo como techo.
+        // `ref:linea` mide el texto de la linea de referencia a su tamaño resuelto;
+        // `ref:canvas` (= ALL: hoy sin control en el panel) usa el ancho del AREA UTIL
+        // y funciona como un margen izquierdo/derecho.
+        // RC78: dos defectos corregidos aqui. (1) Se medía el texto PROPIO al tamaño de
+        // la referencia, asi que el modo copiaba el tamaño de la referencia en vez de
+        // igualar anchos. (2) El `pct` se ignoraba: el ancho quedaba clavado al de la
+        // referencia y el deslizador parecia muerto.
         for (let li = 1; li <= direccionables; li++) {
             const sz = sizingOf(s, li);
             if (!sz || sz.mode !== 'width') continue;
             if (tienePxPropio(s, li)) continue;
-            let objetivoW = availW;
+            const factorW = (Number.isFinite(sz.pct) && sz.pct > 0) ? sz.pct / 100 : 1;
+            let objetivoW = availW * factorW;
             if (sz.ref === 'linea') {
                 if (!sz.refLine) continue;
                 const refPx = out[sz.refLine - 1] || fontSizePx;
-                objetivoW = Math.max(1, measureTextWidth(ctx, lines[li - 1], s.letterSpacing, refPx));
+                const refTexto = lines[sz.refLine - 1];
+                if (refTexto === undefined) continue;
+                // `measureTextWidth` mide CARACTER A CARACTER contra el `ctx.font`
+                // vigente (no compone la fuente): hay que dejarla puesta antes, o el
+                // ancho sale medido con la fuente que quedo de la medicion anterior.
+                ctx.font = componerFuente(s, refPx);
+                const refW = measureTextWidth(ctx, refTexto, s.letterSpacing, refPx)
+                    + calcExtraWidth(s, refPx);
+                objetivoW = Math.max(1, refW * factorW);
             }
             let otherH = 0;
             for (let j = 0; j < n; j++) {
@@ -4939,6 +4994,7 @@ function clone(obj) {
         getLineSizing: getLineSizing,
         setLineInherit: setLineInherit,
         setLineSizing: setLineSizing,
+        clearTargetedSetting: clearTargetedSetting,
 
         ensureFillIds: ensureFillIds,
         getCanvas: getCanvas,

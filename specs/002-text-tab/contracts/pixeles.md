@@ -113,6 +113,15 @@ la paridad editor/PDF sigue siendo puerta manual.
 
 ## 8. Cierre y evidencia (R-P8)
 
+- **R-P7.7 (RC78)**: la puerta MUEVE los CONTROLES REALES del panel de Font Size
+  (`#tt-line-sizing-mode-input`, `-ref-input`, `-pct-input`, `-cap-input`, `-cap-reset`)
+  sobre el DOM y comprueba el DATO escrito y los pixeles: Proporcion 50 % => el alto de
+  tinta de L2 es la mitad del de L1; Ancho 50 % => su ancho de tinta es la mitad; Tope
+  propio al 10 % => L2 se achica y **ALL conserva su tamaño** (el defecto reportado); y el
+  boton "Heredar de ALL" borra la clave propia. Con una linea activa el bloque global se
+  oculta (el mismo slider no puede significar dos cosas). En modo Ancho, `pct > 100` se topa
+  con el ancho util del lienzo (dinamico) => la puerta usa 50 % y el >100 % exacto se cubre
+  en la suite Node (`lineas-tamano`), donde el area es fija.
 - **R-P8.1**: exito imprime `OK: text-tab.browser.js (...)`; un fallo sale con codigo != 0
   y el assert NOMBRA el requisito (p.ej. R-P7.2) y los valores medidos.
 - **R-P8.2**: el acumulado de `page.on("pageerror")` MUST quedar vacio al final.

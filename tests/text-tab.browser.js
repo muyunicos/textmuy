@@ -134,6 +134,48 @@ function v(n) { return String(n); }
                 inp.dispatchEvent(new Event('input', { bubbles: true }));
                 window.TextEditor.render();
             };
+            // T066 (RC78): bandas de tinta por linea con alto, tinta, color dominante y
+            // rango horizontal (para el modo Ancho). NO toca el settings: mide lo que ya
+            // este pintado, asi sirve despues de mover un control REAL del panel.
+            window.__tt.bandas = function () {
+                const cv = document.getElementById('tt-canvas');
+                const w = cv.width, h = cv.height;
+                const d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+                const cerca = function (x, t) { return Math.abs(x - t) <= 30; };
+                const esTinta = function (x, y) {
+                    const i = (y * w + x) * 4;
+                    if (cerca(d[i], 26) && cerca(d[i + 1], 26) && cerca(d[i + 2], 26)) return false;
+                    if (cerca(d[i], 34) && cerca(d[i + 1], 34) && cerca(d[i + 2], 34)) return false;
+                    return true;
+                };
+                const filas = [];
+                let enBanda = false, ini = 0;
+                for (let y = 0; y < h; y++) {
+                    let hay = false;
+                    for (let x = 0; x < w && !hay; x++) if (esTinta(x, y)) hay = true;
+                    if (hay && !enBanda) { enBanda = true; ini = y; }
+                    if (!hay && enBanda) { enBanda = false; filas.push([ini, y - 1]); }
+                }
+                if (enBanda) filas.push([ini, h - 1]);
+                const bandas = filas.map(function (b) {
+                    let tinta = 0; const col = {}; let x0 = w, x1 = -1;
+                    for (let y = b[0]; y <= b[1]; y++) for (let x = 0; x < w; x++) {
+                        if (!esTinta(x, y)) continue;
+                        const i = (y * w + x) * 4;
+                        tinta++;
+                        if (x < x0) x0 = x;
+                        if (x > x1) x1 = x;
+                        const k = Math.round(d[i] / 32) + "," + Math.round(d[i + 1] / 32) + "," + Math.round(d[i + 2] / 32);
+                        col[k] = (col[k] || 0) + 1;
+                    }
+                    const dom = Object.keys(col).sort(function (a, b2) { return col[b2] - col[a]; })[0];
+                    return {
+                        ini: b[0], fin: b[1], alto: b[1] - b[0] + 1, tinta: tinta, color: dom,
+                        x0: x0, x1: x1, ancho: (x1 >= 0 ? x1 - x0 + 1 : 0)
+                    };
+                });
+                return { bandas: bandas, fontPx: window.TextEditor.getLineFontPx() };
+            };
         }, MUESTRA);
 
         // ---- Referencia: texto recto ----
@@ -350,37 +392,7 @@ function v(n) { return String(n); }
                 if (c.maxFontSize !== undefined) s.canvas.maxFontSize = c.maxFontSize;
                 if (c.fontSizePx !== undefined) s.font.size = c.fontSizePx;
                 window.TextEditor.render();
-                const cv = document.getElementById("tt-canvas");
-                const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
-                const cerca = function (v, t) { return Math.abs(v - t) <= 30; };
-                const esTinta = function (x, y) {
-                    const i = (y * cv.width + x) * 4;
-                    if (cerca(d[i], 26) && cerca(d[i + 1], 26) && cerca(d[i + 2], 26)) return false;
-                    if (cerca(d[i], 34) && cerca(d[i + 1], 34) && cerca(d[i + 2], 34)) return false;
-                    return true;
-                };
-                const bandas = [];
-                let enBanda = false, ini = 0;
-                for (let y = 0; y < cv.height; y++) {
-                    let hay = false;
-                    for (let x = 0; x < cv.width && !hay; x++) if (esTinta(x, y)) hay = true;
-                    if (hay && !enBanda) { enBanda = true; ini = y; }
-                    if (!hay && enBanda) { enBanda = false; bandas.push([ini, y - 1]); }
-                }
-                if (enBanda) bandas.push([ini, cv.height - 1]);
-                const detalle = bandas.map(function (b) {
-                    let tinta = 0; const col = {};
-                    for (let y = b[0]; y <= b[1]; y++) for (let x = 0; x < cv.width; x++) {
-                        if (!esTinta(x, y)) continue;
-                        const i = (y * cv.width + x) * 4;
-                        tinta++;
-                        const k = Math.round(d[i] / 32) + "," + Math.round(d[i + 1] / 32) + "," + Math.round(d[i + 2] / 32);
-                        col[k] = (col[k] || 0) + 1;
-                    }
-                    const dom = Object.keys(col).sort(function (a, b2) { return col[b2] - col[a]; })[0];
-                    return { ini: b[0], fin: b[1], alto: b[1] - b[0] + 1, tinta: tinta, color: dom };
-                });
-                return { bandas: detalle, fontPx: window.TextEditor.getLineFontPx() };
+                return window.__tt.bandas();
             }, cfg);
         }
         const base3 = await bandasDeTexto({ texto: TRES, lines: SIN_REGLAS });
@@ -456,7 +468,138 @@ function v(n) { return String(n); }
             return { antes: antes, despues: despues, rutas: Object.keys(delta.lines || {}) };
         });
         assert.deepEqual(rt.despues.px, rt.antes.px, "R-P7.6: el round-trip conserva los px por linea (" + JSON.stringify(rt.despues.px) + " vs " + JSON.stringify(rt.antes.px) + ")");
-        assert.equal(rt.despues.tinta, rt.antes.tinta, "R-P7.6: y la tinta pintada (" + rt.despues.tinta + " vs " + rt.antes.tinta + ")");        // R-P8.2: la corrida no puede dejar errores de pagina.
+        assert.equal(rt.despues.tinta, rt.antes.tinta, "R-P7.6: y la tinta pintada (" + rt.despues.tinta + " vs " + rt.antes.tinta + ")");
+
+        // ===== T066 (RC78): el PANEL de Font Size por linea, movido como el usuario =====
+        // Aqui NO se arma el dato a mano: se MUEVEN los controles del DOM (input/change
+        // reales) y se mide el lienzo. Es la ruta que faltaba cubrir, y por la que se
+        // colaron los cuatro defectos reportados. Contrato: contracts/lineas.md 5
+        // (R-L2.6..R-L2.10) + pixeles.md R-P7.
+        const dos = await bandasDeTexto({ texto: "MUY\nMUY", lines: SIN_REGLAS });
+        assert.equal(dos.bandas.length, 2, "T066: dos lineas dan dos bandas (got " + dos.bandas.length + ")");
+        assert.equal(dos.bandas[0].alto, dos.bandas[1].alto, "T066 (previa): sin reglas miden igual ("
+            + dos.bandas[0].alto + " vs " + dos.bandas[1].alto + ")");
+        await page.click('[data-line-style="2"]');
+        const pan = await page.evaluate(function () {
+            return {
+                panel: !document.getElementById("tt-line-sizing-panel").hidden,
+                global: document.getElementById("tt-line-sizing-global").hidden
+            };
+        });
+        assert.equal(pan.panel, true, "T066: con L2 activo se ve el panel de la linea");
+        assert.equal(pan.global, true, "T066: y se oculta el control global (antes significaba dos cosas)");
+
+        // (b) Proporcion al 50 % de ALL: el alto de tinta de L2 cae a la mitad.
+        const prop = await page.evaluate(function () {
+            const pct = document.getElementById("tt-line-sizing-pct-input");
+            pct.value = "50";
+            pct.dispatchEvent(new Event("input", { bubbles: true }));
+            const s = window.TextEditor.getSettings();
+            return {
+                sizing: s.lines.line["2"].sizing,
+                capBase: s.canvas.maxFontSize,
+                estado: document.getElementById("tt-line-sizing-estado").textContent
+            };
+        });
+        assert.equal(prop.sizing.pct, 50, "T066(b): el slider de Proporcion escribe sizing.pct (got " + JSON.stringify(prop.sizing) + ")");
+        assert.equal(prop.capBase, 100, "T066(b): y no toca el tope de ALL");
+        assert.ok(/50 % del tamaño de ALL/.test(prop.estado), "T066(b): la frase de estado lo dice (" + prop.estado + ")");
+        const m50 = await page.evaluate(function () { return window.__tt.bandas(); });
+        const rel50 = m50.bandas[1].alto / m50.bandas[0].alto;
+        assert.ok(Math.abs(rel50 - 0.50) <= 0.05,
+            "T066(b): el alto de L2 es la mitad del de L1 (" + m50.bandas[1].alto + " vs " + m50.bandas[0].alto + ", rel " + rel50.toFixed(3) + ")");
+
+        // (c) Modo Ancho al 50 % del ancho de L1: las dos lineas tienen el mismo texto, asi
+        // que el ancho de tinta de L2 debe ser la mitad del de L1. Se usa 50 % y no 150 %
+        // porque >100 % se topa con el ANCHO UTIL del lienzo (que es dinamico y sigue al
+        // texto): medido, 150 % deja L2 igual que ALL. El >100 % exacto se cubre en la
+        // suite Node (`lineas-tamano`), donde el area es fija.
+        const anch = await page.evaluate(function () {
+            const modo = document.getElementById("tt-line-sizing-mode-input");
+            modo.value = "width";
+            modo.dispatchEvent(new Event("change", { bubbles: true }));
+            const ref = document.getElementById("tt-line-sizing-ref-input");
+            ref.value = "linea:1";
+            ref.dispatchEvent(new Event("change", { bubbles: true }));
+            const pct = document.getElementById("tt-line-sizing-pct-input");
+            pct.value = "50";
+            pct.dispatchEvent(new Event("input", { bubbles: true }));
+            const s = window.TextEditor.getSettings();
+            return { sizing: s.lines.line["2"].sizing, capBase: s.canvas.maxFontSize };
+        });
+        assert.equal(anch.sizing.mode, "width", "T066(c): el modo Ancho se guarda (got " + JSON.stringify(anch.sizing) + ")");
+        assert.equal(anch.sizing.refLine, 1, "T066(c): con la Ref en L1");
+        assert.equal(anch.capBase, 100, "T066(c): y el tope de ALL sigue intacto");
+        const mA = await page.evaluate(function () { return window.__tt.bandas(); });
+        const relA = mA.bandas[1].ancho / mA.bandas[0].ancho;
+        assert.ok(Math.abs(relA - 0.5) <= 0.08,
+            "T066(c): el ancho de L2 es la mitad del de L1 (" + mA.bandas[1].ancho + " vs " + mA.bandas[0].ancho + ", rel " + relA.toFixed(3)
+            + "; px " + JSON.stringify(mA.fontPx) + ")");
+
+        // (d) Tope por linea: 10 % del canvas. Primero se vuelve a Proporcional/ALL/100
+        // (que NO deja delta, R-L2.9) y se comprueba que L2 no cambia y que el tope de
+        // ALL queda intacto (el defecto reportado: "L2 al 10 % y ALL se achica").
+        const volver = await page.evaluate(function () {
+            const modo = document.getElementById("tt-line-sizing-mode-input");
+            modo.value = "fontsize";
+            modo.dispatchEvent(new Event("change", { bubbles: true }));
+            const ref = document.getElementById("tt-line-sizing-ref-input");
+            ref.value = "canvas";
+            ref.dispatchEvent(new Event("change", { bubbles: true }));
+            const pct = document.getElementById("tt-line-sizing-pct-input");
+            pct.value = "100";
+            pct.dispatchEvent(new Event("input", { bubbles: true }));
+            const s = window.TextEditor.getSettings();
+            return { entrada: s.lines.line["2"], capBase: s.canvas.maxFontSize };
+        });
+        assert.equal(volver.entrada, undefined,
+            "T066(d): Proporcional/ALL/100 no deja delta (R-L2.9), got " + JSON.stringify(volver.entrada));
+        const base2 = await page.evaluate(function () { return window.__tt.bandas(); });
+        assert.equal(base2.bandas[0].alto, base2.bandas[1].alto,
+            "T066(d): y las dos lineas vuelven a medir igual (" + base2.bandas[0].alto + " vs " + base2.bandas[1].alto + ")");
+
+        const cap = await page.evaluate(function () {
+            const c = document.getElementById("tt-line-sizing-cap-input");
+            c.value = "10";
+            c.dispatchEvent(new Event("input", { bubbles: true }));
+            const s = window.TextEditor.getSettings();
+            const e = (s.lines.line && s.lines.line["2"]) || {};
+            return {
+                target: window.TextEditor.getLineTarget(),
+                capLinea: (e.canvas || {}).maxFontSize,
+                capBase: s.canvas.maxFontSize,
+                boton: !document.getElementById("tt-line-sizing-cap-reset").hidden,
+                estado: document.getElementById("tt-line-sizing-estado").textContent
+            };
+        });
+        assert.equal(cap.target, "L2", "T066(d): el target sigue siendo L2 (got " + cap.target + ")");
+        assert.equal(cap.capLinea, 10, "T066(d): el tope propio se guarda en la LINEA (got " + JSON.stringify(cap.capLinea) + ")");
+        assert.equal(cap.capBase, 100, "T066(d): y el tope de ALL NO se achica (era el defecto reportado)");
+        assert.equal(cap.boton, true, "T066(d): aparece el boton para volver a heredar");
+        assert.ok(/tope propio/.test(cap.estado), "T066(d): la frase lo declara (" + cap.estado + ")");
+        const mCap = await page.evaluate(function () { return window.__tt.bandas(); });
+        assert.ok(Math.abs(mCap.bandas[0].alto - base2.bandas[0].alto) <= 2,
+            "T066(d): L1 conserva su alto (" + mCap.bandas[0].alto + " vs " + base2.bandas[0].alto + ")");
+        assert.ok(mCap.bandas[1].alto < base2.bandas[1].alto - 5,
+            "T066(d): y L2 SI se achica (" + mCap.bandas[1].alto + " contra " + base2.bandas[1].alto + ")");
+
+        // "Heredar de ALL" BORRA el tope propio (R-L2.6).
+        await page.click("#tt-line-sizing-cap-reset");
+        const heredado = await page.evaluate(function () {
+            const s = window.TextEditor.getSettings();
+            const e = (s.lines.line && s.lines.line["2"]) || {};
+            return {
+                propio: (e.canvas || {}).maxFontSize,
+                entrada: s.lines.line["2"],
+                boton: !document.getElementById("tt-line-sizing-cap-reset").hidden
+            };
+        });
+        assert.equal(heredado.propio, undefined, "T066(d): el boton borra el tope propio");
+        assert.equal(heredado.entrada, undefined,
+            "T066(d): y la entrada vacia se poda (no queda un delta sin nada, IV)");
+        assert.equal(heredado.boton, false, "T066(d): y se oculta al no quedar nada propio");
+
+        // R-P8.2: la corrida no puede dejar errores de pagina.
         assert.deepEqual(errores, []);
         console.log('OK: text-tab.browser.js (editor real; puente y assets simulados)');
     } finally { await browser.close(); }
