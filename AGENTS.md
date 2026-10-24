@@ -757,6 +757,31 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.31 RC75 — hallazgo del recorrido E1-E7 en WP real: la galeria de FUENTES se comia el error
+
+Recorrido de aceptacion de la spec 009 en el laboratorio local (`C:\wp-lab`, WP+SQLite, plugin por
+junction al repo). Con el catalogo NO escribible (`attrib +R` en `fonts.json`: en Windows el
+`rename` del motor falla con "Acceso denegado") el motor rechaza la persistencia, como manda I3.
+Ahi aparecio el defecto:
+
+- **La causa y el `Reintentar` de la galeria de fuentes eran invisibles.** `onError` pintaba
+  `Miniaturas: <causa>` y mostraba el boton, pero (a) `render()` corria despues y `rfFooter()`
+  pisaba el status con "Selecciona una fuente", y (b) el `.then()` posterior al `onError` llamaba
+  SIEMPRE a `actualizarBotonHojas({error:false})`, que ocultaba el boton. El fallo quedaba en
+  silencio visual: exactamente lo que prohibe SC-007. Fix en `js/fuentes-galeria.js`: la causa
+  vive en un `avisoError` de modulo (el status la prefiere en cada repintado), el `.then()` NO
+  toca la UI si hubo error, y cada `cargar()` arranca con `avisoError=''` y el boton oculto.
+- **Cubierto por la puerta**: `tests/galerias.browser.js` agrega, para la galeria de FUENTES, el
+  escenario "el motor rechaza => causa VISIBLE + Reintentar => reintento que escribe UNA vez"
+  (el equivalente de la galeria de imagenes ya existia desde RC74). Verificado que **falla** sin el
+  fix: el assert de la causa reportaba "Selecciona una fuente".
+- **Hallazgo declarado (pendiente, sin fix en esta entrega)**: cuando el MOTOR rechaza la
+  escritura, `assets/miniaturas.js::persistirSheet` descarta `data.data` y devuelve `null`, asi que
+  el cliente solo puede informar `motor:rechazo` en vez del motivo exacto del motor
+  (`motor:sprite:catalogo:no_escribible`). SC-007 pide el motivo exacto; toca un asset compartido
+  del plugin y queda como pendiente propio.
+- Bump `?v=RC75` en `index.html` (con `css/style.css?v=RC75`) y `render-core.html`.
+
 ### 7.30 RC72/RC73 — refactor de helpers compartidos y mensajes al espanol
 
 Commit `0f89244` ("Refactor shared render and resource helpers"): la revision de
@@ -786,31 +811,6 @@ suites siguen verdes.
 Regresion: `render-dependencias`, `carga-gradient-imgrefs`, `guardar-miniaturas`,
 `hoja-generacion`, `preset-cache/ambito/delta/load/roundtrip` y `sombra-*` cubren
 los caminos tocados. Sin cambio de formato `.txm`, de contrato de API ni de puente.
-
-### 7.30 RC75 — hallazgo del recorrido E1-E7 en WP real: la galeria de FUENTES se comia el error
-
-Recorrido de aceptacion de la spec 009 en el laboratorio local (`C:\wp-lab`, WP+SQLite, plugin por
-junction al repo). Con el catalogo NO escribible (`attrib +R` en `fonts.json`: en Windows el
-`rename` del motor falla con "Acceso denegado") el motor rechaza la persistencia, como manda I3.
-Ahi aparecio el defecto:
-
-- **La causa y el `Reintentar` de la galeria de fuentes eran invisibles.** `onError` pintaba
-  `Miniaturas: <causa>` y mostraba el boton, pero (a) `render()` corria despues y `rfFooter()`
-  pisaba el status con "Selecciona una fuente", y (b) el `.then()` posterior al `onError` llamaba
-  SIEMPRE a `actualizarBotonHojas({error:false})`, que ocultaba el boton. El fallo quedaba en
-  silencio visual: exactamente lo que prohibe SC-007. Fix en `js/fuentes-galeria.js`: la causa
-  vive en un `avisoError` de modulo (el status la prefiere en cada repintado), el `.then()` NO
-  toca la UI si hubo error, y cada `cargar()` arranca con `avisoError=''` y el boton oculto.
-- **Cubierto por la puerta**: `tests/galerias.browser.js` agrega, para la galeria de FUENTES, el
-  escenario "el motor rechaza => causa VISIBLE + Reintentar => reintento que escribe UNA vez"
-  (el equivalente de la galeria de imagenes ya existia desde RC74). Verificado que **falla** sin el
-  fix: el assert de la causa reportaba "Selecciona una fuente".
-- **Hallazgo declarado (pendiente, sin fix en esta entrega)**: cuando el MOTOR rechaza la
-  escritura, `assets/miniaturas.js::persistirSheet` descarta `data.data` y devuelve `null`, asi que
-  el cliente solo puede informar `motor:rechazo` en vez del motivo exacto del motor
-  (`motor:sprite:catalogo:no_escribible`). SC-007 pide el motivo exacto; toca un asset compartido
-  del plugin y queda como pendiente propio.
-- Bump `?v=RC75` en `index.html` (con `css/style.css?v=RC75`) y `render-core.html`.
 
 ### 7.29 RC74 — spec 009 (revision 2026-10-24): Reintentar en las tres galerias + puerta de navegador al dia
 

@@ -55,6 +55,22 @@ node tests\rc-bump.test.js
 **Salida esperada**: todas las suites en `OK`, ningun error de sintaxis, una unica
 version coincidente en los dos documentos y `entorno.test.js` en OK.
 
+### 1.1 Puerta de pixeles (opcional, fuera del glob de Node)
+
+`tests/text-tab.browser.js` convierte SC-001 a SC-007 en mediciones sobre el DOM real del
+editor, con el puente y los assets simulados. Su contrato es `contracts/pixeles.md`
+(R-P1 a R-P8). No la corre el glob `node tests/*.test.js`: necesita Chrome + Playwright
+instalados fuera del repo (mismo patron que `tests/galerias.browser.js`).
+
+```powershell
+$env:NODE_PATH = Join-Path $env:TEMP "pmu-pw\node_modules"
+$env:TEXTMUY_CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+node tests/text-tab.browser.js
+```
+
+**Salida esperada**: `OK: text-tab.browser.js (...)`, cero errores de pagina y codigo de
+salida 0. Un fallo nombra el requisito incumplido (por ejemplo R-P7.2) y los valores medidos.
+
 ---
 
 ## 2. Comprobaciones de logica (Node, sin navegador)
@@ -249,6 +265,7 @@ solo en el editor y no en el motor (o al reves).
 | 2.5 fuente por linea | FR-017, FR-018 | research R7 | US6 |
 | 2.5 alcance por linea | FR-016 | data-model 5 | US6 |
 | 2.6 paridad editor/PDF | FR-020 | R-C2.3 | US1, US6 |
+| 1.1 puerta de pixeles (T052) | SC-001 a SC-007 | R-P1 a R-P8 (`contracts/pixeles.md`) | US1-US6 |
 | 4 recorrido integrado | FR-020 | constitucion II, III | todas |
 
 Criterios de exito del spec: SC-001 (2.1, 3.1) · SC-002 (3.2) · SC-003 (3.3) ·

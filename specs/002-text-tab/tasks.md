@@ -246,7 +246,27 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
 
 **Purpose**: cierre transversal de las seis historias.
 
-- [ ] T052 [P] Suite `tests/text-tab.browser.js` (Playwright, patron de `tests/galerias.browser.js`, puente simulado): medir tinta del lienzo para curva visible en ambos signos, barra visible al abrir, margen al maximo, cero tinta en filas/columnas del borde con y sin rotacion, una sola linea quieta ante Line height, y tres lineas con tres estilos. Es la unica capa que verifica SC-001 a SC-007 en pixeles *(NO escrita al 2026-10-24: el archivo no existe y nunca se commiteo. Su cobertura existio como mediciones de laboratorio (RC51 20/20, RC58 9/9) y en `quickstart.md`; AGENTS §2 la lista como pendiente.)
+- [ ] T052 [P] Suite `tests/text-tab.browser.js`: puerta de pixeles del editor visible.
+      Contrato: `contracts/pixeles.md` (R-P1 a R-P8). NO escrita al 2026-10-24: el archivo
+      no existe y nunca se commiteo; su cobertura previa fueron las mediciones de laboratorio
+      (RC51 20/20, RC58 9/9) y `quickstart.md` §3. Desglose:
+  - [ ] T052a [P] Harness: `index.html` real + puente simulado + catalogo `fonts` de 3
+        identidades + espia de `FontFace` + cero red (R-P1.1 a R-P1.6). Reusar el bootstrap de
+        `tests/galerias.browser.js`; si la spec 009 extrae un harness compartido, reusarlo.
+  - [ ] T052b [US1] SC-001: curva visible en ambos signos, perfil espejado, y vuelta a 0 sin
+        estado residual (R-P2.1 a R-P2.3).
+  - [ ] T052c [US2] SC-002: barra visible al abrir en TEXT/STYLES/ICON, oculta en
+        BACKGROUND/DOWNLOAD, y `[data-global-only]` gateado (R-P3.1 a R-P3.3).
+  - [ ] T052d [US3] SC-003: margen al maximo con tinta > 0 y caja dentro del area util
+        (R-P4.1, R-P4.2).
+  - [ ] T052e [US4] SC-004: cero tinta en filas y columnas del borde con y sin rotacion, con
+        Margin 0 y combinando curva + margen (R-P5.1 a R-P5.3).
+  - [ ] T052f [US5] SC-005: una linea invariante ante Line height y L1 anclada con dos
+        lineas (R-P6.1, R-P6.2).
+  - [ ] T052g [US6] SC-006/SC-007: tres lineas con estilo propio, cascada del 80% exacta,
+        herencia, alternar tabs sin cambio de lienzo y round-trip sin motor (R-P7.1 a R-P7.6).
+  - [ ] T052h Cierre: puerta en verde, cero errores de pagina, evidencia en `quickstart.md`
+        §1/§2/§5 y bump `?v=RCn` solo si la suite destapa un defecto de JS (R-P8.1 a R-P8.3).
 - [x] T053 [P] Recorrido integrado manual de `quickstart.md` §3 y §4 en la pestana "Estilos de Texto" del WordPress de laboratorio, con Ctrl+F5, incluyendo el PDF de un grupo con texto estilizado (paridad FR-020)
 - [x] T054 Bump final `?v=RCn` en `index.html`, `render-core.html` y `css/style.css`, y verificar que las dos paginas cargan la misma version
 - [x] T055 [P] Actualizar `AGENTS.md`: mapa de archivos (nuevas suites), seccion 9 (como probar, con los comandos nuevos) y una seccion de decisiones del feature `002-text-tab` (geometria unica, alcance por linea, formato `.txm` v2, sin migracion)
