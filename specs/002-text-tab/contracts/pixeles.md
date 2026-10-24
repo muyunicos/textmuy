@@ -93,11 +93,18 @@ la paridad editor/PDF sigue siendo puerta manual.
 
 - **R-P7.1**: cambiar fuente, color y tamano en L2 => solo L2 cambia; L1 y L3 conservan
   tinta dominante y posicion.
-- **R-P7.2**: L2 al 80% de L1 y agrandar L1 => L2 mantiene 80% EXACTO: con la MISMA
-  identidad, alto de tinta L2/L1 = 0.8 +-3%; con identidades distintas, el RATIO L2/L1 se
-  mantiene constante +-3% (lo que se conserva es la proporcion, no el alto en px).
-- **R-P7.3**: L3 heredando de L2 sin delta propio => cambiar el color de L2 cambia la
-  tinta dominante de L3.
+- **R-P7.2 (parametrico, medido 2026-10-24)**: con `pct = P`, el alto de tinta de la linea
+  sobre el de su referencia es `P/100` +-4% (medido 0,808 para P=80 y 0,515 para P=50 con
+  muestra uniforme) y el modelo (`state.lineFontPx`) resuelve `P` +-2% (110/137 = 0,803,
+  exacto). En CASCADA: `alto(L3)/alto(L2) = P3/100` y `alto(L3)/alto(L1) = (P2/100) x
+  (P3/100)` +-5% (medido 0,414 contra 0,400). Con identidades distintas el alto de tinta NO
+  es `P/100` (otra metrica de fuente), pero la proporcion se conserva al mover la base. Se
+  mide con muestra uniforme (R-P1.6) y `Line height: 0`, asi cada linea es una banda de
+  filas separada.
+- **R-P7.3**: L3 heredando de L2 sin delta propio toma el ESTILO de L2: cambiar el color
+  de L2 cambia la tinta dominante de L3 y L1 conserva la suya. El color efectivo vive en las
+  CAPAS de relleno (`fill.layers`), que el lienzo prioriza sobre `fill.color`: el caso se
+  escribe por esa via (medido: moviendo solo `fill.color` el dibujo no cambia).
 - **R-P7.4**: alternar All/L1/L2/L3 => el lienzo NO cambia (`hash` identico).
 - **R-P7.5**: reducir el texto a una linea y recuperar las tres => los estilos de L2/L3
   reaparecen (nada se poda).

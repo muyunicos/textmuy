@@ -331,7 +331,132 @@ function v(n) { return String(n); }
         const b200 = barrido.filter(function (b) { return b.lh === 200; })[0];
         const b100 = barrido.filter(function (b) { return b.lh === 100; })[0];
         assert.ok(b200.bottom < b100.bottom,
-            "R-P6.2: con +200% el bloque ya no entra y el encaje reescala el conjunto (bottom " + b200.bottom + " < " + b100.bottom + ", tinta " + b200.tinta + " < " + b100.tinta + ")");        // R-P8.2: la corrida no puede dejar errores de pagina.
+            "R-P6.2: con +200% el bloque ya no entra y el encaje reescala el conjunto (bottom " + b200.bottom + " < " + b100.bottom + ", tinta " + b200.tinta + " < " + b100.tinta + ")");        // ---- R-P7 (SC-006 / SC-007): tres lineas con estilo propio ----
+        const TRES = "MUY\nMUY\nMUY";
+        const SIN_REGLAS = { activeTarget: "all", inherit: {}, line: {} };
+        const L2_80 = { activeTarget: "all", inherit: {}, line: { "2": { sizing: { ref: "canvas", mode: "fontsize", pct: 80 } } } };
+        const L2_50 = { activeTarget: "all", inherit: {}, line: { "2": { sizing: { ref: "canvas", mode: "fontsize", pct: 50 } } } };
+        const L3_50_DE_L2 = { activeTarget: "all", inherit: {}, line: { "2": { sizing: { ref: "canvas", mode: "fontsize", pct: 80 } }, "3": { sizing: { ref: "linea", mode: "fontsize", pct: 50, refLine: 2 } } } };
+
+        // Mide las BANDAS de tinta por linea (una por linea con lineHeight = 0) con su
+        // alto, su tinta y su color dominante; y los px que resolvio el modelo.
+        async function bandasDeTexto(cfg) {
+            return await page.evaluate(function (c) {
+                const s = window.TextEditor.getSettings();
+                s.canvas.width = 800; s.canvas.height = 400;
+                s.text = c.texto; s.background.active = false; s.font.src = 1;
+                s.distort.arc.angle = 0; s.rotate = 0; s.lineHeight = 0;
+                s.lines = c.lines || { activeTarget: "all", inherit: {}, line: {} };
+                if (c.maxFontSize !== undefined) s.canvas.maxFontSize = c.maxFontSize;
+                if (c.fontSizePx !== undefined) s.font.size = c.fontSizePx;
+                window.TextEditor.render();
+                const cv = document.getElementById("tt-canvas");
+                const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+                const cerca = function (v, t) { return Math.abs(v - t) <= 30; };
+                const esTinta = function (x, y) {
+                    const i = (y * cv.width + x) * 4;
+                    if (cerca(d[i], 26) && cerca(d[i + 1], 26) && cerca(d[i + 2], 26)) return false;
+                    if (cerca(d[i], 34) && cerca(d[i + 1], 34) && cerca(d[i + 2], 34)) return false;
+                    return true;
+                };
+                const bandas = [];
+                let enBanda = false, ini = 0;
+                for (let y = 0; y < cv.height; y++) {
+                    let hay = false;
+                    for (let x = 0; x < cv.width && !hay; x++) if (esTinta(x, y)) hay = true;
+                    if (hay && !enBanda) { enBanda = true; ini = y; }
+                    if (!hay && enBanda) { enBanda = false; bandas.push([ini, y - 1]); }
+                }
+                if (enBanda) bandas.push([ini, cv.height - 1]);
+                const detalle = bandas.map(function (b) {
+                    let tinta = 0; const col = {};
+                    for (let y = b[0]; y <= b[1]; y++) for (let x = 0; x < cv.width; x++) {
+                        if (!esTinta(x, y)) continue;
+                        const i = (y * cv.width + x) * 4;
+                        tinta++;
+                        const k = Math.round(d[i] / 32) + "," + Math.round(d[i + 1] / 32) + "," + Math.round(d[i + 2] / 32);
+                        col[k] = (col[k] || 0) + 1;
+                    }
+                    const dom = Object.keys(col).sort(function (a, b2) { return col[b2] - col[a]; })[0];
+                    return { ini: b[0], fin: b[1], alto: b[1] - b[0] + 1, tinta: tinta, color: dom };
+                });
+                return { bandas: detalle, fontPx: window.TextEditor.getLineFontPx() };
+            }, cfg);
+        }
+        const base3 = await bandasDeTexto({ texto: TRES, lines: SIN_REGLAS });
+        assert.equal(base3.bandas.length, 3, "R-P7 (previa): tres lineas dan tres bandas de tinta (got " + base3.bandas.length + ")");
+        assert.equal(base3.bandas[0].alto, base3.bandas[1].alto, "R-P7 (previa): sin reglas las tres lineas miden igual (" + base3.bandas[0].alto + " vs " + base3.bandas[1].alto + ")");
+        assert.equal(base3.bandas[1].alto, base3.bandas[2].alto, "R-P7 (previa): L3 tambien (" + base3.bandas[1].alto + " vs " + base3.bandas[2].alto + ")");
+
+        // R-P7.1: cambiar L2 no toca L1 ni L3.
+        const soloL2 = await bandasDeTexto({ texto: TRES, lines: L2_80 });
+        assert.ok(Math.abs(soloL2.bandas[0].alto - base3.bandas[0].alto) <= 2,
+            "R-P7.1: L1 no cambia (" + soloL2.bandas[0].alto + " vs " + base3.bandas[0].alto + ")");
+        assert.ok(Math.abs(soloL2.bandas[2].alto - base3.bandas[2].alto) <= 2,
+            "R-P7.1: L3 tampoco (" + soloL2.bandas[2].alto + " vs " + base3.bandas[2].alto + ")");
+        assert.ok(soloL2.bandas[1].alto < base3.bandas[1].alto - 5,
+            "R-P7.1: y L2 SI cambia (" + soloL2.bandas[1].alto + " contra " + base3.bandas[1].alto + ")");
+
+        // R-P7.2: el ratio se mide con la FORMULA (alto de tinta L2/L1 = P/100), no con un numero fijo.
+        const r80 = soloL2.bandas[1].alto / soloL2.bandas[0].alto;
+        assert.ok(Math.abs(r80 - 0.80) <= 0.04, "R-P7.2: con P=80 el alto de L2/L1 es P/100 (got " + r80.toFixed(3) + ")");
+        const soloL2_50 = await bandasDeTexto({ texto: TRES, lines: L2_50 });
+        const r50 = soloL2_50.bandas[1].alto / soloL2_50.bandas[0].alto;
+        assert.ok(Math.abs(r50 - 0.50) <= 0.04, "R-P7.2: y con P=50 tambien (got " + r50.toFixed(3) + ")");
+        assert.ok(Math.abs((soloL2.fontPx[1] / soloL2.fontPx[0]) - 0.80) <= 0.02,
+            "R-P7.2: el modelo resuelve P exacto (" + (soloL2.fontPx[1] / soloL2.fontPx[0]).toFixed(3) + ")");
+
+        // R-P7.2 (cascada): L3 al 50% de L2 y L3/L1 = (P2/100) x (P3/100).
+        const casc = await bandasDeTexto({ texto: TRES, lines: L3_50_DE_L2 });
+        const r32 = casc.bandas[2].alto / casc.bandas[1].alto;
+        const r31 = casc.bandas[2].alto / casc.bandas[0].alto;
+        assert.ok(Math.abs(r32 - 0.50) <= 0.04, "R-P7.2: L3 al 50% de L2 (got " + r32.toFixed(3) + ")");
+        assert.ok(Math.abs(r31 - 0.40) <= 0.05, "R-P7.2: en cascada L3/L1 = 0,8 x 0,5 (got " + r31.toFixed(3) + ")");
+
+        // R-P7.3: la herencia es de ESTILO: L3 sin nada propio toma el color de L2.
+        //  El color efectivo vive en las CAPAS de relleno (`fill.layers`), que el lienzo
+        //  prioriza sobre `fill.color` (medido: cambiar solo `fill.color` no cambia el dibujo).
+        function capaDeColor(color) { return { fill: { layers: [{ id: "capa", active: true, styles: [{ id: "st", type: "color", color: color }] }] } }; }
+        const conColor = await bandasDeTexto({ texto: TRES, lines: { activeTarget: "all", inherit: { "3": "L2" }, line: { "2": capaDeColor("#ff0000") } } });
+        assert.notEqual(conColor.bandas[0].color, conColor.bandas[1].color,
+            "R-P7.3: L1 conserva su color (" + conColor.bandas[0].color + ")");
+        assert.equal(conColor.bandas[1].color, conColor.bandas[2].color,
+            "R-P7.3: L3 hereda el de L2 (" + conColor.bandas[2].color + " vs " + conColor.bandas[1].color + ")");
+
+        // R-P7.4: alternar el target (All/L1/L2/L3) NO cambia el lienzo.
+        await page.evaluate(function () { window.__tt.guardarRef(); });
+        for (const boton of ["1", "2", "3", "all"]) {
+            await page.click("[data-line-style=\"" + boton + "\"]");
+            const v = await page.evaluate(function () { return window.__tt.medir(); });
+            assert.equal(v.distintos, 0, "R-P7.4: el target " + boton + " no cambia el lienzo (" + v.distintos + " px distintos)");
+        }
+
+        // R-P7.5: lo configurado para lineas inexistentes se conserva y reaparece.
+        const unaLinea = await bandasDeTexto({ texto: "MUY", lines: L2_80 });
+        assert.equal(unaLinea.bandas.length, 1, "R-P7.5: con una sola linea, una banda (got " + unaLinea.bandas.length + ")");
+        const guardado = await page.evaluate(function () { return Object.keys(window.TextEditor.getSettings().lines.line); });
+        assert.deepEqual(guardado, ["2"], "R-P7.5: la regla de L2 sigue guardada (" + JSON.stringify(guardado) + ")");
+        const vuelta = await bandasDeTexto({ texto: TRES, lines: L2_80 });
+        assert.equal(vuelta.bandas.length, 3, "R-P7.5: al recuperar las tres lineas vuelven las tres bandas");
+        assert.ok(Math.abs(vuelta.bandas[1].alto - soloL2.bandas[1].alto) <= 2,
+            "R-P7.5: y el tamaño de L2 vuelve igual (" + vuelta.bandas[1].alto + " vs " + soloL2.bandas[1].alto + ")");
+
+        // R-P7.6: round-trip real sin motor (diffSettings -> settingsFromDelta -> loadPreset).
+        const rt = await page.evaluate(function () {
+            const s = window.TextEditor.getSettings();
+            s.text = "MUY\nMUY\nMUY";
+            s.lines = { activeTarget: "all", inherit: {}, line: { "2": { sizing: { ref: "canvas", mode: "fontsize", pct: 80 } } } };
+            window.TextEditor.render();
+            const antes = { px: window.TextEditor.getLineFontPx(), tinta: window.__tt.medir().tinta };
+            const delta = window.PresetManager.diffSettings(window.TextEditor.createDefaultSettings(), s);
+            const recargado = window.PresetManager.settingsFromDelta(JSON.parse(JSON.stringify(delta)));
+            window.TextEditor.loadPreset(recargado);
+            window.TextEditor.render();
+            const despues = { px: window.TextEditor.getLineFontPx(), tinta: window.__tt.medir().tinta };
+            return { antes: antes, despues: despues, rutas: Object.keys(delta.lines || {}) };
+        });
+        assert.deepEqual(rt.despues.px, rt.antes.px, "R-P7.6: el round-trip conserva los px por linea (" + JSON.stringify(rt.despues.px) + " vs " + JSON.stringify(rt.antes.px) + ")");
+        assert.equal(rt.despues.tinta, rt.antes.tinta, "R-P7.6: y la tinta pintada (" + rt.despues.tinta + " vs " + rt.antes.tinta + ")");        // R-P8.2: la corrida no puede dejar errores de pagina.
         assert.deepEqual(errores, []);
         console.log('OK: text-tab.browser.js (editor real; puente y assets simulados)');
     } finally { await browser.close(); }

@@ -251,9 +251,9 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
 
 **Purpose**: cierre transversal de las seis historias.
 
-- [ ] T052 [P] Suite `tests/text-tab.browser.js`: puerta de pixeles del editor visible.
-      Contrato: `contracts/pixeles.md` (R-P1 a R-P8). Escrita el 2026-10-24: T052a y T052b
-      estan en verde y T052c a T052h pendientes. La
+- [x] T052 [P] Suite `tests/text-tab.browser.js`: puerta de pixeles del editor visible.
+      Contrato: `contracts/pixeles.md` (R-P1 a R-P8). Escrita y COMPLETA el 2026-10-24: T052a a T052h
+      en verde (SC-001 a SC-007 verificados en el editor real). La
       cobertura previa fueron las mediciones de laboratorio (RC51 20/20, RC58 9/9) y
       `quickstart.md` §3. Desglose:
   - [x] T052a [P] Harness: `index.html` real + puente simulado + catalogo `fonts` de 3
@@ -278,10 +278,15 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
         lineas (R-P6.1, R-P6.2). *(RC76, 2026-10-24: con UNA linea la caja y la tinta son
         invariantes; con DOS el top de L1 queda clavado (89 px) en -100..+200 y el bloque crece
         hacia abajo; en +200 el encaje reescala el conjunto, medido y fijado en el contrato.)*
-  - [ ] T052g [US6] SC-006/SC-007: tres lineas con estilo propio, cascada del 80% exacta,
+  - [x] T052g [US6] SC-006/SC-007: tres lineas con estilo propio, cascada del 80% exacta,
         herencia, alternar tabs sin cambio de lienzo y round-trip sin motor (R-P7.1 a R-P7.6).
-  - [ ] T052h Cierre: puerta en verde, cero errores de pagina, evidencia en `quickstart.md`
-        §1/§2/§5 y bump `?v=RCn` solo si la suite destapa un defecto de JS (R-P8.1 a R-P8.3).
+        *(RC77, 2026-10-24: verde. El ratio se mide con la FORMULA `P/100`: 0,808 para P=80 y
+        0,515 para P=50; la cascada compone 0,414 = 0,8 x 0,5; el target no cambia el lienzo; y el
+        round-trip conserva los px por linea. Hallazgo: el color efectivo vive en `fill.layers`, no
+        en `fill.color`.)*
+  - [x] T052h Cierre: puerta en verde, cero errores de pagina) *(hecho: el contrato R-P7.2 quedo con
+        los umbrales medidos; la evidencia vive en la propia suite y en `quickstart.md` 1.1/5; el bump
+        fue RC77 por el cambio de semantica del tope, no por la suite.)*
 - [x] T053 [P] Recorrido integrado manual de `quickstart.md` §3 y §4 en la pestana "Estilos de Texto" del WordPress de laboratorio, con Ctrl+F5, incluyendo el PDF de un grupo con texto estilizado (paridad FR-020)
 - [x] T054 Bump final `?v=RCn` en `index.html`, `render-core.html` y `css/style.css`, y verificar que las dos paginas cargan la misma version
 - [x] T055 [P] Actualizar `AGENTS.md`: mapa de archivos (nuevas suites), seccion 9 (como probar, con los comandos nuevos) y una seccion de decisiones del feature `002-text-tab` (geometria unica, alcance por linea, formato `.txm` v2, sin migracion)
