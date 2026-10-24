@@ -82,7 +82,12 @@ la paridad editor/PDF sigue siendo puerta manual.
 
 - **R-P6.1**: con una linea, barrer Line height de 0% a +200% => la caja de tinta no se
   mueve ni cambia de tamano (+-1 px).
-- **R-P6.2**: con dos lineas, L1 no se mueve y solo L2 se desplaza (L1 ancla el bloque).
+- **R-P6.2**: con dos lineas, **L1 ancla el bloque**: el top de la tinta no se mueve
+  (+-1 px) en todo el rango de Line height y el bloque crece hacia abajo (medido
+  con dos lineas: bottom 175 / 231 / 286 / 342 / 395 px para -100 / -50 / 0 / +50 / +100).
+  En **+200%** el bloque ya no entra y el **encaje reescala el conjunto** (bottom 175 px
+  y 25.119 px de tinta, medido): el encaje solo reduce y NO toca `state.lineFontPx`
+  (R-G2.2), asi que el tamano por linea no cambia aunque el dibujo si.
 
 ## 7. SC-006 / SC-007 - tres lineas con estilo propio (US6, FR-009 a FR-019)
 

@@ -1656,3 +1656,16 @@ Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullNam
   `specify integration upgrade cline --script ps`.
 - ❌ NO DEBES: modificar bases de datos, credenciales ni servicios externos, ni
   desplegar/publicar sin aprobación explícita del usuario.
+
+## 11. Pendientes declarados (no prioritarios)
+
+No ejecutar hasta indicacion **literal** del administrador. Quedan anotados para que la
+decision y su alcance no se pierdan.
+
+- **Guard de superficie publica** (`tests/superficie-publica.test.js`, propuesto 2026-10-24):
+  una suite que fije las claves exportadas y los nombres de eventos contra una lista
+  documentada, para que un renombre de CONTRATO falle en la puerta y no en produccion.
+  **Alcance decidido (opcion a)**: SOLO el contrato duro del plugin — `TextMuyAPI.*` y los
+  eventos/`op=`/`scope` del puente. `TextEditor.*` y `Controls.*` quedan LIBRES (son API
+  interna del modulo: pueden cambiar con un bump). Motivo de la espera: no es prioritario
+  hoy; la puerta de pixeles (T052c-h) cubre antes el hueco real de verificacion.

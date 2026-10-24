@@ -265,14 +265,19 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
         (R-P2.1 a R-P2.3). *(hecho y verde en 3 corridas el 2026-10-24; el espejo fino del
         signo queda en la capa Node y R-P2.3 se mide con la tolerancia sub-pixel que fijo el
         contrato tras medir el residuo del redondeo del arco.)*
-  - [ ] T052c [US2] SC-002: barra visible al abrir en TEXT/STYLES/ICON, oculta en
-        BACKGROUND/DOWNLOAD, y `[data-global-only]` gateado (R-P3.1 a R-P3.3).
-  - [ ] T052d [US3] SC-003: margen al maximo con tinta > 0 y caja dentro del area util
-        (R-P4.1, R-P4.2).
-  - [ ] T052e [US4] SC-004: cero tinta en filas y columnas del borde con y sin rotacion, con
-        Margin 0 y combinando curva + margen (R-P5.1 a R-P5.3).
-  - [ ] T052f [US5] SC-005: una linea invariante ante Line height y L1 anclada con dos
-        lineas (R-P6.1, R-P6.2).
+  - [x] T052c [US2] SC-002: barra visible al abrir en TEXT/STYLES/ICON, oculta en
+        BACKGROUND/DOWNLOAD, y `[data-global-only]` gateado (R-P3.1 a R-P3.3). *(RC76,
+        2026-10-24: verde sobre el DOM real, midiendo visibilidad computada (no el atributo).)*
+  - [x] T052d [US3] SC-003: margen al maximo con tinta > 0 y caja dentro del area util
+        (R-P4.1, R-P4.2). *(RC76, 2026-10-24: con Margin 50% el padding llega al tope (0,44), el
+        texto sigue pintando tinta y su caja queda dentro del area util.)*
+  - [x] T052e [US4] SC-004: cero tinta en filas y columnas del borde con y sin rotacion, con
+        Margin 0 y combinando curva + margen (R-P5.1 a R-P5.3). *(RC76, 2026-10-24: 0 px de
+        tinta en las 4 lineas del borde con rotacion 0 y +-45, y tambien con margen 40 + curva 120.)*
+  - [x] T052f [US5] SC-005: una linea invariante ante Line height y L1 anclada con dos
+        lineas (R-P6.1, R-P6.2). *(RC76, 2026-10-24: con UNA linea la caja y la tinta son
+        invariantes; con DOS el top de L1 queda clavado (89 px) en -100..+200 y el bloque crece
+        hacia abajo; en +200 el encaje reescala el conjunto, medido y fijado en el contrato.)*
   - [ ] T052g [US6] SC-006/SC-007: tres lineas con estilo propio, cascada del 80% exacta,
         herencia, alternar tabs sin cambio de lienzo y round-trip sin motor (R-P7.1 a R-P7.6).
   - [ ] T052h Cierre: puerta en verde, cero errores de pagina, evidencia en `quickstart.md`
