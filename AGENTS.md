@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC73**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC74**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -756,6 +756,39 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `.catch` no traga el error real (si la fuente de verdad falta,
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
+
+### 7.29 RC74 — spec 009 (revision 2026-10-24): Reintentar en las tres galerias + puerta de navegador al dia
+
+Revision completa de `specs/009-galerias-sprite-unificado` (plugin) cruzando la spec con el
+codigo: la feature estaba implementada desde RC46 pero el paquete de artefactos habia quedado
+como borrador. En el modulo se cerraron los tres huecos reales:
+
+- **Reintentar en las TRES galerias (T020/T037)**: el boton existia solo en
+  `fuentes-galeria.js`. Ahora `galeria.js` (imagenes y pestana de presets) y `controls.js`
+  (panel inferior de presets) tambien lo tienen, y el estado de error de `galeria.js` es
+  **reintentable**: antes quedaba en `ausente` y ni reabrir la galeria reintentaba. El
+  reintento descarta la cache de celdas dibujadas (`invalidarDibujados`) y vuelve a correr
+  la carga; se oculta al arrancar cada corrida y solo aparece tras un error.
+- **Test de navegador al dia (T031/T038/T039)**: `galerias.browser.js` esperaba el ratio SIN
+  simplificar (`'180 / 30'`, `'100 / 100'`) mientras `geometriaTiles` ya devolvia `'6 / 1'` /
+  `'1 / 1'`: la puerta estaba en **rojo** y nadie la corria (requiere Playwright, que no esta
+  instalado en el entorno). Se sincronizaron los asserts y se agregaron los escenarios que
+  faltaban: hoja certificada = 0 descargas de contenido (0 `FontFace`, 0 `<link>` de Google,
+  0 originales), sin hoja => **1** `POST op=sprite` + certificacion + segunda apertura con 0
+  escrituras y 0 descargas, preview Google = **1** `css2?family=` sin `wght@` ni `text=`, y
+  motor que rechaza => causa exacta + boton Reintentar + reintento que escribe **una** vez.
+- **`css/style.css`**: `.tt-gallery-btn[hidden] { display: none; }` explicito (un `display`
+  de autor le gana a la regla del navegador para el atributo `hidden`).
+- Bump `?v=RC74` en `index.html` (con `css/style.css?v=RC74`) y `render-core.html`.
+
+Puerta de navegador (opcional, fuera de `node tests/*.test.js`): requiere Chrome + Playwright.
+Se puede correr sin instalar nada en el repo, con Playwright en `%TEMP%` y `NODE_PATH`:
+
+```powershell
+$env:NODE_PATH = Join-Path $env:TEMP 'pmu-pw\node_modules'
+$env:TEXTMUY_CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tests/galerias.browser.js
+```
 
 
 
