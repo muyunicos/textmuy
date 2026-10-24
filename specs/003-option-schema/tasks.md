@@ -28,7 +28,7 @@ formato `.txm` ni de motor de render.
       alcance (isGlobalPath), fail-fast (ruta inventada) y round-trip de los 6
       presets reales de `uploads/pmu/tm-presets/` sin rechazo.
 - [x] T007 Las 41 suites previas en verde + `node --check` de los JS tocados.
-- [x] T008 Bump `?v=RC64` en `index.html` y `render-core.html` (+ `css/style.css`
+- [x] T008 Bump `?v=RC64` en `index.html` y `render-core.html` (+ `css/style.css` en `index.html`). *(RC64 fue el bump de la feature; al 2026-10-24 la vigente es RC74.)*
       en `index.html`).
 - [x] T009 Actualizar `AGENTS.md` (§6 y nota en §7) y `contracts/lineas.md` §4
       (puntero al schema). Sync Impact Report en constitucion si aplica.

@@ -38,8 +38,8 @@ delta estricto, la resolucion en tres pasos y el rechazo con causa de ciclos.
 
 - [x] T001 Normalizar a UTF-8 sin BOM y LF los artefactos de `specs/002-text-tab/` (los seis `.md` estaban en CRLF y rompian `tests/entorno.test.js`)
 - [x] T002 [P] Confirmar la puerta de suites antes de tocar codigo: `Get-ChildItem tests -Filter *.test.js | ForEach-Object { node $_.FullName }` (las 26 suites deben estar en `OK`)
-- [ ] T003 Registrar en `AGENTS.md` el feature `002-text-tab` y su estado (seccion de.features y de testing), hoy ausente pese a existir el spec
-- [ ] T004 [P] Documentar en `AGENTS.md` la decision de ejecucion en bloques A-D y que la rotten de la pestana TEXT no toca catalogos, puente ni motor de recursos
+- [x] T003 Registrar en `AGENTS.md` el feature `002-text-tab` y su estado (seccion de.features y de testing), hoy ausente pese a existir el spec *(hecho 2026-10-24: el feature esta en AGENTS §2 y documentado en §7.7-§7.29)*
+- [x] T004 [P] Documentar en `AGENTS.md` la decision de ejecucion en bloques A-D y que la rotten de la pestana TEXT no toca catalogos, puente ni motor de recursos *(hecho 2026-10-24: AGENTS §7.7 declara los bloques A-D y el alcance de la pestana TEXT)*
 
 **Checkpoint**: repo limpio, suites en verde, feature documentado.
 
@@ -55,8 +55,8 @@ pueden probar de forma aislada porque las tres comparten el mismo modelo.
 - [x] T007 Suite `tests/encaje-final.test.js`: fijar que el encaje final se aplica siempre (con y sin rotacion/recorte), que solo reduce y que no altera `settings.canvas.width/height` (FR-005, R-G2.1 a R-G2.4)
 - [x] T008 Implementar el helper unico de area util en `js/editor.js` (padding contra lado menor + minimo garantizado) y reemplazar los tres calculos duplicados de `autoFitText` (~745), `render` (~939, ~1115) y `lineFontSizes` (~3191)
 - [x] T009 Implementar el modelo unico de bloque en `js/editor.js`: origen, avances acumulados por linea y baselines por tinta compartido por `autoFitText`, `getTextBlockMetrics` (~2467), `drawTextLines` (~2487), `getTextBlockBox` (~2812) y `lineFontSizes` (~3182)
-- [ ] T010 Implementar el encaje final siempre en `js/editor.js` como una pasada de escala sobre la capa ya compuesta, con margen de seguridad de pocos pixeles y limite `<= 1`
-- [ ] T011 `node --check` de `js/editor.js` y suite completa en verde
+- [x] T010 Implementar el encaje final siempre en `js/editor.js` como una pasada de escala sobre la capa ya compuesta, con margen de seguridad de pocos pixeles y limite `<= 1` *(cerrado en RC50: el encaje final corre siempre; suite `tests/encaje-final.test.js`)*
+- [x] T011 `node --check` de `js/editor.js` y suite completa en verde *(RC50: `node --check` y suite completa verdes; hoy 45/45)*
 
 **Checkpoint**: una sola geometria para ajuste y dibujo; toda linea entra
 completa en el lienzo. Base para US3, US4 y US5.
@@ -215,7 +215,8 @@ preset, recargar y comprobar que vuelve identico.
 
 - [x] T039 [US6] En `js/editor.js`, sustituir `lines.{activeTarget,overrides,sizing}` global por el modelo de `data-model.md`: `lines.inherit` (padre ALL u otra linea), overrides propios por linea y `sizing` **dentro** de cada linea (`{ref, mode, pct}`), con claves 1-based
 - [x] T040 [US6] En `js/editor.js`, implementar la resolucion en tres pasos con deteccion de ciclos de cualquier longitud, incluidos los mixtos (herencia + tamano), con causa `lines:<detalle>:ciclo` y vista intacta
-- [ ] T041 [US6] En `js/editor.js`, quitar `isGlobalOnlyPath`/`pruneGlobalOnlyOverrides` y `getLineSizing` global: el alcance por linea cubre todo estilo y layout salvo Canvas Size, el contenedor del sistema de lineas y descarga/procesado (constitucion IV v3.2.0, FR-016)
+- [x] T041a [US6] Purga v1 de las listas duplicadas (RC51/RC58): `pruneGlobalOnlyOverrides` y `LINE_STYLE_PATHS`/`isLineStylePath` no existen, y las listas propias de `controls.js` desaparecieron (`isGlobalOnlyPath` delega en `editor.isGlobalPath`).
+- [ ] T041b [US6] Resto de la purga v1 (verificado 2026-10-24): `editor.js::resolveLineSettings` (+ export) lee `state.settings.lines.overrides` sin ningun consumidor y `catalog.js::mapImgRefs` recorre `lines.overrides` (regresion en `tests/img-refs.test.js`). Limpiar o justificar, y cerrar.
 - [x] T042 [US6] En `js/editor.js`, conservacion de las lineas inexistentes: no podar L2/L3 cuando el texto tiene menos lineas y reactivarlas al recuperar las (FR-015)
 
 ### Implementation for User Story 6 - UI
@@ -245,7 +246,7 @@ con el PDF. Queda el bloque D4 (rotacion y curva por linea) como fase aparte.
 
 **Purpose**: cierre transversal de las seis historias.
 
-- [x] T052 [P] Suite `tests/text-tab.browser.js` (Playwright, patron de `tests/galerias.browser.js`, puente simulado): medir tinta del lienzo para curva visible en ambos signos, barra visible al abrir, margen al maximo, cero tinta en filas/columnas del borde con y sin rotacion, una sola linea quieta ante Line height, y tres lineas con tres estilos. Es la unica capa que verifica SC-001 a SC-007 en pixeles
+- [ ] T052 [P] Suite `tests/text-tab.browser.js` (Playwright, patron de `tests/galerias.browser.js`, puente simulado): medir tinta del lienzo para curva visible en ambos signos, barra visible al abrir, margen al maximo, cero tinta en filas/columnas del borde con y sin rotacion, una sola linea quieta ante Line height, y tres lineas con tres estilos. Es la unica capa que verifica SC-001 a SC-007 en pixeles *(NO escrita al 2026-10-24: el archivo no existe y nunca se commiteo. Su cobertura existio como mediciones de laboratorio (RC51 20/20, RC58 9/9) y en `quickstart.md`; AGENTS §2 la lista como pendiente.)
 - [x] T053 [P] Recorrido integrado manual de `quickstart.md` §3 y §4 en la pestana "Estilos de Texto" del WordPress de laboratorio, con Ctrl+F5, incluyendo el PDF de un grupo con texto estilizado (paridad FR-020)
 - [x] T054 Bump final `?v=RCn` en `index.html`, `render-core.html` y `css/style.css`, y verificar que las dos paginas cargan la misma version
 - [x] T055 [P] Actualizar `AGENTS.md`: mapa de archivos (nuevas suites), seccion 9 (como probar, con los comandos nuevos) y una seccion de decisiones del feature `002-text-tab` (geometria unica, alcance por linea, formato `.txm` v2, sin migracion)

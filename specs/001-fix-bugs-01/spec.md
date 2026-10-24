@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-fix-bugs-01`
 **Created**: 2026-10-01
-**Status**: Draft
+**Status**: Implementada (RC39-RC45). Puertas manuales abiertas al 2026-10-24: T049, T050 y T066 (requieren el panel de WordPress con datos reales; no son alcanzables desde Node).
 **Input**: User description: "vamos a corregir muchos bugs en este spec! comenzamos con algunos: entro a https://muyunicos.com/wp-admin/admin.php?page=personalizador-pdf&tab=textos esta seleccionada la Font: MUY-Alegría pero se muestra 'TEXT' con una fuente parecida a Times.... toco cualquier control (zoom, font siza, etc,) la fuente que se ve cambia a 'Bangers' en Font sigue diciendo Font: MUY-Alegría voy a la galeria, elijo otras fuentes para ver como quedan. la fuente que se ve sigue siendo 'Bangers' ... toco Select y ahi recien se ve la fuente que seleccione"
 
 ## User Scenarios & Testing *(mandatory)*

@@ -285,10 +285,10 @@ preset ya existente en el servidor carga sin migracion (FR-019, SC-011)
 - [x] T048 Ejecutar todas las suites existentes y las 4 nuevas, y confirmar que pasan;
   ejecutar `node --check` sobre `js/*.js` y `js/effects/*.js`
 - [ ] T049 Ejecutar el recorrido completo de `specs/001-fix-bugs-01/quickstart.md` en
-  WordPress con Ctrl+F5, incluidas las secciones §3.1 a §3.4
+  WordPress con Ctrl+F5, incluidas las secciones §3.1 a §3.4 *(abierta al 2026-10-24: requiere el panel de WordPress; no es alcanzable desde Node)*
 - [ ] T050 **Puerta obligatoria**: ejecutar quickstart.md §3.5, la paridad entre el editor
   y el PDF renderizado. Es la unica cobertura del cambio de mayor riesgo y no es
-  alcanzable desde Node (R9). No cerrar el feature sin esto
+  alcanzable desde Node (R9). No cerrar el feature sin esto *(abierta al 2026-10-24: las mediciones de paridad de RC51/RC53 son del feature 002 y no cierran esta puerta)*
 - [x] T051 Revisar que no queden restos de las tres identidades de fuente en `js/fonts.js`,
   `js/controls.js` y `js/fuentes-galeria.js`, ni claves internas de registro persistidas
   en el estado (constitucion VII)
@@ -370,7 +370,7 @@ Requisitos: FR-026 a FR-030. Contrato: `contracts/render-dependencies.md`.
 - [x] T065 [US5] En `js/api.js` y `js/editor.js`, verificar que no se piden fuentes ni
   imágenes que el estilo no declara (FR-030, R-D1.5)
 - [ ] T066 [US5] Ejecutar la suite T062 y repetir la verificación de paridad del render
-  (T050): el PDF debe seguir coincidiendo con la vista del editor
+  (T050): el PDF debe seguir coincidiendo con la vista del editor *(abierta al 2026-10-24: se cierra junto con T050, en el panel de WordPress)*
 
 ---
 

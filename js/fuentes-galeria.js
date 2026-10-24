@@ -31,6 +31,9 @@ function el(c,t,txt){const n=document.createElement(t||'div');n.className=c;if(t
 let panel=null;
 let fuentesSpriteInfo=null; // hoja CANONICA leida: {spriteImage,canon,spriteUrl}
 let avisoCatalogo='';
+// T020/T037: causa del ultimo fallo de la hoja. Vive fuera del status porque
+// `render()` lo reescribe con el texto del footer en cada repintado.
+let avisoError='';
 let fuentesSpriteVersion=0;
 if(typeof window.addEventListener==='function'){
  window.addEventListener('textmuy:sprite-invalidado',function(ev){
@@ -211,22 +214,31 @@ function crearPanel(){
   if(fuenteActual!=='todas')items=items.filter(function(i){return (i.categoria||'custom')===fuenteActual;});
   montarTabs();
   ocultarUpload(!bridgeOK());
+  avisoError='';
   status.textContent=avisoCatalogo||'';
+  actualizarBotonHojas({error:false}); // T037: cada corrida arranca sin error visible
   render();
   // T017: la hoja se completa sola al abrir. Con hoja certificada no hay
   // descargas; sin ella se dibujan las celdas que falten y se persiste una vez.
   // El progreso va al status y, al terminar, se repinta con las celdas.
   if(bridgeOK()){
+   let hojaError=false;
    cargarSpriteFuentes({
     onProgress:function(h,t,f){
      status.textContent='Completando miniaturas: '+h+'/'+t+(f?' ('+f+' con error)':'')+'...';
     },
     onError:function(causa){
-     status.textContent='Miniaturas: '+(causa||'sin causa');
+     hojaError=true;
+     avisoError='Miniaturas: '+(causa||'sin causa');
+     status.textContent=avisoError;
      render();
      actualizarBotonHojas({error:true});
     }
    }).then(function(){
+    // T020/T037 (hallazgo del recorrido en WP real, 2026-10-24): con error NO se
+    // oculta el Reintentar ni se pisa el mensaje. Antes este `then` corria
+    // SIEMPRE y dejaba el fallo invisible (boton oculto y status del footer).
+    if(hojaError)return;
     if(fuentesSpriteInfo)status.textContent='Miniaturas listas.';
     render();
     actualizarBotonHojas({error:false});
@@ -326,7 +338,7 @@ function crearPanel(){
   newCatBtn.disabled=!editable;
   saveBtn.hidden=!editable;
   delBtn.hidden=!editable;
-  status.textContent=it?(it.online?'Google Fonts (solo lectura)':''):'Selecciona una fuente';
+  status.textContent=avisoError||(it?(it.online?'Google Fonts (solo lectura)':''):'Selecciona una fuente');
  }
  // RC39 (001-fix-bugs-01): la fuente explorada se aplica al LIENZO de
  // inmediato, sin pasar por "Select" (FR-007). Es una previsualizacion
@@ -482,6 +494,7 @@ function crearPanel(){
   if(!window.TextMuyAPI||!window.TextMuyAPI.asegurarHojaCompleta)return;
   reintentarBtn.hidden=true;
   reintentarBtn.disabled=true;
+  avisoError='';
   status.textContent='Reintentando completar miniaturas...';
   // La celda que fallo queda fuera de la cache de dibujados: si no, el nucleo
   // la daria por hecha y el reintento no haria nada.

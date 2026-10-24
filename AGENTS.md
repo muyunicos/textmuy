@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC74**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC75**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -757,6 +757,36 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.30 RC72/RC73 — refactor de helpers compartidos y mensajes al espanol
+
+Commit `0f89244` ("Refactor shared render and resource helpers"): la revision de
+duplicacion (jscpd) marcaba clones en cuatro rutas y quedaban mensajes de error en
+ingles en caminos visibles. **Sin cambio de comportamiento observable**: las 45
+suites siguen verdes.
+
+- **`api.js`**: `cargarImagen(url)` (cargador unico de `Image`, usado por el sprite
+  canonico y por el render de celdas `img`) e `itemsCanonicos(parsed, base)` (una
+  entrada por `id`, hueco estable sin `file`, `url` tambien para las fisicas)
+  reemplazan las copias locales.
+- **`export.js`**: `prepararCanvasExport(settings)` (clamp `100..8000` + apagado del
+  fondo: el damero nunca se exporta) compartido por las dos rutas,
+  `canvasFromSettings` y `canvasFromSettingsAsync`. Mensajes al espanol.
+- **`fonts.js`**: `postBajaFuente(archivo)` (POST `op=baja` `scope=fonts` con
+  `_wpnonce`; resuelve `{ok,res}` o `null` sin puente, nunca lanza) compartido por
+  `deleteFontFromCatalog` (baja por id de catalogo) y `deleteCustomFont` (baja de
+  subida de sesion); se quitaron dos lineas duplicadas que un merge habia dejado
+  en `resolveFontId`.
+- **`preset-manager.js`**: `normalizarSettingsEntrada(entry)` (`.txm` ->
+  `settingsFromDelta`; rama legacy -> `createDefaultSettings` + `loadPreset`)
+  compartido por `ensureThumbnail`, `loadPreset` y el `fallback` de
+  `ensureThumbnailUrl`; los tres mensajes al espanol.
+- **`editor.js`**: mensaje `Elemento canvas no encontrado`.
+- Bump `?v=RC73` en `index.html` y `render-core.html` (7.29 subio despues a RC74).
+
+Regresion: `render-dependencias`, `carga-gradient-imgrefs`, `guardar-miniaturas`,
+`hoja-generacion`, `preset-cache/ambito/delta/load/roundtrip` y `sombra-*` cubren
+los caminos tocados. Sin cambio de formato `.txm`, de contrato de API ni de puente.
+
 ### 7.29 RC74 — spec 009 (revision 2026-10-24): Reintentar en las tres galerias + puerta de navegador al dia
 
 Revision completa de `specs/009-galerias-sprite-unificado` (plugin) cruzando la spec con el
@@ -771,9 +801,8 @@ como borrador. En el modulo se cerraron los tres huecos reales:
   la carga; se oculta al arrancar cada corrida y solo aparece tras un error.
 - **Test de navegador al dia (T031/T038/T039)**: `galerias.browser.js` esperaba el ratio SIN
   simplificar (`'180 / 30'`, `'100 / 100'`) mientras `geometriaTiles` ya devolvia `'6 / 1'` /
-  `'1 / 1'`: la puerta estaba en **rojo** y nadie la corria (requiere Playwright, que no esta
-  instalado en el entorno). Se sincronizaron los asserts y se agregaron los escenarios que
-  faltaban: hoja certificada = 0 descargas de contenido (0 `FontFace`, 0 `<link>` de Google,
+  `'1 / 1'`: la puerta estaba en **rojo** y nadie la corria (requiere Playwright y Chrome, que viven fuera del repo, asi que la puerta no se corria en cada cambio).
+  Se sincronizaron los asserts y se agregaron los escenarios que faltaban: hoja certificada = 0 descargas de contenido (0 `FontFace`, 0 `<link>` de Google,
   0 originales), sin hoja => **1** `POST op=sprite` + certificacion + segunda apertura con 0
   escrituras y 0 descargas, preview Google = **1** `css2?family=` sin `wght@` ni `text=`, y
   motor que rechaza => causa exacta + boton Reintentar + reintento que escribe **una** vez.
@@ -787,8 +816,9 @@ Se puede correr sin instalar nada en el repo, con Playwright en `%TEMP%` y `NODE
 ```powershell
 $env:NODE_PATH = Join-Path $env:TEMP 'pmu-pw\node_modules'
 $env:TEXTMUY_CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-node tests/galerias.browser.js
-```
+$1
+
+- **Verificado el 2026-10-24** en esta maquina: la puerta corre sin instalar nada en el modulo (Playwright en `%TEMP%\pmu-pw\node_modules`, Chrome en `C:/Program Files/Google/Chrome/Application/chrome.exe`) y termina en `OK: galerias.browser.js (DOM real; motor y miniaturas simulados)`.
 
 
 
@@ -1045,6 +1075,16 @@ idéntico al de antes**, y el recorrido integrado lo confirma (20/20 sin cambios
   `LINE_STYLE_PATHS`/`isLineStylePath` y `resolveLineSettings` desaparecieron.
   El alcance por línea ya no se filtra con una lista de "estilizables": decide
   `isGlobalPath` (contrato `contracts/lineas.md` §4).
+- ⚠️ **Correccion (verificado 2026-10-24)**: la purga fue **parcial**.
+  No existen `pruneGlobalOnlyOverrides` ni `LINE_STYLE_PATHS`/`isLineStylePath`, pero
+  si sobreviven dos restos: `controls.js::isGlobalOnlyPath` (hoy es un delegador a
+  `editor.isGlobalPath` con fallback de arranque, RC58) y
+  `editor.js::resolveLineSettings` + su export, que lee
+  `state.settings.lines.overrides` (campo del modelo v1) **sin consumidores** en el
+  modulo, en las suites ni en el plugin; ademas `catalog.js::mapImgRefs` sigue
+  recorriendo `lines.overrides` (con regresion en `tests/img-refs.test.js`). No
+  afectan el render: son rutas v1 muertas, pendientes de limpieza (T041b de
+  `specs/002-text-tab/tasks.md`).
 - ⚠️ **Desviación de FR-016 registrada**: `lineHeight`, `rotate` y `distort`
   quedan **globales**. `lineHeight` por decisión del usuario (un control global
   coherente es mejor que uno por línea que a veces no mueve nada, FR-021);
@@ -1436,10 +1476,11 @@ fuentes. La geometria del tile sale de `thumbs` (`catalog.js::geometriaTiles`).
 
 `catalog.js::itemsGaleriaImg` concentra el armado y filtrado existente de imagenes.
 No cambia las tres tabs ni el criterio actual de primera categoria.
-Hay 45 suites Node (verdes el 2026-10-10 con Node 22.20.0 sobre pwsh 7.6.6). La
+Hay 45 suites Node (verdes el 2026-10-24 con Node 22.20.0 sobre pwsh 7.6.8). La
 prueba opcional `tests/galerias.browser.js` usa Chrome y Playwright instalados
 externamente (variable `TEXTMUY_CHROME` para el ejecutable); valida DOM con
-motor/miniaturas simulados, no sustituye la prueba en WordPress.
+motor/miniaturas simulados, no sustituye la prueba en WordPress. Corrida en
+verde el 2026-10-24 (Playwright en `%TEMP%\pmu-pw`, Chrome del sistema).
 
 **Spec 002-text-tab (pestana TEXT)**: la guia completa de validacion esta en
 `specs/002-text-tab/quickstart.md` (logica en Node, pixeles en Chrome con puente
@@ -1453,11 +1494,14 @@ node tests/catalog-unified.test.js    # parser unico: ok/free/invalid + tile=id-
 node tests/tile-geometria.test.js     # geometria del tile desde thumbs (ratio/columna)
 node tests/fonts-catalog.test.js      # wiring fonts.js al parser + rechazo legacy (tuplas string)
                                       # + preview sin carga (cero FontFace) + thumbs
+node tests/fuentes-filtros-footer.test.js    # RC46/RC74: filtros por categoria + pie editable, con Reintentar
+node tests/fuentes-preview-us3.test.js      # RC46 US3: preview Google con su tipografia real (sin cargar al abrir)
 node tests/img-refs.test.js           # refs de imagen por id (prepareImgRefs, fail-fast)
 node tests/preset-cache.test.js
 node tests/preset-ambito.test.js      # alias presets -> tm-presets (cache unica + firma)
 node tests/preset-delta.test.js
 node tests/preset-load.test.js        # valida los presets del administrador (lee de los uploads)
+node tests/preset-load-sintarget.test.js  # RC62: loadPreset sin targetSettings (camino real de la galeria)
 node tests/preset-roundtrip.test.js   # guardar/cargar un preset campo por campo (RC39)
 node tests/distort-engine.test.js
 node tests/flag-wave.test.js
@@ -1466,6 +1510,7 @@ node tests/controls-init.test.js      # smoke: Controls.init() corre sin lanzar 
 node tests/galeria-items.test.js
 node tests/invalidacion.test.js
 node tests/sprite-canonico.test.js
+node tests/hoja-generacion.test.js         # spec 009: nucleo F1/F2 (una sola escritura), tope por celda, fantasma
 node tests/fuente-compuesta.test.js   # familia compuesta entrecomillada (RC39)
 node tests/fuente-carga-estados.test.js  # estados de carga explicitos + reintento (RC39)
 node tests/fuente-selector.test.js    # selector sin duplicados, toda entrada funciona (RC39)
@@ -1489,6 +1534,7 @@ node tests/estilo-tema.test.js      # el estilo disenado con una muestra se apli
 node tests/option-schema.test.js   # OPTION_SCHEMA unico + alcance data-driven + fail-fast de rutas (RC65)
 node tests/sombra-blur.test.js     # RC66: blur de sombras en espacio identidad + fallback manual + auto-test
 node tests/sombra-posicion.test.js # RC67: composites offscreen centrados en -w/2,-h/2 (sombra ext/int + bevel)
+node tests/sombra-no-recortada.test.js    # RC63/RC65: shadow.outer/depth expanden la capa (sombra no recortada)
 node tests/carga-gradient-imgrefs.test.js # RC68: gradiente copiado al cargar + refs numericas sin 404
 node tests/guardar-miniaturas.test.js   # RC69: preview sin url(id) + miniaturas con todas las fuentes
 

@@ -1,7 +1,7 @@
 # Feature Specification: Schema unico de opciones y fail-fast de rutas
 
 **Feature Branch**: `003-option-schema`
-**Status**: Draft
+**Status**: Implementada (RC64/RC65; al 2026-10-24 la vigente es RC74).
 **Input**: User description: "cada opcion deberia tener un id y un nombre... algunas
 pueden aplicarse al fondo, todo el texto, lineas individuales... que sea dinamico,
 que se puedan traducir las opciones que el admin eligio de acuerdo a la jerarquia y

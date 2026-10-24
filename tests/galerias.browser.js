@@ -183,6 +183,46 @@ const root = path.resolve(__dirname, '..');
             true, 'la celda Google se redibuja con su tipo real');
         assert.equal(await page.evaluate(() => prueba.fontFace), 1,
             'el preview de Google no crea un FontFace extra (usa la hoja css2)');
+        // T020/T037 (hallazgo del recorrido en WP real, 2026-10-24): con el MOTOR
+        // rechazando la escritura, la galeria de FUENTES muestra la causa y el
+        // Reintentar. Antes el `then` posterior al onError corria SIEMPRE y dejaba
+        // el fallo invisible (boton oculto y status del footer pisado).
+        await page.evaluate(() => {
+            prueba.sinHoja = true; prueba.rechazarSprite = true; prueba.certificaAlGenerar = false; prueba.ops = [];
+            if (window.TextMuyAPI.invalidarCatalogo) window.TextMuyAPI.invalidarCatalogo('fonts');
+            if (window.TextMuyAPI.invalidarSpriteCanonico) window.TextMuyAPI.invalidarSpriteCanonico('fonts');
+            if (window.TextMuyAPI.invalidarDibujados) window.TextMuyAPI.invalidarDibujados('fonts');
+            const p = [...document.querySelectorAll('.tt-galpanel')].find(x => x.dataset.ambito === 'fonts');
+            p.querySelector('.tt-galpanel-close').click();
+        });
+        await page.evaluate(() => TextMuyGaleriaFuentes.abrir(() => {}));
+        await page.waitForFunction(() => {
+            const p = [...document.querySelectorAll('.tt-galpanel')].find(x => x.dataset.ambito === 'fonts');
+            const b = p.querySelector('.tt-galpanel-reintentar');
+            return !!(b && !b.hidden);
+        });
+        const rechazoFonts = await page.evaluate(() => {
+            const p = [...document.querySelectorAll('.tt-galpanel')].find(x => x.dataset.ambito === 'fonts');
+            return { status: p.querySelector('.tt-galpanel-status').textContent, ops: prueba.ops.slice(),
+                boton: !p.querySelector('.tt-galpanel-reintentar').hidden };
+        });
+        assert.deepEqual(rechazoFonts.ops, ['sprite'], 'motor que rechaza (fonts): 1 intento y la hoja NO se persiste (I3)');
+        assert.ok(/fonts:hoja:motor:rechazo/.test(rechazoFonts.status),
+            'la causa queda VISIBLE en la galeria de fuentes (' + rechazoFonts.status + ')');
+        assert.equal(rechazoFonts.boton, true, 'el Reintentar queda visible (T020)');
+        await page.evaluate(() => { prueba.rechazarSprite = false; prueba.certificaAlGenerar = true; prueba.ops = []; });
+        await page.locator('.tt-galpanel[data-ambito="fonts"] .tt-galpanel-reintentar').click();
+        await page.waitForFunction(() => {
+            const p = [...document.querySelectorAll('.tt-galpanel')].find(x => x.dataset.ambito === 'fonts');
+            return p.querySelectorAll('.tt-galpanel-tile canvas').length === 2;
+        });
+        const reintentoFonts = await page.evaluate(() => {
+            const p = [...document.querySelectorAll('.tt-galpanel')].find(x => x.dataset.ambito === 'fonts');
+            return { ops: prueba.ops.slice(), oculto: p.querySelector('.tt-galpanel-reintentar').hidden };
+        });
+        assert.deepEqual(reintentoFonts.ops, ['sprite'], 'el reintento de la galeria de fuentes escribe UNA vez (I2)');
+        assert.equal(reintentoFonts.oculto, true, 'el Reintentar se oculta al resolverse');
+        await page.evaluate(() => { prueba.ops = []; });
         await page.locator('.tt-galpanel-upload input').setInputFiles({ name: 'nueva.ttf', mimeType: 'font/ttf', buffer: Buffer.from('fuente simulada') });
         await page.waitForFunction(() => document.querySelectorAll('.tt-galpanel-tile').length === 3 && prueba.eventos.length === 1);
         assert.deepEqual(await page.evaluate(() => prueba.ops), ['alta']);

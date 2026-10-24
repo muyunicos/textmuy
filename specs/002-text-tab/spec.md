@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-04
 
-**Status**: Draft
+**Status**: Implementada (RC48-RC58: US1-US5 y el nucleo de US6). Pendientes declarados al 2026-10-24: el resto de la purga v1 (T041b de tasks.md) y el bloque D4 (rotacion y curva por linea); la suite versionada de pixeles (T052) no se escribio.
 
 **Input**: User description: "Correccion de la pestana TEXT: curva, style target, margin, desborde, line height y lineas con estilo propio"
 
