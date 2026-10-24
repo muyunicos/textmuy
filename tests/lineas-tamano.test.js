@@ -133,4 +133,35 @@ assert.doesNotThrow(function () {
 assert.ok(t5 && t5[1] > 0 && t5[1] <= 100,
     'y la linea usa lo guardado o lo de All, sin dispararse (got ' + t5[1] + ')');
 
-console.log('lineas tamano: OK - sizing por linea, cascada de porcentajes y px que sustituye a la regla');
+// --- El tope por linea es % del EJE limitante del area util (2026-10-24) ------
+// Ya no es una fraccion de la base: es el MISMO criterio que el global, asi que
+// una linea PUEDE superar el tamaño de ALL y el limite lo pone el area.
+const s6 = base();
+s6.canvas.maxFontSize = 100;
+s6.lines = { activeTarget: 'all', inherit: {}, line: { '2': { sizing: { ref: 'canvas', mode: 'fontsize', pct: 150 } } } };
+const t6 = TextEditor.lineFontSizes(ctxFalso(), ['A', 'B'], 800, 600, s6, 100);
+assert.equal(t6[0], 100, 'L1 sigue en el ajuste (got ' + t6[0] + ')');
+assert.equal(t6[1], 150, 'L2 al 150% supera a ALL: el limite lo pone el area (got ' + t6[1] + ')');
+
+// Tope por linea contra el EJE (800x600 -> eje 600): 10% = 60 px, y la CASCADA lo
+// respeta (antes la pasada 2 lo saltaba: pct>100 con ref:linea esquivaba el techo).
+const s7 = base();
+s7.lines = { activeTarget: 'all', inherit: {}, line: { '2': { canvas: { maxFontSize: 10 }, sizing: { ref: 'linea', refLine: 1, mode: 'fontsize', pct: 150 } } } };
+const t7 = TextEditor.lineFontSizes(ctxFalso(), ['A', 'B'], 800, 600, s7, 100);
+assert.equal(t7[1], 60, 'el tope mide contra el eje (600 * 10% = 60) y la cascada lo respeta (got ' + t7[1] + ')');
+
+// mode width con ref:canvas: ajusta la linea al ANCHO del area util.
+const s9 = base();
+s9.lines = { activeTarget: 'all', inherit: {}, line: { '2': { sizing: { ref: 'canvas', mode: 'width', pct: 100 } } } };
+const t9 = TextEditor.lineFontSizes(ctxFalso(), ['A', 'B'], 800, 600, s9, 100);
+assert.equal(t9[1], 500, 'width + canvas: ajusta al ancho del area con el alto restante (600-100) (got ' + t9[1] + ')');
+
+// Fase 2: si la pila no cabe, TODAS se escalan por el mismo factor (ratios intactos).
+const s10 = base();
+s10.lines = { activeTarget: 'all', inherit: {}, line: {
+    '1': { sizing: { ref: 'canvas', mode: 'fontsize', pct: 500 } },
+    '2': { sizing: { ref: 'linea', refLine: 1, mode: 'fontsize', pct: 60 } } } };
+const t10 = TextEditor.lineFontSizes(ctxFalso(), ['A', 'B'], 800, 600, s10, 100);
+const ratio10 = t10[0] / t10[1];
+assert.ok(Math.abs(ratio10 - (500 / 300)) <= 0.05,
+    'la Fase 2 preserva el ratio de la cascada (500/300, got ' + ratio10.toFixed(3) + ')');console.log('lineas tamano: OK - sizing por linea, cascada de porcentajes y px que sustituye a la regla');

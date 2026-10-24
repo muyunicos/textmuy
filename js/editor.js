@@ -3823,6 +3823,18 @@ function clone(obj) {
         const availH = area.height;
         const maxPctBase = Math.max(0, Math.min(100, s.canvas.maxFontSize !== undefined ? s.canvas.maxFontSize : 100)) / 100;
         const singleRef = canvasWidth >= canvasHeight ? area.height : area.width;
+        // Tope de UNA linea: MISMO criterio que el global (`canvas.maxFontSize` es
+        // % del eje limitante del area util), NO una fraccion de su propio tamaño
+        // base. Consecuencia buscada (2026-10-24): una linea PUEDE superar el tamaño
+        // del ajuste de ALL y el limite lo pone el AREA. Sin declararlo, hereda el de
+        // ALL (una linea con maxFontSize=2 y un eje de 600 px se topa en 12 px).
+        function topeDeLinea(li) {
+            const resuelta = resolveLine(s, li, {});
+            const pct = (resuelta && resuelta.canvas && resuelta.canvas.maxFontSize !== undefined)
+                ? Math.max(0, Math.min(100, Number(resuelta.canvas.maxFontSize) || 100)) / 100
+                : maxPctBase;
+            return singleRef * pct;
+        }
         // Fase 2 (R-L2.4): el avance justo es aproximadamente el tamano de linea.
         const lh = 1;
 
@@ -3833,14 +3845,7 @@ function clone(obj) {
         // que es un TOPE en % del eje limitante, no un tamano). Ver defaultSettings
         // .font.size y AGENTS 7.15.
         for (let li = 1; li <= direccionables; li++) {
-            const resuelta = resolveLine(s, li, {});
             const sz = sizingOf(s, li);
-            // Tope de ESA linea: con una linea activa, "Max Font Size" deja de
-            // ser global y manda sobre ella. Se mide sobre el tamaño base de la
-            // linea (relativo, nunca px fijos: el lienzo es dinamico).
-            const pctLinea = (resuelta && resuelta.canvas && resuelta.canvas.maxFontSize !== undefined)
-                ? Math.max(0, Math.min(100, Number(resuelta.canvas.maxFontSize) || 100)) / 100
-                : maxPctBase;
             let px = fontSizePx;
             if (tienePxPropio(s, li)) {
                 px = Number((lineEntry(s, li) || {}).font.size);
@@ -3849,8 +3854,7 @@ function clone(obj) {
             } else if (sz && sz.ref === 'linea') {
                 px = fontSizePx;   // la cascada se resuelve en la pasada 2
             }
-            // El tope limita ESA linea a una fraccion de su propio tamaño base.
-            const tope = fontSizePx * pctLinea;
+            const tope = topeDeLinea(li);
             if (Number.isFinite(px) && px > 0) {
                 out[li - 1] = Math.max(8, Math.round(Math.min(px, tope)));
             }
@@ -3866,26 +3870,34 @@ function clone(obj) {
                 if (tienePxPropio(s, li)) continue;   // el px gana sobre la regla
                 const base = out[sz.refLine - 1];
                 if (!base) continue;
-                const nuevo = Math.max(8, Math.round(base * sz.pct / 100));
+                // La cascada TAMBIEN respeta el tope de la linea: antes lo saltaba, asi
+                // que `ref:linea` con pct>100 esquivaba el techo y `ref:canvas` lo sufria.
+                const nuevo = Math.max(8, Math.round(Math.min(base * sz.pct / 100, topeDeLinea(li))));
                 if (out[li - 1] !== nuevo) { out[li - 1] = nuevo; cambio = true; }
             }
             if (!cambio) break;
         }
 
-        // mode 'width': la linea se ajusta al ancho de su referencia con el
-        // alto restante del lienzo (R-L2.2).
+        // mode 'width': la linea se ajusta al ANCHO objetivo con el alto restante del
+        // lienzo (R-L2.2). `ref:linea` usa el ancho de su referencia; `ref:canvas` usa
+        // el ancho del AREA UTIL (funciona como un margen izquierdo/derecho).
         for (let li = 1; li <= direccionables; li++) {
             const sz = sizingOf(s, li);
-            if (!sz || sz.mode !== 'width' || sz.ref !== 'linea' || !sz.refLine) continue;
+            if (!sz || sz.mode !== 'width') continue;
             if (tienePxPropio(s, li)) continue;
-            const refPx = out[sz.refLine - 1] || fontSizePx;
-            const refW = Math.max(1, measureTextWidth(ctx, lines[li - 1], s.letterSpacing, refPx));
+            let objetivoW = availW;
+            if (sz.ref === 'linea') {
+                if (!sz.refLine) continue;
+                const refPx = out[sz.refLine - 1] || fontSizePx;
+                objetivoW = Math.max(1, measureTextWidth(ctx, lines[li - 1], s.letterSpacing, refPx));
+            }
             let otherH = 0;
             for (let j = 0; j < n; j++) {
                 if (j === li - 1) continue;
                 otherH += out[j] * lh;
             }
-            out[li - 1] = Math.max(8, fitSingleLine(ctx, lines[li - 1], Math.min(refW, availW), Math.max(1, availH - otherH), s));
+            const ajustado = fitSingleLine(ctx, lines[li - 1], Math.min(objetivoW, availW), Math.max(1, availH - otherH), s);
+            out[li - 1] = Math.max(8, Math.round(Math.min(ajustado, topeDeLinea(li))));
         }
 
         // Fase 2 (R-L2.4): si la pila no cabe en vertical, TODAS se escalan por

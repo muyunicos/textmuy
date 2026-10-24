@@ -60,11 +60,36 @@ declarada `scope: linea` (`contracts/opciones.md` R-O1.3).
 |---|---|---|---|---|
 | Herencia de ESTILO | `lines.inherit["n"]` | ALL (delta vacio) | "igual que ALL" = **los mismos valores**: ALL con `maxFontSize=2` => L1/L2/L3 con 2 | un porcentaje |
 | Dimension | `lines.line["n"].sizing = {ref, refLine, mode, pct}` | `{ref:canvas, mode:fontsize, pct:100}` | `ref:canvas` = % del tamano del ajuste (**que es el de ALL**); `ref:linea` + `refLine:N` = % del tamano resuelto de esa linea; `pct:100` = **igual que la referencia** | % del lienzo, *salvo* que `ref` sea `canvas` |
-| Tope | `canvas.maxFontSize` y `lines.line["n"].canvas.maxFontSize` | 100 | **% del eje limitante del tamano base de esa linea**; `100` = sin recorte; sin declararlo se **hereda el de ALL** | el tamano del texto, ni un px |
+| Tope | `canvas.maxFontSize` y `lines.line["n"].canvas.maxFontSize` | 100 | **% del eje limitante del AREA UTIL** (misma cuenta para ALL y para cada linea: `singleRef`x`pct`); `100` = sin recorte; sin declararlo se **hereda el de ALL** | el tamano del texto, ni un px |
 
 Consecuencia: "100 % de ALL" y "100 % del ajuste" dan el **mismo numero** (el tamano
 de ALL *es* el del ajuste) pero **no son lo mismo**: divergen en cuanto la linea
-referenciada declara su propia regla. El tamano pintado de una linea, con todo lo
+consecuencia buscada (2026-10-24): una linea **PUEDE superar el tamaño de ALL** (un `pct`
+mayor que 100, un px propio o un ancho): el limite lo pone el AREA, no la base. Eso es lo que
+hace que el tope "muerda" — antes no podia, porque ninguna linea pasaba de ALL.
+
+### 2.3 Jerarquia del tamaño (orden de calculo, 2026-10-24)
+
+1. Cada linea resuelve su tamaño: `pct` sobre el tamaño del ajuste (ALL) o sobre otra
+   linea (cascada), un px propio, o el ajuste al ancho (`mode:'width'`).
+2. El **tope** de cada linea (`%` del eje limitante del AREA UTIL) la limita por arriba;
+   el de ALL ya se aplico al calcular el ajuste.
+3. Si la pila no cabe en el area, **TODAS** se escalan por el mismo factor
+   (`lineFontSizes`, Fase 2): las proporciones quedan intactas.
+4. El **encaje final** del render escala la capa compuesta como ultima red (solo reduce).
+
+Consecuencias declaradas:
+
+- El **ratio** de una regla se mantiene siempre (la escala es uniforme); cuando el texto
+  no entra, lo que baja es el **absoluto de todas** las lineas, no la proporcion.
+- `state.lineFontPx` es **pre-encaje**: los pixeles del lienzo son post-encaje. Los ratios
+  coinciden; los px absolutos no.
+- Un `mode:'width'` se calcula sobre el area **previa** al encaje: si el conjunto se
+  reescala, el ancho dibujado queda en esa misma proporcion (aproximacion declarada; la
+  version exacta exigiria un bucle de convergencia, que NO se hace).
+- Un **px propio** (`font.size` de linea) tambien es previo al encaje.
+
+La consecuencia de arriba sigue en pie: "100 % de ALL" y "100 % del ajuste" dan el
 anterior resuelto, es `min(ajuste al area util, su tope)`.
 ## 3. Ciclos
 

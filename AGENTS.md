@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC76**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC77**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -757,6 +757,35 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.33 RC77 — el tope por linea vuelve a medirse contra el AREA (y la linea puede pasar de ALL)
+
+Decision del usuario (2026-10-24) sobre el tamaño por linea: **el tope de una linea
+(`canvas.maxFontSize`) es `%` del eje limitante del AREA UTIL, igual que el global**, y una
+linea **puede superar el tamaño de ALL** (el limite lo pone el area). Antes se medía contra
+el tamaño **base** de la propia linea, lo que producia dos defectos medidos con la sonda:
+
+- 🔴 **Doble tope**: con `maxFontSize` global < 100 y **una regla neutra** en cualquier linea,
+  `fontSizePx` (que ya venia capado por el global) se multiplicaba **otra vez** por el tope
+  heredado y TODAS las lineas se achicaban (medido: 1000x800, tope 5%, regla `pct:100` ->
+  `[8, 8]` en vez de `[40, 40]`).
+- 🔴 **Tope asimetrico y "muerto"**: `pct:150` con `ref:'canvas'` se clampeaba a 100 (imposible
+  pasar de ALL) mientras que `ref:'linea'` con `pct:150` **esquivaba** el tope en la cascada
+  (pasada 2 sin `min`): dos referencias, dos reglas distintas. Y el control "no hacia nada" si
+  la linea no pasaba de la base.
+
+Implementado en `lineFontSizes`: helper `topeDeLinea(li)` = `singleRef x %` (misma cuenta que
+el global), aplicado en la pasada 1, en la **cascada** (pasada 2) y en el ajuste al ancho; y
+`mode:'width'` habilitado tambien con `ref:'canvas'` (ajusta al ANCHO del area util: funciona
+como un margen izquierdo/derecho). La jerarquia queda: lineas -> ALL -> Fase 2 proporcional ->
+encaje final (documentada en `contracts/lineas.md` 2.3).
+
+- Regresiones: `lineas-resolucion` (tope 10% = **80** px sobre un eje de 800, ya no escal con la
+  base; `pct:150` permitido; una regla neutra NO re-aplica el tope) y `lineas-tamano` (>100%,
+  tope contra el eje respetado por la cascada, `width`+canvas, y la Fase 2 preservando el ratio).
+- **`tests/galerias.browser.js`/T052c-f** siguen verdes; el bump no cambia contrato de API ni
+  formato de `.txm` (mismos campos, distinto significado del tope: **un preset viejo con
+  `maxFontSize` < 100 y reglas por linea ahora sale MAS GRANDE y con el tamaño que declara**).
+- Bump `?v=RC77` en `index.html` (con `css/style.css`) y `render-core.html`.
 ### 7.32 RC76 — higiene de nombres/defaults y dos defectos de raiz (v1 muerto, refs por linea)
 
 Bloque de higiene disparado por la discusion de nomenclatura: si un nombre o un

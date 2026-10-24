@@ -237,33 +237,48 @@ sinReglas.lines = { activeTarget: 'all', inherit: {}, line: {} };
 const t2 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO'], 1000, 800, sinReglas, 40);
 assert.equal(t2[0], 40, 'sin reglas por linea no se toca el tamano (el global ya lo aplico render())');
 
-// El tope por linea manda sobre la linea y solo sobre ella: L1 con tope 10%
-// queda por debajo de una base sin tope, y L3 (sin tope propio) sigue en su
-// tamano normal.
+// El tope por linea: MISMO criterio que el global (`canvas.maxFontSize` es % del
+// eje limitante del AREA UTIL), no una fraccion de su propio tamaño base.
+// Historia: antes se medía contra el lado del lienzo y el control "no hacía nada"
+// (medido en el laboratorio) porque NINGUNA linea podía pasar del tamaño de ALL,
+// que ya venía por debajo del tope. Con la decision del usuario (2026-10-24) una
+// linea SI puede superar a ALL (el limite lo pone el area), asi que el tope vuelve
+// a morder: ahora limita de verdad, igual que el global.
 const conTopeAlto = base();
 conTopeAlto.text = 'UNO\nDOS\nTRES';
 conTopeAlto.font.size = 100;
 conTopeAlto.canvas.maxFontSize = 100;                 // tope global: no limita
 conTopeAlto.lines = {
     activeTarget: 'all', inherit: {},
-    line: { '1': { canvas: { maxFontSize: 10 } } }    // L1 al 10% -> tope de 80 px
+    line: { '1': { canvas: { maxFontSize: 10 } } }    // L1 al 10% -> 10% del eje (800) = 80 px
 };
 const t3 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 1000, 800, conTopeAlto, 100);
-assert.ok(t3[0] < 100, 'L1 con tope propio queda por debajo (got ' + t3[0] + ')');
-assert.ok(t3[1] >= 100, 'L2 sin tope propio NO se ve afectada (got ' + t3[1] + ')');
-
-// El tope por linea manda SOLO sobre esa linea: es una fraccion de SU PROPIO
-// tamano base, no del lado del lienzo. Antes se media contra el lado del lienzo
-// (320 px), asi que un tope del 50% (=160) nunca llegaba a afectar un tamano de
-// 115 y el control no hacia nada (medido en el laboratorio).
-assert.equal(t3[0], 10, 'L1 al 10% queda en el 10% de su tamano base (got ' + t3[0] + ')');
+assert.equal(t3[0], 80, 'L1 con tope propio 10% queda en el 10% del EJE (800), no de su base (got ' + t3[0] + ')');
 assert.equal(t3[1], 100, 'L2 sin tope propio NO se ve afectada (got ' + t3[1] + ')');
 assert.equal(t3[2], 100, 'L3 tampoco (got ' + t3[2] + ')');
 
-// Y sigue siendo RELATIVO: duplicar el tamano base duplica el tope. Nunca un px
-// fijo, porque el lienzo es dinamico (500 px o 5000 px).
+// El tope ya NO escala con el tamaño base: es una cota del AREA.
 const t4 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS', 'TRES'], 1000, 800, conTopeAlto, 200);
-assert.equal(t4[0], 20, 'con base 200 el tope del 10% da 20, no un px fijo (got ' + t4[0] + ')');
+assert.equal(t4[0], 80, 'el tope es % del eje (80 px), no de la base: con base 200 sigue en 80 (got ' + t4[0] + ')');
 assert.equal(t4[1], 200, 'y L2 sigue sin tope propio (got ' + t4[1] + ')');
 
+// Una linea PUEDE pasar de ALL: pct 150 sobre el ajuste solo se topa por el AREA.
+const pasaDeAll = base();
+pasaDeAll.text = 'UNO\nDOS';
+pasaDeAll.canvas.maxFontSize = 100;
+pasaDeAll.lines = { activeTarget: 'all', inherit: {}, line: { '2': { sizing: { ref: 'canvas', mode: 'fontsize', pct: 150 } } } };
+const t5 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS'], 1000, 800, pasaDeAll, 100);
+assert.equal(t5[0], 100, 'L1 no se toca (got ' + t5[0] + ')');
+assert.equal(t5[1], 150, 'L2 al 150% de ALL supera el ajuste: el limite lo pone el area (got ' + t5[1] + ')');
+
+// Regresion del DOBLE TOPE: con tope global chico y una regla NEUTRA, las lineas
+// no se achican dos veces. Antes `fontSizePx` ya venía capado y se volvia a
+// multiplicar por el tope heredado (1000x800, tope 5% -> [8, 8] en vez de [40, 40]).
+const neutra = base();
+neutra.text = 'UNO\nDOS';
+neutra.canvas.maxFontSize = 5;
+neutra.lines = { activeTarget: 'all', inherit: {}, line: { '2': { sizing: { ref: 'canvas', mode: 'fontsize', pct: 100 } } } };
+const t6 = TextEditor.lineFontSizes(makeCtx2D(), ['UNO', 'DOS'], 1000, 800, neutra, 40);
+assert.equal(t6[0], 40, 'una regla neutra NO re-aplica el tope global (got ' + t6[0] + ')');
+assert.equal(t6[1], 40, 'ni sobre la linea que la declara (got ' + t6[1] + ')');
 console.log('lineas resolucion: OK - heredar -> mezclar -> dimensionar, claves 1-based, target no filtra');
