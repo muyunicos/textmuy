@@ -1543,6 +1543,9 @@ fieldset legend label {
 .tt-gallery-btn-migrate {
     border-color: var(--tt-success, #2e7d32);
 }
+.tt-gallery-btn[hidden] {
+    display: none;
+}
 .tt-gallery-status {
     font-size: 12px;
     color: var(--tt-text-muted, #999);

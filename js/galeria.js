@@ -72,7 +72,7 @@ function invalidarSpritePresetsVista(){spriteVersionPresets++;spriteEstadoPreset
 // en el nucleo de dos fases, que respeta la hoja certificada (0 descargas) y,
 // si faltan celdas, dibuja solo esas y persiste una vez.
 function asegurarSpriteImg(opts){
- if(spriteEstadoImg!=='pendiente')return Promise.resolve({estado:'listo'});
+ if(spriteEstadoImg==='lista')return Promise.resolve({estado:'listo'});
  if(!window.TextMuyAPI||!window.TextMuyAPI.asegurarHojaCompleta){
   spriteEstadoImg='ausente';return Promise.resolve({estado:'error',causa:'img:hoja:api:ausente'});
  }
@@ -80,7 +80,7 @@ function asegurarSpriteImg(opts){
   const version=spriteVersionImg;
   spriteTrabajoImg=completarHoja('img',opts||{}).then(function(r){
    if(version!==spriteVersionImg)return r;
-   if(r&&r.estado==='error'){spriteEstadoImg='ausente';return r;}
+   if(r&&r.estado==='error'){spriteTrabajoImg=null;spriteEstadoImg='pendiente';return r;}
    spriteEstadoImg='pendiente';spriteTrabajoImg=null;
    return r;
   });
@@ -125,7 +125,8 @@ function crearPanel(){
   '<button type="button" class="tt-galpanel-btn tt-galpanel-del" hidden>Delete</button>'+
   '<button type="button" class="tt-galpanel-btn tt-galpanel-sel">Select</button>'+
   '</div></div>'+
-  '<div class="tt-galpanel-status"></div></div>';
+  '<div class="tt-galpanel-status"></div>'+
+  '<button type="button" class="tt-galpanel-btn tt-galpanel-reintentar" hidden title="Vuelve a intentar completar la hoja de miniaturas">Reintentar</button></div>';
  document.body.appendChild(ov);
  const search=ov.querySelector('.tt-galpanel-search');
  const tabs=ov.querySelector('.tt-galpanel-tabs');
@@ -139,6 +140,7 @@ function crearPanel(){
  const selBtn=ov.querySelector('.tt-galpanel-sel');
  const status=ov.querySelector('.tt-galpanel-status');
  const closeBtn=ov.querySelector('.tt-galpanel-close');
+ const retryBtn=ov.querySelector('.tt-galpanel-reintentar');
  tabs.appendChild(uploadLabel); // Upload comparte fila con los tabs
  let fuenteActual='misc',aplicarActual=null,items=[],seleccionado=null;
  let previewOpts=null;
@@ -242,6 +244,10 @@ function crearPanel(){
   }
   async function cargar(){
   list.innerHTML='';status.textContent='';avisoEstado='';items=[];
+  // T037 (spec 009): el Reintentar solo vive tras un error de generacion; cada
+  // corrida de cargar() arranca con el oculto (la proxima apertura reintenta
+  // sola porque la hoja quedo en 'pendiente').
+  if(retryBtn)retryBtn.hidden=true;
   const q=(search.value||'').toLowerCase();
   if(fuenteActual==='presets'){
    // Formato unico (US3): presets.json numerico + sprite 200x100; si el
@@ -275,7 +281,7 @@ function crearPanel(){
          (fallos ? ' (' + fallos + ' con error)' : '') + '...';
        }
       }).then(function (r) {
-       if (r && r.estado === 'error') { avisoEstado = 'Miniaturas: ' + (r.causa || ''); render(); return null; }
+       if (r && r.estado === 'error') { if(retryBtn)retryBtn.hidden=false; avisoEstado = 'Miniaturas: ' + (r.causa || ''); render(); return null; }
        invalidarSpritePresetsVista();
        status.textContent = 'Miniaturas listas.';
        return asegurarSpritePresets().then(function () { render(); });
@@ -331,6 +337,7 @@ function crearPanel(){
     }
    }).then(function (r) {
     if (r && r.estado === 'error') {
+     if(retryBtn)retryBtn.hidden=false;
      avisoEstado = 'Miniaturas: ' + (r.causa || 'sin causa');
      status.textContent = avisoEstado;
      render();
@@ -341,7 +348,7 @@ function crearPanel(){
     status.textContent = 'Miniaturas listas.';
     return window.TextMuyAPI.ensureSpriteCanonico('img').then(function (s) {
      if (s && s.spriteImage) spriteEstadoImg = 'lista';
-     else spriteEstadoImg = 'ausente';
+     else spriteEstadoImg = 'pendiente'; // T037: hoja reintentable (antes 'ausente' la clavaba)
      render();
     });
    });
@@ -467,6 +474,18 @@ function crearPanel(){
  }
  nameIn.addEventListener('input',function(){saveBtn.hidden=!hayCambios();});
  catSel.addEventListener('change',function(){saveBtn.hidden=!hayCambios();});
+ // T037 (spec 009): Reintentar, visible SOLO tras un error de generacion (ya no
+ // es el boton de generar: la hoja se completa sola al abrir, FR-009). Vuelve a
+ // correr cargar() —la hoja quedo en 'pendiente'— y descarta la cache de celdas
+ // dibujadas para que el reintento vuelva a dibujar lo que falta.
+ if(retryBtn)retryBtn.addEventListener('click',function(){
+  retryBtn.hidden=true;retryBtn.disabled=true;
+  avisoEstado='';status.textContent='Reintentando completar miniaturas...';
+  if(window.TextMuyAPI&&window.TextMuyAPI.invalidarDibujados){
+   window.TextMuyAPI.invalidarDibujados(fuenteActual==='presets'?'tm-presets':'img');
+  }
+  Promise.resolve(cargar()).then(function(){retryBtn.disabled=false;});
+ });
 
  saveBtn.addEventListener('click',function(){
   const it=seleccionado;

@@ -336,5 +336,32 @@ assert.equal(esEditable({ tipo: 'catalogo', online: true }), false, 'familia Goo
 assert.equal(esEditable({ tipo: 'server' }), true, 'subida de la sesion => editable');
 assert.equal(esEditable(null), false, 'sin seleccion => nada editable');
 
+// T037 (spec 009, revision 2026-10-24): el Reintentar de la hoja existe en las TRES
+// galerias y el estado de error de la galeria de imagenes es REINTENTABLE. El
+// comportamiento end-to-end se cubre en tests/galerias.browser.js (motor que rechaza
+// => causa + boton => reintento que escribe UNA vez); aca se fija el cableado minimo
+// para que un refactor no lo borre en silencio. Antes de esta revision el boton
+// existia solo en fuentes y galeria.js quedaba clavada en 'ausente'.
+const fs = require('node:fs');
+const pathMod = require('node:path');
+const RAIZ = pathMod.resolve(__dirname, '..');
+const leerArchivo = (f) => fs.readFileSync(pathMod.resolve(RAIZ, f), 'utf8');
+const jsGaleria = leerArchivo('js/galeria.js');
+const jsControls = leerArchivo('js/controls.js');
+const jsFuentes = leerArchivo('js/fuentes-galeria.js');
+const html = leerArchivo('index.html');
+assert.ok(jsFuentes.indexOf("tt-galpanel-reintentar") >= 0 && jsFuentes.indexOf("invalidarDibujados('fonts')") >= 0,
+    'fuentes-galeria.js: Reintentar + descarte de la celda fallida (T020)');
+assert.ok(jsGaleria.indexOf("tt-galpanel-reintentar") >= 0 && jsGaleria.indexOf("retryBtn.addEventListener('click'") >= 0,
+    'galeria.js: boton Reintentar + listener (T037)');
+assert.ok(jsGaleria.indexOf("if(spriteEstadoImg==='lista')") >= 0,
+    "galeria.js: la unica salida terminal de asegurarSpriteImg es 'lista' (hoja reintentable)");
+assert.ok(jsGaleria.indexOf("invalidarDibujados(fuenteActual==='presets'?'tm-presets':'img')") >= 0,
+    'galeria.js: el reintento descarta las celdas dibujadas del ambito');
+assert.ok(html.indexOf('id="tt-gallery-retry-btn"') >= 0 && jsControls.indexOf("getElementById('tt-gallery-retry-btn')") >= 0,
+    'index.html + controls.js: Reintentar del panel de presets (T037)');
+assert.ok(jsControls.indexOf("invalidarDibujados('tm-presets')") >= 0,
+    'controls.js: el reintento descarta las celdas dibujadas de tm-presets');
+
 console.log('OK: hoja-generacion.test.js');
 })().catch(function (e) { console.error(e); process.exit(1); });

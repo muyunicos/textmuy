@@ -2220,6 +2220,8 @@
         const search = document.getElementById('tt-gallery-search');
         const saveBtn = document.getElementById('tt-gallery-save-btn');
         const statusEl = document.getElementById('tt-gallery-status');
+        // T037 (spec 009): Reintentar de la hoja de miniaturas (visible solo tras un error).
+        const retryBtn = document.getElementById('tt-gallery-retry-btn');
         if (!gallery || !toggle || !grid) return;
 
         let presetSpriteInfo = null;
@@ -2245,6 +2247,9 @@
         // muestra el nombre y nada mas; la generacion es explicita (boton).
         let presetIdsPorNombre = {}; // nombre .txm sin extension -> id de presets.json
         function cargarPresetSprite() {
+            // T037 (spec 009): el Reintentar solo vive tras un error de hoja; cada
+            // corrida arranca con el oculto.
+            if (retryBtn) retryBtn.hidden = true;
             const version = ++presetSpriteVersion;
             if (!window.TextMuyAPI || !window.TextMuyAPI.ensureSpriteCanonico) {
                 return Promise.resolve(null);
@@ -2285,6 +2290,7 @@
                 // `s` es el estado del nucleo {estado, causa}; tras generar se
                 // relee la hoja ya certificada para poder dibujar las celdas.
                 if (s && s.estado === 'error') {
+                    if (retryBtn) retryBtn.hidden = false;
                     setStatus('Miniaturas: ' + (s.causa || 'sin causa'), true);
                     return null;
                 }
@@ -2304,6 +2310,20 @@
                         return presetSpriteInfo;
                     });
             }).catch(function() { return null; });
+        }
+
+        // T037 (spec 009): Reintentar, visible SOLO tras un error de la hoja
+        // (antes el ambito de presets reintentaba al reabrir, sin boton visible).
+        if (retryBtn) {
+            retryBtn.addEventListener('click', function() {
+                retryBtn.hidden = true;
+                retryBtn.disabled = true;
+                if (window.TextMuyAPI && window.TextMuyAPI.invalidarDibujados) {
+                    window.TextMuyAPI.invalidarDibujados('tm-presets');
+                }
+                cargarPresetSprite().then(populate).then(function() { retryBtn.disabled = false; },
+                    function() { retryBtn.disabled = false; });
+            });
         }
 
         function setStatus(msg, esError) {
