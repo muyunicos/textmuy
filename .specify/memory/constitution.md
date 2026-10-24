@@ -188,11 +188,15 @@ un recurso se DERIVA de su `id` (tile `id-1`, huecos estables) y la
 hoja MUST coincidir con su catalogo via `thumbs.sprite_firma`
 (`[w,h,c,items]`); una hoja sin certificar, con reticula distinta o
 con catalogo cambiado MUST NOT usarse. Regenerarla es una operacion
-EXCEPCIONAL (una vez por cambio real) y MUST pasar por `op=sprite`
-del motor, que valida firma y dimensiones, rechaza con causa y
-certifica el catalogo al persistir. Mutar un ambito MUST invalidar
-esa certificacion. Las galerias MUST NOT reconstruir la hoja al
-abrirse.
+automatica SOLO de los huecos (nunca un lote parcial: un fallo de dibujo
+deja la hoja sin tocar), con UNA sola escritura por ambito y apertura via
+`op=sprite`, que valida firma y dimensiones, rechaza con causa y
+certifica el catalogo al persistir. Con hoja certificada, abrir una
+galeria MUST ser cero descargas de contenido y cero reconstruccion. Si
+no esta certificada (o faltan celdas), la galeria MUST generar sola los
+huecos, MUST mostrar la causa exacta con reintento si algo falla y MUST
+pasar siempre por ese motor (el modulo no escribe archivos). Mutar un
+ambito MUST invalidar esa certificacion y dejar la hoja reintentable.
 
 ## Flujo de Desarrollo y Puertas de Calidad
 
@@ -219,7 +223,26 @@ clarificaciones o typos. Todo PR MUST verificar cumplimiento
 (AGENTS.md sec. 10) y justificar complejidad. Guia runtime:
 AGENTS.md (operativa); esta constitucion (gobernanza).
 
-**Version**: 3.2.0 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-10-04
+**Version**: 3.2.1 | **Ratified**: 2026-07-24 | **Last Amended**: 2026-10-24
+
+## Sync Impact Report (v3.2.1, 2026-10-24)
+
+- **Bump**: PATCH — clarificacion de la lectura y la generacion de hojas (spec 009 del plugin,
+  `galerias-sprite-unificado`, revisada el 2026-10-24), sin cambio de payload del puente.
+- **Modificado**: Restricciones Tecnicas y de Integracion — se reemplaza la clausula
+  "Regenerarla es una operacion EXCEPCIONAL (una vez por cambio real) ... Las galerias MUST NOT
+  reconstruir la hoja al abrirse" por: con hoja certificada = **cero descargas de contenido y
+  cero reconstruccion**; sin certificar (o con celdas faltantes) = **generacion automatica solo
+  de los huecos**, con **una sola escritura por ambito y apertura** y **nunca un lote parcial**.
+  La enmienda que esa clausula pedia quedo **sin aplicar** en su momento (la constitucion
+  avanzo a v3.2.0 por otro feature) y se ejecuta ahora, con la revision de la spec 009.
+- **Impacto en el plugin**: `PMU_Uploads::sprite()` certifica los tres ambitos catalogados
+  (`fonts`, `img`, `tm-presets`) y `guardar_catalogo()` invalida la firma en todos; `mockups`
+  tiene catalogo pero no manda `firma`, asi que **no certifica**. Puerta del plugin:
+  `tests/certificacion_hoja.php` (checks A–G). Desplegar plugin y modulo en el mismo paso
+  (cache-bust `?v=RC74` en `index.html` y `render-core.html`).
+- **Origen**: revision completa de `specs/009-galerias-sprite-unificado` (T034 del `tasks.md`),
+  con la feature ya implementada entre RC46 y RC74.
 
 ## Sync Impact Report (v3.2.0, 2026-10-04)
 
