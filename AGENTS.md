@@ -106,7 +106,7 @@ textmuy/
                               sombra-posicion, carga-gradient-imgrefs,
                               guardar-miniaturas, option-schema)
                               + galerias.browser.js (opcional; Chrome/Playwright externos)
-                              + text-tab.browser.js (spec 002, pendiente de escribir)
+                              + text-tab.browser.js (spec 002: T052a/T052b verdes; T052c-h pendientes)
 └── specs/002-text-tab/     <- Spec de la correccion de la pestana TEXT (spec, plan,
                               research, data-model, contracts, quickstart, tasks)
 └── specs/003-option-schema/ <- Spec del schema unico de opciones + fail-fast de rutas
@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC75**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC76**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -757,6 +757,34 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.32 RC76 — higiene de nombres/defaults y dos defectos de raiz (v1 muerto, refs por linea)
+
+Bloque de higiene disparado por la discusion de nomenclatura: si un nombre o un
+comentario miente, se corrige de raiz (AGENTS §10).
+
+- 🔴 **Las refs de imagen de una linea no se resolvian** (`catalog.js::imgTargets`). El
+  walker recorria `lines.overrides` (formato **v1**, fuera del `.txm` v2) y no
+  `lines.line["<n>"]`: una textura o un icono declarados por linea quedaban como id
+  numerico en el render. El test `img-refs` fijaba la forma v1 (por eso pasaba). Ahora el
+  walker recorre el estilo propio de cada linea y el test usa la forma v2.
+- 🟡 **`loadPreset` repetia defaults como literales** (`TEXT`, 64) en vez de derivarlos de
+  `defaultSettings` (I-D1): un `font.size` no numerico dejaba **64** en vez del default
+  real **76**, y el guardado emitia un delta de `font.size` que no cambio nada (Const. IV).
+  Guard nuevo en `preset-roundtrip` (verificado que **falla** antes y pasa despues). Los
+  otros dos caminos medidos (fuente sin tamano, tamano ausente) ya dejaban el default.
+- ✅ **Purga del resto v1**: `editor.js::resolveLineSettings` (y `localApplyDelta`, que
+  quedaba huerfano) leian `lines.overrides` sin ningun consumidor; `controls.js::
+  isGlobalOnlyPath` pasa a `esGlobalDeBloque` (delega en `editor.isGlobalPath`). Cierra
+  `T041b`.
+- ✅ **Nombres que mentian**: los comentarios de `editor.js` mandaban a `GLOBAL_ONLY_PATHS`
+  (que no existe) y a `lines.overrides` (v1); el de `lineFontSizes` decia que el default de
+  `font.size` era 100 (es **76**; el 100 era el de OTRO campo, `canvas.maxFontSize`); el
+  sync apuntaba a `#tt-font-size-input`, un input que **no existe** (3 referencias muertas).
+- ✅ **Vocabulario documentado**: `contracts/lineas.md` §2.2 fija los **tres ejes**
+  (herencia de estilo / dimension / tope) con su columna "NO es", la equivalencia
+  `ref:canvas` = "ALL" y que el tope es **% del eje limitante** (un `maxFontSize=2` en ALL
+  se hereda como 2, no como 2 % del lienzo). Regla de higiene e idioma en §10.
+- Bump `?v=RC76` en `index.html` (con `css/style.css`) y `render-core.html`.
 ### 7.31 RC75 — hallazgo del recorrido E1-E7 en WP real: la galeria de FUENTES se comia el error
 
 Recorrido de aceptacion de la spec 009 en el laboratorio local (`C:\wp-lab`, WP+SQLite, plugin por
@@ -781,6 +809,9 @@ Ahi aparecio el defecto:
   (`motor:sprite:catalogo:no_escribible`). SC-007 pide el motivo exacto; toca un asset compartido
   del plugin y queda como pendiente propio.
 - Bump `?v=RC75` en `index.html` (con `css/style.css?v=RC75`) y `render-core.html`.
+
+> El mismo **laboratorio local** (`C:\wp-lab`: WP+Woo reales, plugin/tema por *junction*) sirve para
+> los recorridos del plugin: arranque, credenciales y trampas en `docs/entorno-desarrollo.md` §9.
 
 ### 7.30 RC72/RC73 — refactor de helpers compartidos y mensajes al espanol
 
@@ -1587,7 +1618,30 @@ Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullNam
   (§8, `docs/entorno-desarrollo.md`).
 - ✅ OBLIGATORIO: escribir archivos como **UTF-8 sin BOM** y con **LF**. No reintroducir
   CRLF ni BOM; `tests/entorno.test.js` lo verifica en cada corrida (§8.1).
-- ✅ Mensajes e interfaz en español (sin tildes en código puro para evitar problemas de
+- ✅ OBLIGATORIO: **higiene de nombres y textos**. Si un nombre, un comentario, una
+  etiqueta o una linea de doc se lee ambiguo, **miente** o invita a error, se corrige
+  **de raiz y en el mismo paso** (renombrar, mover o reformular); no se deja un nombre
+  malo "porque ya esta" ni dos nombres para lo mismo. Protocolo: **1)** inventario de
+  consumidores (`js/`, `js/effects/`, HTML, CSS, `tests/`, `specs/`, `docs/` y el repo
+  del plugin) y clasificacion en interno / **contrato** / **dato persistido**; **2)**
+  renombre con palabra completa, junto con sus mensajes y los asserts que los citan;
+  **3)** puerta verde (todas las suites de `tests/*.test.js`, `node --check`, `entorno`,
+  `integridad-archivos`, `rc-bump` y la puerta de navegador si toco DOM o lienzo) y
+  `git grep` del nombre viejo = 0; **4)** `?v=RCn` si toco JS y una linea en el
+  changelog. Los nombres que son **contrato** (puente `textmuy-*`, `TextMuyAPI.*`,
+  eventos, ids/clases del DOM, `op=`, scopes) o **dato persistido** (rutas del `.txm`,
+  tuplas de catalogo, `version`) NO se renombran por gusto: se cambia el contrato en un
+  solo paso coordinado (constitucion + AGENTS + plugin) o se versiona el formato;
+  mientras no se decida, se documentan.
+- ✅ OBLIGATORIO: **un default se define UNA vez** (I-D1). `defaultSettings` es la
+  fuente; nadie repite el valor (`x || 64`, `size: 76`, literales de fallback): se
+  DERIVA, mismo patron que `OPTION_SCHEMA` (`contracts/opciones.md` R-O1.1).
+- ✅ OBLIGATORIO: **todo porcentaje declara su referencia** (I-D2): el dato lo hace con
+  `ref`/`refLine` y la UI lo dice con sus palabras (`canvas` = "ALL/ajuste", `linea:N` =
+  "Ln"). Un `100` sin referencia es ambiguo por definicion (ver `contracts/lineas.md` 2.2).
+- ✅ Convencion de idioma: contrato/API publica en ingles (`renderBatch`, `getSettings`),
+  codigo interno en espanol sin tildes (`componerFuente`, `detectarCiclos`), UI en
+  espanol con tildes.- ✅ Mensajes e interfaz en español (sin tildes en código puro para evitar problemas de
   encoding).
 - ✅ Las rutas, catalogos y archivos son datos del plugin: NO hardcodear rutas, NO
   escribir catalogos y NO asumir handlers; usar el puente (`urls.*`) y el motor (`op=`).
