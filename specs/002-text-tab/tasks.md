@@ -314,19 +314,32 @@ mismo angulo en todas las lineas, sin aviso). Es peor que dejarlos globales.
 - Rotacion: `ALL 90 grados` + `L1 +10`, `L2 -10`, `L3 +10` -> `\/`
 - Curva: `ALL 90 grados` + `L1 curva +`, `L2 curva -` -> `()`
 
-**Tareas** (sin numero hasta que se implemente):
+**Bloquea**: la decision de `contracts/geometria.md` §3.2 (el valor de una linea
+**reemplaza** el de ALL o se **suma** a el). No se toca codigo hasta cerrarla: sacar
+`rotate`/`distort` de la tabla global sin partir el pipeline haria que el control por
+linea **acepte el valor y no haga nada**, que es peor que dejarlos globales. El orden
+obligatorio y sus requisitos estan en `contracts/geometria.md` §3.1.
 
-- [ ] Suite que fije el orden: la rotacion por linea se aplica ANTES de componer
-      el bloque, y cada linea conserva la suya al apilar.
-- [ ] Partir la composicion en una capa por linea con su estilo resuelto.
-- [ ] Aplicar la rotacion de la linea al pintar su capa.
-- [ ] Aplicar la curva de la linea al pintar su capa.
-- [ ] Sacar `rotate` y `distort` de la tabla global (se vuelven heredables).
-- [ ] UI: el control deja de global y pasa a la linea activa; el rotulo dice
-      para que linea es.
-- [ ] Verificar en el laboratorio los dos ejemplos del usuario (`\/` y `()`) y el
-      round-trip del preset.
-- [ ] Actualizar `contracts/geometria.md`, `AGENTS.md` y el estado del feature.
+**Tareas**:
+
+- [ ] T068 Cerrar la decision de §3.2 (suma o reemplazo) y escribirla en
+      `contracts/lineas.md` §2.4 + `contracts/opciones.md` R-O1.2 (`rotate` y `distort`
+      pasan a `scope: linea`).
+- [ ] T069 [P] Suite que fije el orden: el giro/curva de la linea se aplica ANTES de
+      apilar y ninguna etapa posterior lo reaplica (R-G3.1 a R-G3.4).
+- [ ] T070 Partir la composicion en una capa por linea con su estilo resuelto.
+- [ ] T071 Aplicar `rotate` y `distort` de la linea al pintar SU capa; el encaje sigue
+      siendo del bloque y una sola vez.
+- [ ] T072 Sacar `rotate` y `distort` de `ALCANCE_GLOBAL`/`OPTION_SCHEMA` (se vuelven
+      heredables) y actualizar los dos asserts que hoy los fijan globales:
+      `tests/lineas-resolucion.test.js` ("rotate sigue global hasta el bloque D4") y
+      `tests/option-schema.test.js` (la lista de globales).
+- [ ] T073 UI: los controles de Rotation y Curve pasan a mandar sobre la linea activa y
+      el rotulo dice para cual es; la chispeta `global` queda solo en All.
+- [ ] T074 [P] Puerta de pixeles en el navegador para los dos ejemplos del usuario
+      (`\/` con cada linea a su angulo y `()` con cada linea a su curva) + round-trip.
+- [ ] T075 Cierre: probe del panel en el laboratorio, `AGENTS.md` (changelog + la nota de
+      que `rotate` y `distort` dejaron de ser globales) y bump `?v=RCn`.
 
 ---
 

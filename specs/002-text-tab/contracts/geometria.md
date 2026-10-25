@@ -53,3 +53,48 @@ interno al modulo.
   lienzo).
 - **R-G2.4**: Criterio verificable: cero tinta en las filas y columnas del
   borde con cualquier combinacion de layout (SC-004).
+---
+
+## 3. Pipeline por linea (bloque D4, pendiente)
+
+**Estado**: pendiente y **bloqueado** por la decision de §3.2. Hoy `rotate` y `distort`
+son **globales de bloque** y se aplican al conjunto compuesto **al final** del render
+(`contracts/lineas.md` §4). La constitucion IV ya declara la rotacion y la curva como
+parte del alcance **por linea**: este bloque no cambia la gobernanza, la **cumple**.
+
+### 3.1 Orden obligatorio (una capa por linea)
+
+1. Cada linea se compone con su **estilo resuelto** (relleno, contorno, sombra, relieve,
+   texto) en una capa PROPIA (hoy: una sola capa para todo el bloque).
+2. Al pintar esa capa se aplica **su** giro y **su** curva (los de esa linea), no los del
+   bloque.
+3. Recien despues se **apila** el bloque con la geometria de §1 (baselines y avances
+   acumulados): apilar no cambia el orden de las lineas, ni sus tamaños, ni su giro.
+4. Recorte por tinta real + **encaje final** (§2) sobre el **bloque**, una sola vez.
+
+- **R-G3.1**: el giro/curva de una linea se aplica **antes** de apilarla; ninguna etapa
+  posterior (apilado, recorte, encaje) lo reaplica ni lo reinvierte.
+- **R-G3.2**: la geometria del bloque (§1) **no cambia**: los avances siguen saliendo de
+  los tamaños resueltos y L1 sigue anclando. Con `rotate`/`distort` en su valor base el
+  resultado es **identico** al de hoy (los presets existentes no se mueven).
+- **R-G3.3**: el **encaje es del bloque** (una sola escala al final): asi los ratios
+  entre lineas se conservan aunque cada una tenga su propio angulo (R-G2.1 a R-G2.3).
+- **R-G3.4**: el ajuste de tamaño y el tope se calculan con el **giro aplicado** de cada
+  linea ("lo calculado es lo pintado", R-G1.1), igual que `autoFitText` ya hace con el
+  giro del bloque.
+
+### 3.2 Decision pendiente (bloquea la implementacion)
+
+El **valor** que declara una linea, ¿**reemplaza** el de ALL o se **suma** a el?
+
+- **Reemplaza** (coherente con el resto del modelo: color, fuente, tamaño, tope): para
+  `ALL 90` + L1 al 100 hay que escribir `100`; el `+10` del ejemplo no existe como tal.
+- **Suma** (lo que sugieren los ejemplos `ALL 90 + L1 +10 -> \/`): la linea declara un
+  **delta** respecto de ALL, y ese unico eje se comporta distinto a los otros veinte.
+
+La decision fija el paso 2 de la resolucion (`contracts/lineas.md` §1.1), el significado
+del dato en el `.txm` y lo que muestra la UI. **No se implementa nada hasta cerrarla**:
+sacar `rotate`/`distort` de la tabla global sin partir el pipeline haria que el control
+por linea **acepte el valor y no haga nada**, que es peor que dejarlos globales. Las dos
+opciones son implementables; la segunda exige declarar que esas dos rutas son
+**relativas** en la resolucion por linea.

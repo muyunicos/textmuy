@@ -136,7 +136,7 @@ La tabla de abajo es un RESUMEN legible; el dato vive en el schema.
 | `canvas.*` | Canvas Size es la unica fuente de verdad del tamano de salida. **Excepcion**: `canvas.maxFontSize` es global en All pero con una linea activa manda sobre ESA linea (decision del usuario, 2026-10-04). |
 | `lines` | El contenedor del sistema de lineas. |
 | descarga / procesado | Rutas de salida. |
-| `rotate`, `distort` | **Globales hasta el bloque D4.** Aplican al bloque compuesto entero al final del render. Hacerlos por linea exige partir el pipeline en una capa por linea (componer cada linea con su estilo resuelto, aplicarle su giro o su curva, y recien despues apilar), que es un cambio de arquitectura del render: ver D4 en `tasks.md`. |
+| `rotate`, `distort` | **Globales hasta el bloque D4.** Aplican al bloque compuesto entero al final del render. Hacerlos por linea exige partir el pipeline en una capa por linea (componer cada linea con su estilo resuelto, aplicarle su giro o su curva, y recien despues apilar), que es un cambio de arquitectura del render: ver D4 en `tasks.md`. El **orden obligatorio** (una capa por linea, giro/curva antes de apilar, encaje del bloque) y la **decision pendiente** (¿el valor de una linea reemplaza el de ALL o se suma?) estan en `contracts/geometria.md` §3: **no se implementa hasta cerrarla**. |
 | `lettering.flag`, `lettering.boggle`, `lettering.reverseOverlap`, `lettering.blendmode` | Actuan sobre el bloque completo. |
 
 **Por linea** (`scope:'linea'`): `align`, `letterSpacing`, **`lineHeight`**,
