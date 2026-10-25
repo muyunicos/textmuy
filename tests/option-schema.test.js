@@ -55,8 +55,13 @@ assert.ok(!schema['lines.inherit'], 'lines.inherit (vacio) no genera entrada');
 });
 assert.equal(TextEditor.isGlobalPath('canvas.maxFontSize'), false,
     'EXCEPCION: canvas.maxFontSize es por linea');
-['text', 'rotate', 'distort', 'lines', 'download', 'processing'].forEach(function (p) {
+['text', 'lines', 'download', 'processing'].forEach(function (p) {
     assert.equal(TextEditor.isGlobalPath(p), true, p + ' es global');
+});
+// D4 (RC79): `rotate` y `distort` DEJARON de ser globales de bloque: son rutas por
+// linea con valor RELATIVO a ALL (R-L2.11/R-L2.13).
+['rotate', 'distort', 'distort.arc.angle'].forEach(function (p) {
+    assert.equal(TextEditor.isGlobalPath(p), false, p + ' es por linea (D4)');
 });
 ['lettering.flag.active', 'lettering.boggle.active', 'lettering.blendmode',
  'lettering.reverseOverlap.letters'].forEach(function (p) {

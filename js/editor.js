@@ -456,7 +456,13 @@
         textureImages: {}, // loaded texture images by src
         textureOrder: [],  // LRU order (oldest first)
         textureBytes: 0,   // estimated cached bytes
-        canvasPool: []     // reusable offscreen 2D canvases
+        canvasPool: [],    // reusable offscreen 2D canvases
+        // Bloque D4 (RC79): filtro de linea del render. `null` = bloque entero (camino
+        // rapido, el de siempre); un indice 0-based = se compone SOLO esa linea, para
+        // poder aplicarle su giro/curva antes de apilar. Lo consultan
+        // `forEachLineSetting` y `drawTextLines`, asi que todos los motores lo respetan
+        // sin cambiar sus firmas.
+        soloLinea: null
     };
 
     // Initialize the editor
@@ -1055,6 +1061,181 @@
     }
 
     // Main render function
+    // ===== Bloque D4 (RC79): composicion del texto, por bloque o por linea =====
+
+    /**
+     * Compone UNA capa de texto con los 12 pasos del pipeline de TextStudio.
+     * `filtroLinea` (0-based) restringe la composicion a ESA linea: lo respetan
+     * `forEachLineSetting` y `drawTextLines`, asi que todos los motores lo heredan
+     * sin cambiar sus firmas (`state.soloLinea`).
+     */
+    function componerCapaTexto(s, text, lines, fontSizePx, layerWidth, layerHeight, filtroLinea) {
+        const layer = acquireCanvas(layerWidth, layerHeight);
+        layer.width = layerWidth;
+        layer.height = layerHeight;
+        const c = layer.getContext('2d');
+        const soloPrevio = state.soloLinea;
+        state.soloLinea = (filtroLinea === undefined || filtroLinea === null) ? null : filtroLinea;
+        c.save();
+        c.translate(layerWidth / 2, layerHeight / 2);
+        try {
+            // Render order matching TextStudio pipeline
+            // 1. Outer shadow 2 (TextStudio: shadow.outer2)
+            if (isActive(s, 'shadow.outer2') || isActive(s, 'shadowOuter2')) {
+                drawOuterShadow2(c, text, lines, fontSizePx, s);
+            }
+            // 2. Outer shadow (TextStudio: shadow.outer)
+            if (isActive(s, 'shadow.outer') || isActive(s, 'shadowOuter')) {
+                drawOuterShadow(c, text, lines, fontSizePx, s);
+            }
+            // 3. 3D depth 2
+            if (isActive(s, 'depth2')) {
+                drawDepth2(c, text, lines, fontSizePx, s);
+            }
+            // 4. 3D depth
+            if (isActive(s, 'depth')) {
+                drawDepth(c, text, lines, fontSizePx, s);
+            }
+            // 5. Fill
+            if (isActive(s, 'fill')) {
+                drawFill(c, text, lines, fontSizePx, s);
+            }
+            // 6. Outline second (TextStudio: outline.second)
+            if (isActive(s, 'outline.second') || isActive(s, 'outline2')) {
+                drawOutline2(c, text, lines, fontSizePx, s);
+            }
+            // 7. Outline first (TextStudio: outline.first)
+            if (isActive(s, 'outline.first') || isActive(s, 'outline')) {
+                drawOutline(c, text, lines, fontSizePx, s);
+            }
+            // 8. Outline global (TextStudio: outline.global)
+            if (isActive(s, 'outline.global')) {
+                drawOutlineGlobal(c, text, lines, fontSizePx, s);
+            }
+            // 9. Bevel inner (TextStudio: bevel.inner)
+            if (isActive(s, 'bevel.inner') || isActive(s, 'bevel')) {
+                drawBevel(c, text, lines, fontSizePx, s);
+            }
+            // 10. Inner shadow 2 (TextStudio: shadow.inner2)
+            if (isActive(s, 'shadow.inner2') || isActive(s, 'shadowInner2')) {
+                drawInnerShadow2(c, text, lines, fontSizePx, s);
+            }
+            // 11. Inner shadow (TextStudio: shadow.inner)
+            if (isActive(s, 'shadow.inner') || isActive(s, 'shadowInner')) {
+                drawInnerShadow(c, text, lines, fontSizePx, s);
+            }
+            // 12. Icon
+            if (isActive(s, 'icon') && state.iconImg) {
+                drawIcon(c, text, lines, fontSizePx, s);
+            }
+        } finally {
+            c.restore();
+            state.soloLinea = soloPrevio;
+        }
+        return layer;
+    }
+
+    /**
+     * Centro de la TINTA de una capa (bbox de los pixeles con alfa > 0), o null si la
+     * capa esta vacia. El camino por linea lo usa para girar/curvar cada linea EN SU
+     * LUGAR: se rota alrededor de su propia tinta, no del centro del lienzo.
+     */
+    function centroDeTinta(canvas) {
+        let c = null;
+        try { c = canvas.getContext('2d', { willReadFrequently: true }); } catch (e) { return null; }
+        let image = null;
+        try { image = c.getImageData(0, 0, canvas.width, canvas.height); } catch (e) { return null; }
+        const d = image.data;
+        let x0 = canvas.width, y0 = canvas.height, x1 = -1, y1 = -1;
+        for (let y = 0; y < canvas.height; y++) {
+            for (let x = 0; x < canvas.width; x++) {
+                if (d[(y * canvas.width + x) * 4 + 3] === 0) continue;
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                if (y > y1) y1 = y;
+            }
+        }
+        if (x1 < 0) return null;
+        return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+    }
+
+    /**
+     * Desvio de giro y de curva de cada linea respecto de ALL (D4, R-L2.11): el valor
+     * RESUELTO de la linea menos la base. Incluye lo que la linea hereda de su padre,
+     * asi una linea que hereda de L2 hereda tambien su desvio. 0 = sin desvio.
+     */
+    function desviosLinea(s, nLineas) {
+        const out = [];
+        const rotBase = Number(s.rotate) || 0;
+        const curvaBase = Number(safeGet(s, 'distort.arc.angle', 0)) || 0;
+        const direccionables = Math.min(nLineas, MAX_LINE);
+        for (let li = 0; li < nLineas; li++) {
+            if (li >= direccionables) { out.push({ rot: 0, curva: 0 }); continue; }
+            const r = resolveLine(s, li + 1, {});
+            out.push({
+                rot: (Number(r.rotate) || 0) - rotBase,
+                curva: (Number(safeGet(r, 'distort.arc.angle', 0)) || 0) - curvaBase
+            });
+        }
+        return out;
+    }
+
+    /**
+     * Apila el bloque con UNA capa por linea (D4). A cada linea se le aplica su desvio
+     * de giro y de curva EN SU PROPIO LUGAR y recien despues se dibuja sobre la capa
+     * del bloque, que es la que siguen el recorte y el encaje (R-G3.3).
+     */
+    function apilarCapaPorLinea(s, text, lines, fontSizePx, layerWidth, layerHeight, desvios) {
+        const bloque = acquireCanvas(layerWidth, layerHeight);
+        bloque.width = layerWidth;
+        bloque.height = layerHeight;
+        const bc = bloque.getContext('2d');
+        for (let li = 0; li < lines.length; li++) {
+            const d = desvios[li] || { rot: 0, curva: 0 };
+            const capa = componerCapaTexto(s, text, lines, fontSizePx, layerWidth, layerHeight, li);
+            const centro = centroDeTinta(capa);
+            if (!centro) { releaseCanvas(capa); continue; }   // linea vacia: nada que apilar
+            let lista = capa;
+            let dx = 0;
+            let dy = 0;
+            if (Math.abs(d.curva) >= 0.1 && typeof DistortEngine !== 'undefined') {
+                if (!state.distortEngine) state.distortEngine = new DistortEngine();
+                const recorte = state.distortEngine.trimTransparent(capa);
+                const curvada = recorte
+                    ? state.distortEngine.curve(recorte, d.curva, { requireWebGL: state.headlessRender })
+                    : null;
+                if (!curvada) {
+                    // Ruta de salida sin WebGL: causa, no degradacion silenciosa (R-C2.1).
+                    if (state.headlessRender) {
+                        releaseCanvas(capa);
+                        releaseCanvas(bloque);
+                        throw new Error('curva:webgl:no_disponible (la curva por linea exige WebGL en la ruta de render)');
+                    }
+                } else {
+                    const centroCurva = centroDeTinta(curvada);
+                    // Se alinea por el centro de TINTA: la linea curvada queda donde estaba.
+                    if (centroCurva) {
+                        dx = centro.x - centroCurva.x;
+                        dy = centro.y - centroCurva.y;
+                    }
+                    lista = curvada;
+                    releaseCanvas(capa);
+                }
+            }
+            bc.save();
+            if (d.rot) {
+                bc.translate(centro.x, centro.y);
+                bc.rotate(d.rot * Math.PI / 180);
+                bc.translate(-centro.x, -centro.y);
+            }
+            bc.drawImage(lista, dx, dy);
+            bc.restore();
+            if (lista === capa) releaseCanvas(capa);
+        }
+        return bloque;
+    }
+
     function render() {
         if (state.isRendering || !state.ctx) return;
         state.isRendering = true;
@@ -1176,77 +1357,18 @@
         const textLayerHeight = capaExpandida
             ? Math.max(canvasHeight, sourceHeight, rotationValue > 0.0001 ? offscreenSide : 0)
             : canvasHeight;
-        const textLayer = acquireCanvas(textLayerWidth, textLayerHeight);
-        textLayer.width = textLayerWidth;
-        textLayer.height = textLayerHeight;
-        const textCtx = textLayer.getContext('2d');
-        textCtx.save();
-        textCtx.translate(textLayerWidth / 2, textLayerHeight / 2);
-
-        // Render order matching TextStudio pipeline
-        // 1. Outer shadow 2 (TextStudio: shadow.outer2)
-        if (isActive(s, 'shadow.outer2') || isActive(s, 'shadowOuter2')) {
-            drawOuterShadow2(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 2. Outer shadow (TextStudio: shadow.outer)
-        if (isActive(s, 'shadow.outer') || isActive(s, 'shadowOuter')) {
-            drawOuterShadow(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 3. 3D depth 2
-        if (isActive(s, 'depth2')) {
-            drawDepth2(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 4. 3D depth
-        if (isActive(s, 'depth')) {
-            drawDepth(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 5. Fill
-        if (isActive(s, 'fill')) {
-            drawFill(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 6. Outline second (TextStudio: outline.second)
-        if (isActive(s, 'outline.second') || isActive(s, 'outline2')) {
-            drawOutline2(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 7. Outline first (TextStudio: outline.first)
-        if (isActive(s, 'outline.first') || isActive(s, 'outline')) {
-            drawOutline(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 8. Outline global (TextStudio: outline.global)
-        if (isActive(s, 'outline.global')) {
-            drawOutlineGlobal(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 9. Bevel inner (TextStudio: bevel.inner)
-        if (isActive(s, 'bevel.inner') || isActive(s, 'bevel')) {
-            drawBevel(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 10. Inner shadow 2 (TextStudio: shadow.inner2)
-        if (isActive(s, 'shadow.inner2') || isActive(s, 'shadowInner2')) {
-            drawInnerShadow2(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 11. Inner shadow (TextStudio: shadow.inner)
-        if (isActive(s, 'shadow.inner') || isActive(s, 'shadowInner')) {
-            drawInnerShadow(textCtx, text, lines, fontSizePx, s);
-        }
-
-        // 12. Icon
-        if (isActive(s, 'icon') && state.iconImg) {
-            drawIcon(textCtx, text, lines, fontSizePx, s);
-        }
-
-        textCtx.restore();
-
-        let composedLayer = textLayer;
+        // ===== Bloque D4 (RC79): capa del bloque, o una capa por linea =====
+        // Sin desvios por linea se compone UNA capa con los 12 pasos (el camino de
+        // siempre: R-L2.12, render identico al de hoy). Con desvios (R-L2.11) cada
+        // linea se compone en su capa, se le aplica SU giro y SU curva en su propio
+        // lugar y recien despues se apila; el recorte y el encaje siguen siendo del
+        // bloque (R-G3.3).
+        const desvios = desviosLinea(s, lines.length);
+        const hayDesvios = desvios.some(function (d) { return d.rot !== 0 || d.curva !== 0; });
+        let composedLayer = hayDesvios
+            ? apilarCapaPorLinea(s, text, lines, fontSizePx, textLayerWidth, textLayerHeight, desvios)
+            : componerCapaTexto(s, text, lines, fontSizePx, textLayerWidth, textLayerHeight);
+        const textLayer = composedLayer;
         let hasTrimmedContent = false;
         if (Math.abs(arcAngle) >= 0.1 && typeof DistortEngine !== 'undefined') {
             if (!state.distortEngine) state.distortEngine = new DistortEngine();
@@ -1669,11 +1791,16 @@
     }
 
     function forEachLineSetting(ctx, text, lines, fontSizePx, s, paint) {
-        if (!hayEstiloPorLinea(s)) {
+        // D4: con `soloLinea` activo se compone UNA sola linea (aunque no haya estilo
+        // por linea), y se le pasa su indice como filtro para que los motores por-linea
+        // pinten solo esa.
+        const solo = state.soloLinea;
+        if (solo === null && !hayEstiloPorLinea(s)) {
             paint(text, lines, s, null);
             return;
         }
         for (let li = 0; li < lines.length; li++) {
+            if (solo !== null && solo !== li) continue;
             // Las lineas no direccionables (4+) resuelven como All.
             const ls = resolveLine(s, li + 1, {});
             ensureFillIds(ls.fill);
@@ -2860,6 +2987,8 @@
     const porLinea = hayEstiloPorLinea(s);
     for (let i = 0; i < lines.length; i++) {
         if (lineFilter !== undefined && lineFilter !== null && lineFilter !== i) continue;
+        // D4: el filtro de render manda sobre todo (lineas por capa).
+        if (state.soloLinea !== null && state.soloLinea !== i) continue;
         const line = lines[i];
         const px = geo.px[i];
         const sLinea = porLinea ? resolveLine(s, i + 1, memo) : s;
@@ -3274,10 +3403,10 @@
     // linea direccionable (L1-L3), con claves 1-BASED (`line["1"]` = L1).
     //
     // Rutas GLOBALES de bloque (nunca entran al delta de una linea): el texto,
-    // Canvas Size, el contenedor `lines`, descarga/procesado, `rotate` y
-    // `distort` (bloque D4: hoy se aplican al bloque entero al final del render)
-    // y los letterings que actuan sobre todo el bloque. Todo lo demas es por
-    // linea (FR-016), incluido `lineHeight`.
+    // Canvas Size, el contenedor `lines`, descarga/procesado y los letterings que
+    // actuan sobre todo el bloque. Todo lo demas es por linea (FR-016), incluido
+    // `lineHeight`. D4 (RC79): `rotate` y `distort` YA NO estan aca: son rutas por
+    // linea con valor RELATIVO a ALL (R-L2.11/R-L2.13).
     // ===== ALCANCE POR OPCION (003-option-schema, contracts/opciones.md §2) =====
     // Fuente UNICA del alcance. Reemplaza GLOBAL_PATHS + CANVAS_POR_LINEA.
     // Precedencia: una EXCEPCION por-linea gana sobre el prefijo global que la
@@ -3287,7 +3416,6 @@
     // ALCANCE_GLOBAL: raices/subrutas de bloque. Lo NO listado es por linea.
     const ALCANCE_GLOBAL = [
         'text', 'canvas', 'lines', 'download', 'processing',
-        'rotate', 'distort',
         'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
     ];
 
@@ -3572,6 +3700,19 @@ function clone(obj) {
         const propia = lineEntry(s, n);
         const resuelta = propia ? mergeDelta(puntoDePartida, propia) : clone(puntoDePartida);
         // 3. La regla de tamano queda en `sizing` (no se aplica aqui).
+        // 3b. D4 (R-L2.11): `rotate` y la curva (`distort.arc.angle`) NO se mezclan por
+        // reemplazo. La linea declara su DESVIO respecto de la base (ALL, o el padre
+        // resuelto si hereda) y aca se SUMA: es lo que hace que la linea siga a ALL.
+        // El resto de `distort` se hereda tal cual (no se suma).
+        const rotPropia = (propia && propia.rotate !== undefined) ? (Number(propia.rotate) || 0) : 0;
+        resuelta.rotate = (Number(puntoDePartida.rotate) || 0) + rotPropia;
+        const curvaPropia = (propia && propia.distort && propia.distort.arc &&
+            propia.distort.arc.angle !== undefined) ? (Number(propia.distort.arc.angle) || 0) : 0;
+        if (curvaPropia !== 0) {
+            resuelta.distort = (resuelta.distort && typeof resuelta.distort === 'object') ? resuelta.distort : {};
+            resuelta.distort.arc = (resuelta.distort.arc && typeof resuelta.distort.arc === 'object') ? resuelta.distort.arc : {};
+            resuelta.distort.arc.angle = (Number(safeGet(puntoDePartida, 'distort.arc.angle', 0)) || 0) + curvaPropia;
+        }
 
         delete memo['__viendo' + n];
         if (cache) cache[n] = resuelta;
@@ -3653,9 +3794,12 @@ function clone(obj) {
     }
 
     // Valor efectivo de una ruta en una linea: lo que RESUELVE, no solo lo
-    // propio (herencia incluida).
-    function getEffectiveSetting(lineIdx, path) {
-        const n = normalizeLineNo(lineIdx !== undefined && lineIdx !== null && !isNaN(lineIdx) ? lineIdx : lineIdx);
+    // propio (herencia incluida). `lineNo` es el numero de linea **1-BASED** (0 o
+    // null = ALL), igual que las claves de `lines.line`: los llamadores que manejan
+    // un indice 0-based (el sync) pasan `indice + 1`. RC79: antes el sync pasaba el
+    // indice crudo, asi que con L2 activa el panel mostraba los valores de L1.
+    function getEffectiveSetting(lineNo, path) {
+        const n = normalizeLineNo(lineNo);
         const resuelta = n ? resolveLine(state.settings, n, {}) : cloneWithoutLines(state.settings);
         return getNested(resuelta, path);
     }
@@ -3784,7 +3928,7 @@ function clone(obj) {
             const el = document.getElementById(id);
             if (!el) return;
             const value = lineIdx === null ? getNested(state.settings, path)
-                : getEffectiveSetting(lineIdx, path);
+                : getEffectiveSetting(lineIdx + 1, path);   // RC79: 1-based
             var isCheckbox = el.type === 'checkbox' ||
                 el.getAttribute('type') === 'checkbox';
             if (isCheckbox) {

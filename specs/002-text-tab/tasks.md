@@ -235,7 +235,7 @@ preset, recargar y comprobar que vuelve identico.
 
 - [x] T047 [US6] En `js/preset-manager.js`, `PROJECT_VERSION` a 2, claves de linea 1-based, rechazo con causa de un formato de lineas desconocido y sin lectores del formato anterior (constitucion IV y VII v3.2.0, R10)
 - [x] T048 [US6] En `js/api.js`, resolver y cargar por linea las fuentes declaradas bajo demanda, una vez por identidad, y nombrar linea y fuente en el fallo sin impedir el resto (FR-017, constitucion VI sin `preloadAll`)
-- [ ] T049 [US6] En `js/editor.js`, partir el pipeline en una capa compuesta por linea para que rotacion y curva por linea se apliquen a cada linea y luego se apilen con la geometria del bloque (R9, ultimo por invasivo)
+- [x] T049 [US6] En `js/editor.js`, partir el pipeline en una capa compuesta por linea para que rotacion y curva por linea se apliquen a cada linea y luego se apilen con la geometria del bloque (R9, ultimo por invasivo)
 
 ### Cierre de User Story 6
 
@@ -327,21 +327,26 @@ y el detalle del dato en `contracts/lineas.md` §2.4.
       `lineas.md` §2.4 con R-L2.11 a R-L2.15, `geometria.md` §3.2 reescrita como decision
       cerrada y `opciones.md` R-O1.2 con el cambio previsto y su marker de estado: hasta
       T072 las dos rutas siguen en la lista de globales.)*
-- [ ] T069 [P] Suite que fije el orden: el giro/curva de la linea se aplica ANTES de
+- [x] T069 [P] Suite que fije el orden: el giro/curva de la linea se aplica ANTES de
       apilar y ninguna etapa posterior lo reaplica (R-G3.1 a R-G3.4).
-- [ ] T070 Partir la composicion en una capa por linea con su estilo resuelto.
-- [ ] T071 Aplicar `rotate` y `distort` de la linea al pintar SU capa; el encaje sigue
+- [x] T070 Partir la composicion en una capa por linea con su estilo resuelto.
+- [x] T071 Aplicar `rotate` y `distort` de la linea al pintar SU capa; el encaje sigue
       siendo del bloque y una sola vez.
-- [ ] T072 Sacar `rotate` y `distort` de `ALCANCE_GLOBAL`/`OPTION_SCHEMA` (se vuelven
+- [x] T072 Sacar `rotate` y `distort` de `ALCANCE_GLOBAL`/`OPTION_SCHEMA` (se vuelven
       heredables) y actualizar los dos asserts que hoy los fijan globales:
       `tests/lineas-resolucion.test.js` ("rotate sigue global hasta el bloque D4") y
       `tests/option-schema.test.js` (la lista de globales).
-- [ ] T073 UI: los controles de Rotation y Curve pasan a mandar sobre la linea activa y
+- [x] T073 UI: los controles de Rotation y Curve pasan a mandar sobre la linea activa y
       el rotulo dice para cual es; la chispeta `global` queda solo en All.
-- [ ] T074 [P] Puerta de pixeles en el navegador para los dos ejemplos del usuario
+- [x] T074 [P] Puerta de pixeles en el navegador para los dos ejemplos del usuario
       (`\/` con cada linea a su angulo y `()` con cada linea a su curva) + round-trip.
-- [ ] T075 Cierre: probe del panel en el laboratorio, `AGENTS.md` (changelog + la nota de
-      que `rotate` y `distort` dejaron de ser globales) y bump `?v=RCn`.
+- [x] T075 Cierre: probe del panel en el laboratorio, `AGENTS.md` (changelog + la nota de
+      que `rotate` y `distort` dejaron de ser globales) y bump `?v=RCn`. *(hecho 2026-10-24,
+      **RC79**: `resolveLine` los SUMA (R-L2.11), alcance por linea, `componerCapaTexto` +
+      `state.soloLinea` + `apilarCapaPorLinea` (giro/curva en su lugar + encaje del bloque), UI con
+      chispeta ALL+desvio, off-by-one de `getEffectiveSetting` corregido y T074 verde en la puerta
+      de pixeles (`text-tab.browser.js`). El probe del laboratorio del panel queda para cuando se
+      toque el panel en el plugin.)*
 
 ---
 

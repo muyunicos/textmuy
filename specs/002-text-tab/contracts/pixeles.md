@@ -122,6 +122,14 @@ la paridad editor/PDF sigue siendo puerta manual.
   oculta (el mismo slider no puede significar dos cosas). En modo Ancho, `pct > 100` se topa
   con el ancho util del lienzo (dinamico) => la puerta usa 50 % y el >100 % exacto se cubre
   en la suite Node (`lineas-tamano`), donde el area es fija.
+- **R-P7.8 (RC79, D4)**: la puerta mide el giro y la curva **por linea** sobre el lienzo real:
+  con `ALL 15` las dos lineas siguen a ALL (misma inclinacion); con `L1 +10` y `L2 -15` la
+  resolucion da 25 y 0 y **L2 queda recta** (su desvio cancela ALL) mientras L1 difiere; el
+  **signo** del desvio cambia la inclinacion (el `\/`) y la comba (el `()`), medidos con el
+  centro de tinta de la primera / la de en medio / la ultima fila; desvio 0 = render identico;
+  el round-trip conserva tinta y hash; y la chispeta dice "ALL 90 grados + 10 grados". Se mide
+  **una linea por render** (la otra recta): con angulos opuestos las bandas de tinta se cruzan
+  y se fusionan.
 - **R-P8.1**: exito imprime `OK: text-tab.browser.js (...)`; un fallo sale con codigo != 0
   y el assert NOMBRA el requisito (p.ej. R-P7.2) y los valores medidos.
 - **R-P8.2**: el acumulado de `page.on("pageerror")` MUST quedar vacio al final.

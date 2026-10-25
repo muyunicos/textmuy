@@ -55,12 +55,16 @@ interno al modulo.
   borde con cualquier combinacion de layout (SC-004).
 ---
 
-## 3. Pipeline por linea (bloque D4, pendiente)
+## 3. Pipeline por linea (bloque D4, implementado en RC79)
 
-**Estado**: pendiente y **bloqueado** por la decision de §3.2. Hoy `rotate` y `distort`
-son **globales de bloque** y se aplican al conjunto compuesto **al final** del render
-(`contracts/lineas.md` §4). La constitucion IV ya declara la rotacion y la curva como
-parte del alcance **por linea**: este bloque no cambia la gobernanza, la **cumple**.
+**Estado**: **implementado** (RC79, T069-T074). `rotate` y `distort` son rutas por linea
+cuyo valor es un **desvio relativo** a ALL (§3.2) y se aplican al pintar la capa de esa
+linea, antes de apilarla.
+
+**Diferencias declaradas del camino por linea** (solo se usa cuando alguna linea declara un
+desvio; con desvio 0 el render es **identico** al de RC78): los efectos que recorren el
+bloque entero (`lettering.flag`, `lettering.boggle`, `lettering.reverseOverlap.lines`) y los
+pinceles calculados sobre la caja del bloque se aplican **por linea**.
 
 ### 3.1 Orden obligatorio (una capa por linea)
 

@@ -159,19 +159,35 @@ function v(n) { return String(n); }
                 if (enBanda) filas.push([ini, h - 1]);
                 const bandas = filas.map(function (b) {
                     let tinta = 0; const col = {}; let x0 = w, x1 = -1;
-                    for (let y = b[0]; y <= b[1]; y++) for (let x = 0; x < w; x++) {
-                        if (!esTinta(x, y)) continue;
-                        const i = (y * w + x) * 4;
-                        tinta++;
-                        if (x < x0) x0 = x;
-                        if (x > x1) x1 = x;
-                        const k = Math.round(d[i] / 32) + "," + Math.round(d[i + 1] / 32) + "," + Math.round(d[i + 2] / 32);
-                        col[k] = (col[k] || 0) + 1;
+                    // T074 (D4): centro de tinta de la PRIMERA fila, de la de en medio y de la
+                    // ULTIMA: con eso se mide la inclinacion (recta) y la comba (curva) de la
+                    // linea, y su signo, sin depender de donde haya quedado el bloque.
+                    let cIni = null, cMid = null, cFin = null;
+                    const medio = Math.floor((b[0] + b[1]) / 2);
+                    for (let y = b[0]; y <= b[1]; y++) {
+                        let fx0 = w, fx1 = -1;
+                        for (let x = 0; x < w; x++) {
+                            if (!esTinta(x, y)) continue;
+                            const i = (y * w + x) * 4;
+                            tinta++;
+                            if (x < x0) x0 = x;
+                            if (x > x1) x1 = x;
+                            if (x < fx0) fx0 = x;
+                            if (x > fx1) fx1 = x;
+                            const k = Math.round(d[i] / 32) + "," + Math.round(d[i + 1] / 32) + "," + Math.round(d[i + 2] / 32);
+                            col[k] = (col[k] || 0) + 1;
+                        }
+                        if (fx1 < 0) continue;
+                        const centroFila = (fx0 + fx1) / 2;
+                        if (cIni === null) cIni = centroFila;
+                        if (y <= medio) cMid = centroFila;
+                        cFin = centroFila;
                     }
                     const dom = Object.keys(col).sort(function (a, b2) { return col[b2] - col[a]; })[0];
                     return {
                         ini: b[0], fin: b[1], alto: b[1] - b[0] + 1, tinta: tinta, color: dom,
-                        x0: x0, x1: x1, ancho: (x1 >= 0 ? x1 - x0 + 1 : 0)
+                        x0: x0, x1: x1, ancho: (x1 >= 0 ? x1 - x0 + 1 : 0),
+                        centroIni: cIni, centroMid: cMid, centroFin: cFin
                     };
                 });
                 return { bandas: bandas, fontPx: window.TextEditor.getLineFontPx() };
@@ -598,6 +614,138 @@ function v(n) { return String(n); }
         assert.equal(heredado.entrada, undefined,
             "T066(d): y la entrada vacia se poda (no queda un delta sin nada, IV)");
         assert.equal(heredado.boton, false, "T066(d): y se oculta al no quedar nada propio");
+
+        // ===== T074 (RC79, bloque D4): giro y curva POR LINEA =====
+        // Los dos valores son DESVIOS sobre ALL (R-L2.11): cada linea se compone en su
+        // capa, se gira/curva EN SU PROPIO LUGAR y recien despues se apila. Se mide con
+        // dos lineas, lineHeight alto (cada linea, su banda) y el centro de tinta de la
+        // primera / la de en medio / la ultima fila: una recta los deja alineados, una
+        // inclinacion los corre (tilt) y una comba desplaza el del medio (comba).
+        async function medirLineas(cfg) {
+            return await page.evaluate(function (c) {
+                const s = window.TextEditor.getSettings();
+                s.canvas.width = 800;
+                s.canvas.height = 800;
+                s.text = c.texto;
+                s.background.active = false;
+                s.font.src = 1;
+                s.lineHeight = c.lineHeight || 200;
+                s.rotate = c.rotate || 0;
+                s.distort = { arc: { angle: c.curva || 0 } };
+                s.lines = c.lines || { activeTarget: "all", inherit: {}, line: {} };
+                window.TextEditor.render();
+                const r = window.__tt.bandas();
+                const tilt = function (b) { return (b.centroIni === null || b.centroFin === null) ? 0 : b.centroFin - b.centroIni; };
+                const comba = function (b) {
+                    return (b.centroIni === null || b.centroFin === null || b.centroMid === null)
+                        ? 0 : b.centroMid - (b.centroIni + b.centroFin) / 2;
+                };
+                return {
+                    bandas: r.bandas.map(function (b) { return { alto: b.alto, ancho: b.ancho, tilt: tilt(b), comba: comba(b) }; }),
+                    resueltoL1: { rot: window.TextEditor.getEffectiveSetting(1, "rotate"), curva: window.TextEditor.getEffectiveSetting(1, "distort.arc.angle") },
+                    resueltoL2: { rot: window.TextEditor.getEffectiveSetting(2, "rotate"), curva: window.TextEditor.getEffectiveSetting(2, "distort.arc.angle") }
+                };
+            }, cfg);
+        }
+        const DOS = "MUY\nMUY";
+
+        // (a) ALL 15 sin desvios: las dos lineas siguen a ALL (misma inclinacion).
+        const base15 = await medirLineas({ texto: DOS, rotate: 15 });
+        assert.equal(base15.bandas.length, 2, "T074(a): dos lineas dan dos bandas (got " + base15.bandas.length + ")");
+        assert.ok(base15.bandas[0].tilt > 40, "T074(a): con ALL 15 las lineas se inclinan (tilt " + base15.bandas[0].tilt.toFixed(0) + ")");
+        assert.ok(Math.abs(base15.bandas[0].tilt - base15.bandas[1].tilt) <= 6,
+            "T074(a): y las dos lo mismo (" + base15.bandas[0].tilt.toFixed(0) + " vs " + base15.bandas[1].tilt.toFixed(0) + ")");
+
+        // (b) SUMA (R-L2.11): L1 +10 => 25 grados; L2 -15 => vuelve a 0 (queda recta).
+        const suma = await medirLineas({
+            texto: DOS, rotate: 15,
+            lines: { activeTarget: "all", inherit: {}, line: { "1": { rotate: 10 }, "2": { rotate: -15 } } }
+        });
+        assert.equal(suma.resueltoL1.rot, 25, "T074(b): L1 = ALL 15 + 10 (got " + suma.resueltoL1.rot + ")");
+        assert.equal(suma.resueltoL2.rot, 0, "T074(b): L2 = ALL 15 - 15 (got " + suma.resueltoL2.rot + ")");
+        assert.ok(Math.abs(suma.bandas[1].tilt) <= 12,
+            "T074(b): L2 queda RECTA porque su desvio cancela a ALL (tilt " + suma.bandas[1].tilt.toFixed(0) + ")");
+        assert.ok(Math.abs(suma.bandas[0].tilt) > 100 && Math.abs(suma.bandas[0].tilt - suma.bandas[1].tilt) > 100,
+            "T074(b): y L1 se inclina y difiere de L2 ("
+            + suma.bandas[0].tilt.toFixed(0) + " vs " + suma.bandas[1].tilt.toFixed(0) + "): el valor es POR LINEA");
+
+        // (b2) El `\/`: el signo del desvio es POR LINEA. Se mide de a UNA linea por render
+        // (la otra queda recta, asi las bandas de tinta no se cruzan): L1 +6 da un signo
+        // y L1 -6 el opuesto.
+        const inclinaMas = await medirLineas({
+            texto: DOS, lines: { activeTarget: "all", inherit: {}, line: { "1": { rotate: 6 } } }
+        });
+        const inclinaMenos = await medirLineas({
+            texto: DOS, lines: { activeTarget: "all", inherit: {}, line: { "1": { rotate: -6 } } }
+        });
+        assert.ok(Math.abs(inclinaMas.bandas[0].tilt) >= 15,
+            "T074(b2): L1 +6 se inclina (tilt " + inclinaMas.bandas[0].tilt.toFixed(0) + ")");
+        assert.ok(inclinaMas.bandas[0].tilt * inclinaMenos.bandas[0].tilt < 0,
+            "T074(b2): y el signo lo manda el desvio, no ALL (el `\\/`): "
+            + inclinaMas.bandas[0].tilt.toFixed(0) + " vs " + inclinaMenos.bandas[0].tilt.toFixed(0));
+
+        // (c) Curva por linea: signos opuestos (el `ALL 0 + L1 curva + / L2 curva -`).
+        const curvasRes = await medirLineas({
+            texto: DOS, lineHeight: 600,
+            lines: { activeTarget: "all", inherit: {}, line: { "1": { distort: { arc: { angle: 90 } } }, "2": { distort: { arc: { angle: -90 } } } } }
+        });
+        assert.equal(curvasRes.resueltoL1.curva, 90, "T074(c): L1 curva +90 (got " + curvasRes.resueltoL1.curva + ")");
+        assert.equal(curvasRes.resueltoL2.curva, -90, "T074(c): L2 curva -90 (got " + curvasRes.resueltoL2.curva + ")");
+        const curvaMas = await medirLineas({
+            texto: DOS, lines: { activeTarget: "all", inherit: {}, line: { "1": { distort: { arc: { angle: 90 } } } } }
+        });
+        const curvaMenos = await medirLineas({
+            texto: DOS, lines: { activeTarget: "all", inherit: {}, line: { "1": { distort: { arc: { angle: -90 } } } } }
+        });
+        assert.ok(Math.abs(curvaMas.bandas[0].comba) >= 10,
+            "T074(c): L1 con curva +90 se comba (comba " + curvaMas.bandas[0].comba.toFixed(0) + ")");
+        assert.ok(curvaMas.bandas[0].comba * curvaMenos.bandas[0].comba < 0,
+            "T074(c): y el signo lo manda el desvio (el `()`): "
+            + curvaMas.bandas[0].comba.toFixed(0) + " vs " + curvaMenos.bandas[0].comba.toFixed(0));
+
+        // (d) R-L2.12: declarar el desvio 0 no cambia NADA respecto de no declararlo.
+        const cero = await medirLineas({
+            texto: DOS, rotate: 15,
+            lines: { activeTarget: "all", inherit: {}, line: { "1": { rotate: 0 }, "2": { rotate: 0 } } }
+        });
+        assert.equal(cero.bandas[0].tilt, base15.bandas[0].tilt, "T074(d): desvio 0 = mismo render (L1)");
+        assert.equal(cero.bandas[1].tilt, base15.bandas[1].tilt, "T074(d): desvio 0 = mismo render (L2)");
+
+        // (e) Round-trip real: el preset con desvios por linea vuelve identico.
+        const rtD4 = await page.evaluate(function () {
+            const s = window.TextEditor.getSettings();
+            s.text = "MUY\nMUY";
+            s.rotate = 15;
+            s.lines = { activeTarget: "all", inherit: {}, line: { "1": { rotate: 10 }, "2": { distort: { arc: { angle: -60 } } } } };
+            window.TextEditor.render();
+            const antes = { tinta: window.__tt.medir().tinta, hash: window.__tt.medir().hash };
+            const delta = window.PresetManager.diffSettings(window.TextEditor.createDefaultSettings(), s);
+            const recargado = window.PresetManager.settingsFromDelta(JSON.parse(JSON.stringify(delta)));
+            window.TextEditor.loadPreset(recargado);
+            window.TextEditor.render();
+            const despues = { tinta: window.__tt.medir().tinta, hash: window.__tt.medir().hash };
+            return { antes: antes, despues: despues, lineas: delta.lines };
+        });
+        assert.equal(rtD4.despues.tinta, rtD4.antes.tinta, "T074(e): el round-trip conserva la tinta (" + rtD4.despues.tinta + " vs " + rtD4.antes.tinta + ")");
+        assert.equal(rtD4.despues.hash, rtD4.antes.hash, "T074(e): y el render (hash)");
+        assert.ok(rtD4.lineas && rtD4.lineas.line && rtD4.lineas.line["1"] && rtD4.lineas.line["1"].rotate === 10,
+            "T074(e): el delta del preset lleva el desvio de L1 (" + JSON.stringify(rtD4.lineas && rtD4.lineas.line) + ")");
+
+        // (f) R-L2.14: la chispeta declara la relacion (ALL + desvio) con una linea activa.
+        const chispeta = await page.evaluate(function () {
+            const s = window.TextEditor.getSettings();
+            s.rotate = 90;
+            s.lines = { activeTarget: "L2", inherit: {}, line: { "2": { rotate: 10 } } };
+            window.TextEditor.setLineTarget("L2");
+            window.TextEditor.render();
+            const el = document.getElementById("tt-rotate-state");
+            return { texto: el.textContent, oculto: el.hidden, override: el.getAttribute("data-line-override") };
+        });
+        assert.equal(chispeta.oculto, false, "T074(f): con L2 activo la chispeta se ve");
+        assert.ok(/ALL 90/.test(chispeta.texto) && /10/.test(chispeta.texto),
+            "T074(f): y dice la relacion (ALL 90 + 10), got '" + chispeta.texto + "'");
+        assert.equal(chispeta.override, "1", "T074(f): marcada como valor propio");
+        await page.evaluate(function () { window.TextEditor.setLineTarget("all"); });
 
         // R-P8.2: la corrida no puede dejar errores de pagina.
         assert.deepEqual(errores, []);

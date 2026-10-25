@@ -149,8 +149,30 @@ s6.lines = {
 const r6 = TextEditor.resolveLine(s6, 1);
 assert.equal(r6.text, s6.text, 'el texto es global: el delta de linea no lo cambia');
 assert.equal(r6.lineHeight, 9, 'lineHeight es POR LINEA (FR-016)');
-assert.equal(r6.rotate, s6.rotate, 'rotate sigue global hasta el bloque D4');
+assert.equal(r6.rotate, s6.rotate + 45, 'rotate es POR LINEA y SUMA su desvio a ALL (D4, R-L2.11)');
 assert.equal(r6.canvas.width, s6.canvas.width, 'Canvas Size es global');
+
+// D4 (RC79): `rotate` y la curva por linea son RELATIVOS: se SUMAN a la base (ALL o el
+// padre resuelto) y el resto de `distort` se hereda tal cual (R-L2.11).
+const sRot = base();
+sRot.rotate = 90;
+sRot.distort = { arc: { angle: 40 } };
+sRot.lines = {
+    activeTarget: 'all',
+    inherit: {},
+    line: {
+        '1': { rotate: 10, distort: { arc: { angle: 5 } } },
+        '3': { rotate: -10 }
+    }
+};
+assert.equal(TextEditor.resolveLine(sRot, 1).rotate, 100, 'L1 = ALL 90 + 10');
+assert.equal(TextEditor.resolveLine(sRot, 1).distort.arc.angle, 45, 'L1 = ALL 40 + 5 (curva)');
+assert.equal(TextEditor.resolveLine(sRot, 2).rotate, 90, 'L2 sin desvio sigue a ALL');
+assert.equal(TextEditor.resolveLine(sRot, 3).rotate, 80, 'L3 = ALL 90 - 10');
+const sHer = base();
+sHer.rotate = 90;
+sHer.lines = { activeTarget: 'all', inherit: { '2': 'L1' }, line: { '1': { rotate: 10 } } };
+assert.equal(TextEditor.resolveLine(sHer, 2).rotate, 100, 'heredar de L1 trae su desvio');
 
 // Line height por linea: L2 manda sin tocar L1 ni L3.
 const sLh = base();

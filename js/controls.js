@@ -39,7 +39,6 @@
         return path === 'text' || path === 'canvas' || path === 'lines'
             || path === 'download' || path === 'processing'
             || path.indexOf('canvas.') === 0 || path.indexOf('lines') === 0
-            || path === 'rotate' || path === 'distort'
             || path.indexOf('lettering.flag') === 0 || path.indexOf('lettering.boggle') === 0;
     }
 
@@ -277,7 +276,7 @@
         const entrada = entradaLineaUI(settings, lineNo);
         const topePropio = !!(entrada && entrada.canvas && entrada.canvas.maxFontSize !== undefined);
         const pxPropio = !!(entrada && entrada.font && Number(entrada.font.size) > 0);
-        const topeEfectivo = editor.getEffectiveSetting(lineNo - 1, 'canvas.maxFontSize');
+        const topeEfectivo = editor.getEffectiveSetting(lineNo, 'canvas.maxFontSize');
 
         if (modoSel) {
             modoSel.value = modo;
@@ -360,7 +359,43 @@
         if (maxLabel) maxLabel.textContent = 'Max Font Size (1 character)';
         if (maxHint) maxHint.setAttribute('title', 'Tope del texto completo: afecta a todas las lineas');
         if (isLine) pintarPanelTamano(settings, lineNo);
+
+        // --- D4: Rotation y Curve son de BLOQUE en All y DESVIOS por linea ----------
+        // La chispeta declara la relacion resuelta ("ALL 90 grados + 10 grados"), para
+        // que se vea que el numero de la linea es un desvio y no un absoluto (R-L2.14).
+        pintarEstadoDesvio('tt-rotate-state', settings, lineNo, isLine, 'rotate');
+        pintarEstadoDesvio('tt-distort-arc-state', settings, lineNo, isLine, 'distort.arc.angle');
 }
+
+    // Lee una ruta con puntos de un objeto cualquiera (sin depender del estado).
+    function leerRuta(obj, path) {
+        const keys = String(path).split('.');
+        let v = obj;
+        for (let i = 0; i < keys.length; i++) {
+            if (v === undefined || v === null) return undefined;
+            v = v[keys[i]];
+        }
+        return v;
+    }
+
+    // D4 (R-L2.14): la chispeta de una ruta RELATIVA por linea dice de donde sale el
+    // numero: "ALL 90 grados + 10 grados". En All se oculta (ahi el control es la base).
+    function pintarEstadoDesvio(id, settings, lineNo, isLine, path) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!isLine) { el.hidden = true; return; }
+        const base = Number(leerRuta(settings, path)) || 0;
+        // `getEffectiveSetting` ya devuelve el valor en esa ruta (resuelto) y espera el
+        // numero de linea 1-BASED, igual que `lineNo`.
+        const resuelto = Number(editor.getEffectiveSetting(lineNo, path)) || 0;
+        const desvio = resuelto - base;
+        el.hidden = false;
+        el.textContent = 'ALL ' + base + '\u00B0 ' + (desvio < 0 ? '\u2212' : '+') + ' ' + Math.abs(desvio) + '\u00B0';
+        el.setAttribute('data-line-override', desvio !== 0 ? '1' : '0');
+        el.setAttribute('title', desvio !== 0
+            ? 'Esta linea declara un desvio de ' + desvio + '\u00B0 sobre ALL (' + base + '\u00B0)'
+            : 'Esta linea sigue a ALL: ' + base + '\u00B0 (desvio 0)');
+    }
     function bindLineSizingUI() {
             // Modo: Proporcional | Ancho. Al cambiar, si la Ref actual no es valida en
             // el modo nuevo (Ancho no ofrece ALL) se cae a la primera valida.

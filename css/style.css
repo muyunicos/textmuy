@@ -523,6 +523,29 @@ strong {
     display: none;
 }
 
+/* D4 (RC79): relacion de Rotation y Curve en la linea activa ("ALL 90 grados + 10 grados").
+   Es la frase que declara que esos dos valores son DESVIOS sobre ALL (R-L2.14). */
+.tt-line-state {
+    margin-left: 6px;
+    padding: 1px 5px;
+    border: 1px solid var(--tt-border-input);
+    border-radius: 8px;
+    font-size: 10px;
+    color: var(--tt-text-dim);
+    background: var(--tt-bg-panel-3);
+    cursor: help;
+    vertical-align: middle;
+}
+
+.tt-line-state[data-line-override="1"] {
+    color: var(--tt-text-bright);
+    border-color: var(--tt-accent);
+}
+
+.tt-line-state[hidden] {
+    display: none;
+}
+
 /* Panel de Font Size de la linea activa (RC78, contracts/lineas.md 5): dos selects
    (Modo, Ref) + dos sliders (Proporcion, Tope) + la frase de estado. Con una linea
    activa, el bloque global (Max Font Size) se oculta porque su tope vive en el panel. */

@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC78**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC79**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -757,6 +757,53 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.35 RC79 — bloque D4: giro y curva POR LINEA (valores relativos a ALL)
+
+Cierra el bloque D4 de `specs/002-text-tab` (T068-T075): la constitucion IV ya declaraba
+la rotacion y la curva dentro del alcance por linea; ahora el motor las implementa.
+
+- ✅ **Decision (2026-10-24): los dos valores son RELATIVOS**. `rot(Ln) = rot(ALL) +
+  desvio(Ln)` y `curva(Ln) = curva(ALL) + desvio(Ln)`: la linea declara su **desvio** y, si
+  ALL cambia, la linea la **sigue** (misma eleccion que el `pct` del tamaño). El desvio vive
+  en `lines.line["n"].rotate` y `.distort.arc.angle`; el resto de `distort` se hereda tal
+  cual. Requisitos: `contracts/lineas.md` §2.4 (R-L2.11 a R-L2.15) y `geometria.md` §3.
+- 🔴 **`resolveLine` los SUMA en vez de mezclarlos** (R-L2.11): unica excepcion al delta por
+  reemplazo, escrita en el contrato y aplicada en el paso 2 de la resolucion. Sin desvio (o
+  con desvio 0) el render es **identico** al de RC78 (medido en la puerta de pixeles).
+- ✅ **Alcance**: `rotate` y `distort` DEJAN de ser globales de bloque (`ALCANCE_GLOBAL` y
+  `OPTION_SCHEMA`); el cambio de alcance fue **junto** con el pipeline partido, para que el
+  control no quede aceptando el valor sin efecto.
+- ✅ **Pipeline por linea** (`geometria.md` §3.1): la composicion de los 12 pasos se extrajo a
+  `componerCapaTexto(s, text, lines, fontSizePx, w, h, filtroLinea)` y a un filtro de render
+  (`state.soloLinea`) que respetan `forEachLineSetting` y `drawTextLines`, de modo que TODOS
+  los motores se restringen a una linea **sin cambiar sus firmas**. Con desvios,
+  `apilarCapaPorLinea` compone cada linea en su capa, le aplica **su** giro (sobre el centro
+  de su propia tinta) y **su** curva (recorte + `curve` + reubicacion por centro de tinta) y
+  la apila; el recorte y el encaje siguen siendo **del bloque**, una sola vez.
+
+- ✅ **UI (R-L2.14)**: Rotation y Curve mandan sobre la linea activa (antes eran globales) y
+  su nueva chispeta declara la relacion resuelta ("ALL 90 grados + 10 grados"); en All siguen
+  siendo la base del bloque.
+- 🔴 **Off-by-one de RC39 corregido**: `getEffectiveSetting` espera el numero de linea
+  **1-based** (0/null = ALL) pero el sync le pasaba el indice 0-based, asi que **con L2 activa
+  los controles mostraban los valores de L1** (lo destapo la propia puerta de D4). Ahora los
+  llamadores pasan `linea` (1-based) y el contrato quedo escrito en el helper.
+- ⚠️ **Hallazgo abierto (preexistente, NO de D4)**: cuando DOS lineas declaran su propia capa
+  de relleno de color (`fill.layers`), la segunda sale pintada con el color de la primera
+  (medido: el fill de L2 resuelve azul correctamente pero hay **0 px azules** en el canvas, y
+  pasa tambien en el camino rapido, sin desvios). Queda para su propia entrega; la puerta lo
+  esquiva midiendo una linea por render.
+- ⚠️ **Declarado**: en el camino por linea, los efectos que recorren el bloque entero
+  (`lettering.flag`, `boggle`, `reverseOverlap.lines`) y los pinceles calculados sobre la caja
+  del bloque se aplican por linea. Con desvio 0 el camino es el de siempre y nada cambia.
+- **Medido en la puerta de pixeles** (`tests/text-tab.browser.js`, **T074**): con ALL 15 las dos
+  lineas siguen a ALL (misma inclinacion); con L1 +10 y L2 -15 la resolucion da 25 y 0, **L2
+  queda RECTA** (su desvio cancela ALL) y L1 difiere; el **signo** del desvio manda la
+  inclinacion (el `\/`) y la comba (el `()`); desvio 0 = render identico; el round-trip
+  conserva tinta y hash y el delta viaja en el preset; y la chispeta dice "ALL 90 + 10".
+  **46 suites + las 2 puertas de navegador en verde.**
+- Bump `?v=RC79` (token compartido con el cambio en curso de otra sesion en `js/api.js`).
+
 ### 7.34 RC78 — el panel de Font Size no escribia la PROPORCION (cuatro defectos de UI + dos de motor)
 
 Decision del administrador (2026-10-24): **Modo (Proporcional|Ancho) + Ref (ALL|L1..L3) +
@@ -846,6 +893,24 @@ encaje final (documentada en `contracts/lineas.md` 2.3).
   formato de `.txm` (mismos campos, distinto significado del tope: **un preset viejo con
   `maxFontSize` < 100 y reglas por linea ahora sale MAS GRANDE y con el tamaño que declara**).
 - Bump `?v=RC77` en `index.html` (con `css/style.css`) y `render-core.html`.
+### 7.33 RC79 — la causa EXACTA del motor llega a la UI (spec 009, T041)
+
+`ThumbEngine.ensureSprite` devolvia `null` tambien cuando el **motor respondia con causa**
+(`data.success === false`), asi que el cliente no podia mostrar el motivo real y caia en el
+generico `motor:rechazo` (spec 009, T041 / SC-007).
+
+- **`assets/miniaturas.js`** (plugin): al responder el motor con causa se guarda en un mapa por
+  scope y se expone `ThumbEngine.ultimaCausa(scope)` (y se avisa por `console.warn` con el motivo
+  exacto). El valor devuelto por `ensureSprite` sigue siendo `null`: **el contrato del puente no
+  cambia** (por eso ninguna llamada existente se rompe: `api.js` tiene sus dos sitios en try/catch y
+  `fonts.js` no recibe rechazos).
+- **`js/api.js`**: cuando `ensureSprite` no devuelve hoja, la causa de la UI es la de
+  `ultimaCausa` si existe (sino sigue `motor:rechazo`).
+- Verificado: caso nuevo en `tests/hoja-generacion.test.js` (causa del motor exacta) y en el
+  gate del laboratorio con el catalogo NO escribible: la galeria muestra
+  `motor:sprite:catalogo:no_escribible`.
+- Bump `?v=RC79`.
+
 ### 7.32 RC76 — higiene de nombres/defaults y dos defectos de raiz (v1 muerto, refs por linea)
 
 Bloque de higiene disparado por la discusion de nomenclatura: si un nombre o un
