@@ -53,6 +53,8 @@ const API = window.TextMuyAPI;
 function instalarThumbEngine(opts) {
     opts = opts || {};
     window.ThumbEngine = {
+        // T041 (spec 009): el motor real expone la causa de su ultimo rechazo.
+        ultimaCausa: function () { return opts.causa || ''; },
         ensureSprite: async function (o) {
             escrituras.push(o);
             if (opts.falla) return null;
@@ -146,6 +148,14 @@ const celda = id => ({ w: 180, h: 30, id });
     const r4 = await API.asegurarHojaCompleta('fonts', { renderTile: (it) => celda(it.id) });
     assert.equal(r4.estado, 'error', 'motor rechaza => error');
     assert.equal(r4.causa, 'fonts:hoja:motor:rechazo', 'causa exacta');
+
+    // T041 (spec 009): cuando el MOTOR responde con causa, la UI la usa EXACTA
+    // (`ThumbEngine.ultimaCausa`) en vez del generico `motor:rechazo`.
+    reiniciar();
+    instalarThumbEngine({ falla: true, causa: 'motor:sprite:catalogo:no_escribible' });
+    const r4b = await API.asegurarHojaCompleta('fonts', { renderTile: (it) => celda(it.id) });
+    assert.equal(r4b.estado, 'error', 'T041: sigue siendo error');
+    assert.equal(r4b.causa, 'motor:sprite:catalogo:no_escribible', 'T041: la causa del motor llega exacta');
 
     // ---------------------------------------------------------------------
     // 5. Reentrancia: dos llamadas concurrentes => 1 sola escritura (I4).

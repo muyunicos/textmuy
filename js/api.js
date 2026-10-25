@@ -705,7 +705,14 @@
             return { estado: 'error', causa: (e && e.message) || String(e), total: total, dibujados: hechos, fallos: fallos };
         }
         if (!res) {
-            return { estado: 'error', causa: ambito + ':hoja:motor:rechazo', total: total, dibujados: hechos, fallos: fallos };
+            // T041 (spec 009): si el MOTOR respondio con una causa, ThumbEngine la
+            // conserva (`ultimaCausa`): se usa EXACTA en vez del generico `motor:rechazo`.
+            var motivo = '';
+            try {
+                motivo = (window.ThumbEngine && window.ThumbEngine.ultimaCausa)
+                    ? String(window.ThumbEngine.ultimaCausa(ambito)) : '';
+            } catch (_) { motivo = ''; }
+            return { estado: 'error', causa: motivo !== '' ? motivo : (ambito + ':hoja:motor:rechazo'), total: total, dibujados: hechos, fallos: fallos };
         }
         invalidarCatalogo(ambito);
         invalidarSpriteCanonico(ambito);
