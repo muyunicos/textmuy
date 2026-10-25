@@ -3407,6 +3407,16 @@
     // actuan sobre todo el bloque. Todo lo demas es por linea (FR-016), incluido
     // `lineHeight`. D4 (RC79): `rotate` y `distort` YA NO estan aca: son rutas por
     // linea con valor RELATIVO a ALL (R-L2.11/R-L2.13).
+    //
+    // RC80 (P0): `depth`, `depth2`, `outline.second`, `bevel` y `specular` entran aca
+    // porque **el motor los pinta con la BASE** (drawDepth/drawDepth2 leen `s.depth*`,
+    // drawOutline2 `s.outline.second`, drawBevel `s.bevel.inner`, drawSpecular
+    // `s.specular.inner`): el schema los daba por linea, asi que el panel de una linea
+    // aceptaba un valor que el render ignoraba y lo guardaba en el `.txm` (miente +
+    // basura, Const. IV). Declararlos globales es lo que el render ya hace (cero cambio
+    // visual) y hace que el control escriba en ALL y muestre la chispeta `global`.
+    // Completarlos de verdad por linea queda como entrega aparte (exige resolucion por
+    // linea dentro de esos cinco motores).
     // ===== ALCANCE POR OPCION (003-option-schema, contracts/opciones.md §2) =====
     // Fuente UNICA del alcance. Reemplaza GLOBAL_PATHS + CANVAS_POR_LINEA.
     // Precedencia: una EXCEPCION por-linea gana sobre el prefijo global que la
@@ -3416,6 +3426,7 @@
     // ALCANCE_GLOBAL: raices/subrutas de bloque. Lo NO listado es por linea.
     const ALCANCE_GLOBAL = [
         'text', 'canvas', 'lines', 'download', 'processing',
+        'depth', 'depth2', 'outline.second', 'bevel', 'specular',
         'lettering.flag', 'lettering.boggle', 'lettering.reverseOverlap', 'lettering.blendmode'
     ];
 

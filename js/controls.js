@@ -38,6 +38,9 @@
         // Sin editor (arranque parcial): solo lo que nunca es por linea.
         return path === 'text' || path === 'canvas' || path === 'lines'
             || path === 'download' || path === 'processing'
+            || path === 'depth' || path === 'depth2' || path === 'bevel' || path === 'specular'
+            || path.indexOf('depth') === 0 || path.indexOf('bevel') === 0 || path.indexOf('specular') === 0
+            || path.indexOf('outline.second') === 0
             || path.indexOf('canvas.') === 0 || path.indexOf('lines') === 0
             || path.indexOf('lettering.flag') === 0 || path.indexOf('lettering.boggle') === 0;
     }

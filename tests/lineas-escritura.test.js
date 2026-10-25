@@ -198,6 +198,21 @@ assert.equal(settings.canvas.maxFontSize, 100,
 assert.ok(/tope propio/.test(estado.textContent), 'la frase avisa que el tope es propio (' + estado.textContent + ')');
 assert.equal(capReset.hidden, false, 'y aparece el boton para volver a heredar');
 
+// --- (e) RC80 (P0): las rutas que el motor pinta con la BASE se escriben en ALL ------
+// `depth`, `depth2`, `outline.second`, `bevel` y `specular` los lee el motor de `s.*`, asi
+// que el panel NO debe dejarlos en la linea: era un valor que el render ignoraba y que
+// igual viajaba en el `.txm` (Const. IV). `outline.first` sigue siendo por linea.
+assert.equal(TextEditor.isGlobalPath('depth.length'), true, 'depth.length es global de bloque');
+TextEditor.setTargetedSetting('depth.length', 0.4);
+assert.equal(settings.depth.length, 0.4, 'depth.length se escribe en la BASE');
+assert.ok(!entrada(2).depth, 'y NO queda en la entrada de L2 (' + JSON.stringify(entrada(2).depth) + ')');
+TextEditor.setTargetedSetting('bevel.inner.size', 8);
+assert.equal(settings.bevel.inner.size, 8, 'bevel.inner.size tambien va a la BASE');
+assert.ok(!entrada(2).bevel, 'sin entrada de bevel en L2');
+TextEditor.setTargetedSetting('specular.inner.blur', 3);
+assert.equal(settings.specular.inner.blur, 3, 'specular.inner.blur idem');
+TextEditor.setTargetedSetting('outline.first.width', 0.3);
+assert.equal(entrada(2).outline.first.width, 0.3, 'pero outline.first SIGUE siendo por linea');
 // "Heredar de ALL" BORRA la clave (R-L2.6): el tope vuelve a ser el de ALL.
 capReset.dispatch('click');
 assert.equal(((entrada(2) || {}).canvas || {}).maxFontSize, undefined, 'el tope propio se borra');

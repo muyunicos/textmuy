@@ -747,6 +747,40 @@ function v(n) { return String(n); }
         assert.equal(chispeta.override, "1", "T074(f): marcada como valor propio");
         await page.evaluate(function () { window.TextEditor.setLineTarget("all"); });
 
+        // ===== T075 (RC80, P1): el relleno de color POR LINEA llega a SU linea =====
+        // Cierre del "hallazgo abierto" de AGENTS 7.35: la primera medicion uso una
+        // geometria PROPIA (lineHeight 200/500 y canvas cuadrado) donde las lineas se
+        // solapan o la capa las recorta, y parecia que "L2 salia del color de la BASE".
+        // Con la geometria de la puerta (lineHeight 0, canvas 800x400) se mide la verdad:
+        // una capa de color por linea pinta SU linea y nada mas. `bandasDeTexto` da el
+        // color dominante por banda: 8,0,0 = rojo; 0,0,8 = azul; 8,8,8 = blanco.
+        const AZUL = { fill: { layers: [{ id: "capA", active: true, styles: [{ id: "stA", type: "color", color: { r: 0, g: 0, b: 255 } }] }] } };
+        const ROJO = { fill: { layers: [{ id: "capR", active: true, styles: [{ id: "stR", type: "color", color: { r: 255, g: 0, b: 0 } }] }] } };
+
+        // (a) Una linea con capa azul: azul.
+        const t075a = await bandasDeTexto({ texto: "MUY", lines: { activeTarget: "all", inherit: {}, line: { "1": AZUL } } });
+        assert.equal(t075a.bandas.length, 1, "T075(a): una linea, una banda (got " + t075a.bandas.length + ")");
+        assert.equal(t075a.bandas[0].color, "0,0,8", "T075(a): la capa de L1 pinta azul (got " + t075a.bandas[0].color + ")");
+
+        // (b) Tres lineas con capa azul SOLO en L2: L2 azul y las otras con el suyo (el
+        // alcance es POR LINEA: no se contagia ni a la de arriba ni a la de abajo).
+        const t075b = await bandasDeTexto({ texto: TRES, lines: { activeTarget: "all", inherit: {}, line: { "2": AZUL } } });
+        assert.equal(t075b.bandas.length, 3, "T075(b): tres bandas (got " + t075b.bandas.length + ")");
+        assert.equal(t075b.bandas[1].color, "0,0,8", "T075(b): L2 sale azul (got " + t075b.bandas[1].color + ")");
+        assert.notEqual(t075b.bandas[0].color, t075b.bandas[1].color,
+            "T075(b): L1 NO se contagia (" + t075b.bandas[0].color + ")");
+        assert.notEqual(t075b.bandas[2].color, t075b.bandas[1].color,
+            "T075(b): L3 tampoco (" + t075b.bandas[2].color + ")");
+
+        // (c) L1 roja y L2 azul: cada linea con SU color (dos capas propias a la vez).
+        const t075c = await bandasDeTexto({
+            texto: TRES,
+            lines: { activeTarget: "all", inherit: {}, line: { "1": ROJO, "2": AZUL } }
+        });
+        assert.equal(t075c.bandas[0].color, "8,0,0", "T075(c): L1 roja (got " + t075c.bandas[0].color + ")");
+        assert.equal(t075c.bandas[1].color, "0,0,8", "T075(c): L2 azul (got " + t075c.bandas[1].color + ")");
+        assert.notEqual(t075c.bandas[0].color, t075c.bandas[1].color, "T075(c): y son colores DISTINTOS por linea");
+
         // R-P8.2: la corrida no puede dejar errores de pagina.
         assert.deepEqual(errores, []);
         console.log('OK: text-tab.browser.js (editor real; puente y assets simulados)');

@@ -160,6 +160,14 @@ La tabla de abajo es un RESUMEN legible; el dato vive en el schema.
 
 **Global de bloque** (nunca entra a overrides de linea; `scope:'global'`):
 
+> **RC80 (P0)**: `depth`, `depth2`, `outline.second`, `bevel` y `specular` se sumaron a esta
+> lista porque el motor los pinta con la BASE (`drawDepth`/`drawDepth2` leen `s.depth*`,
+> `drawOutline2` `s.outline.second`, `drawBevel` `s.bevel.inner`, `drawSpecular`
+> `s.specular.inner`): el panel de una linea aceptaba un valor que el render ignoraba y lo
+> guardaba en el `.txm` (miente + Const. IV). Declararlos globales es **lo que el render ya
+> hacia** (cero cambio visual) y hace que el control escriba en ALL. Completarlos de verdad
+> por linea queda como entrega aparte.
+
 | Ruta | Motivo |
 |---|---|
 | `text` | El texto es global por definicion (FR-016). |

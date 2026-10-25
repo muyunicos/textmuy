@@ -130,6 +130,13 @@ la paridad editor/PDF sigue siendo puerta manual.
   el round-trip conserva tinta y hash; y la chispeta dice "ALL 90 grados + 10 grados". Se mide
   **una linea por render** (la otra recta): con angulos opuestos las bandas de tinta se cruzan
   y se fusionan.
+- **R-P7.9 (RC80, P0/P1)**: cierra el alcance real del **relleno por linea**, y de paso retracta
+  el hallazgo que la puerta habia dejado abierto: con la geometria de la puerta (lineHeight 0,
+  canvas 800x400) una capa de color en L1 pinta azul; con la capa SOLO en L2, L2 sale azul y
+  L1/L3 con el suyo (el alcance es por linea: no se contagia); con L1 roja y L2 azul, cada banda
+  con SU color. La medicion anterior usaba una geometria PROPIA (lineHeight 200/500 y canvas
+  cuadrado) donde las lineas se solapan o la capa las recorta, y por eso parecia que L2 salia
+  con el color de la BASE.
 - **R-P8.1**: exito imprime `OK: text-tab.browser.js (...)`; un fallo sale con codigo != 0
   y el assert NOMBRA el requisito (p.ej. R-P7.2) y los valores medidos.
 - **R-P8.2**: el acumulado de `page.on("pageerror")` MUST quedar vacio al final.

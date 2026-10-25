@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC79**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC80**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -757,6 +757,37 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
 
+### 7.36 RC80 — los efectos que el motor pinta con la BASE dejan de mentir en el panel
+
+Cierre de P0 + P1 del ciclo posterior a D4: dos verdades que el schema/la UI afirmaban y el
+motor no cumplia.
+
+- 🔴 **Cinco efectos leian el estilo de la BASE y el schema los daba por linea**: `drawDepth`
+  y `drawDepth2` (`s.depth*`), `drawOutline2` (`s.outline.second`), `drawBevel`
+  (`s.bevel.inner`) y `drawSpecular` (`s.specular.inner`). Con una linea activa el panel
+  aceptaba el valor, lo **escribia en la linea** (y viajaba en el `.txm`) y el render **no
+  cambiaba**: mentira + basura (Const. IV, el mismo pecado que D4 evito con
+  `rotate`/`distort`).
+- ✅ **Declarados GLOBALES de bloque**: `ALCANCE_GLOBAL` + la lista del arranque parcial de
+  `controls.js::esGlobalDeBloque`. Es **lo que el render ya hacia**, asi que **cero cambio
+  visual** (la puerta de pixeles lo confirma); el control pasa a escribir en ALL, muestra su
+  chispeta `global` y el `.txm` deja de llevar esas claves por linea. Los `.txm` viejos que
+  las traigan siguen cargando: `mergeDelta` ignora las rutas globales y el fail-fast valida
+  contra `defaultSettings`, no contra el alcance (sin rechazo).
+- ✅ **Asserts que fijaban lo contrario actualizados**: `option-schema` (`depth.length` sale de
+  la lista de "por linea" y los cinco entran en la de globales) y `lineas-escritura` (bloque
+  nuevo: con L2 activa `depth`/`bevel`/`specular` van a la BASE y `outline.first` sigue por
+  linea, que es el contraste que importa).
+- ⚠️ **Pendiente declarado, si algun dia se quieren POR LINEA**: exige resolver el estilo por
+  linea DENTRO de esos cinco motores (hoy leen `s` directo), con su propia entrega y medicion.
+- ❌ **El "hallazgo abierto" de 7.35 se retracta**: era un artefacto de la sonda (ver 7.35). El
+  relleno de color por linea **si** funciona y ahora esta medido en la puerta.
+- **T075** (`tests/text-tab.browser.js`): con la geometria de la puerta (lineHeight 0, canvas
+  800x400) una capa de color en L1 pinta azul; con la capa SOLO en L2, L2 sale azul y L1/L3 con
+  el suyo (el alcance es por linea, no se contagia); con L1 roja y L2 azul, cada banda con SU
+  color. **46 suites + las 2 puertas de navegador en verde.**
+- Bump `?v=RC80`.
+
 ### 7.35 RC79 — bloque D4: giro y curva POR LINEA (valores relativos a ALL)
 
 Cierra el bloque D4 de `specs/002-text-tab` (T068-T075): la constitucion IV ya declaraba
@@ -788,11 +819,12 @@ la rotacion y la curva dentro del alcance por linea; ahora el motor las implemen
   **1-based** (0/null = ALL) pero el sync le pasaba el indice 0-based, asi que **con L2 activa
   los controles mostraban los valores de L1** (lo destapo la propia puerta de D4). Ahora los
   llamadores pasan `linea` (1-based) y el contrato quedo escrito en el helper.
-- ⚠️ **Hallazgo abierto (preexistente, NO de D4)**: cuando DOS lineas declaran su propia capa
-  de relleno de color (`fill.layers`), la segunda sale pintada con el color de la primera
-  (medido: el fill de L2 resuelve azul correctamente pero hay **0 px azules** en el canvas, y
-  pasa tambien en el camino rapido, sin desvios). Queda para su propia entrega; la puerta lo
-  esquiva midiendo una linea por render.
+- ❌ **RETRACTADO en RC80**: aca decia que con dos lineas con capa de relleno propia "la segunda
+  sale pintada con el color de la primera". **Era un artefacto de MI sonda**, no del motor: la
+  medicion usaba una geometria propia (`lineHeight` 200/500 y canvas cuadrado) donde las lineas
+  se solapan o la capa las recorta. Con la geometria de la puerta (`lineHeight` 0, canvas
+  800x400) el relleno por linea **funciona**: T075 mide L1 roja y L2 azul con la tercera linea
+  blanca, y que ninguna se contagia.
 - ⚠️ **Declarado**: en el camino por linea, los efectos que recorren el bloque entero
   (`lettering.flag`, `boggle`, `reverseOverlap.lines`) y los pinceles calculados sobre la caja
   del bloque se aplican por linea. Con desvio 0 el camino es el de siempre y nada cambia.

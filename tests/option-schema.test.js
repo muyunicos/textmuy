@@ -68,8 +68,16 @@ assert.equal(TextEditor.isGlobalPath('canvas.maxFontSize'), false,
     assert.equal(TextEditor.isGlobalPath(p), true, p + ' es global de bloque');
 });
 ['font.size', 'fill.color.r', 'outline.first.width', 'align', 'letterSpacing',
- 'lineHeight', 'lettering.shadow.size', 'icon.src', 'depth.length'].forEach(function (p) {
+ 'lineHeight', 'lettering.shadow.size', 'icon.src'].forEach(function (p) {
     assert.equal(TextEditor.isGlobalPath(p), false, p + ' es por linea');
+});
+// RC80 (P0): `depth`, `depth2`, `outline.second`, `bevel` y `specular` son GLOBALES de
+// bloque porque el motor los pinta con la BASE (`drawDepth`/`drawDepth2`/`drawOutline2`/
+// `drawBevel`/`drawSpecular` leen `s.*`): el panel de la linea aceptaba un valor que el
+// render ignoraba y lo guardaba en el `.txm` (miente + Const. IV).
+['depth.length', 'depth.fill.color.r', 'depth2.angle', 'outline.second.width',
+ 'bevel.inner.size', 'specular.inner.blur'].forEach(function (p) {
+    assert.equal(TextEditor.isGlobalPath(p), true, p + ' es global de bloque (RC80)');
 });
 
 // --- 3. Fail-fast de rutas (US2) ---------------------------------------------
