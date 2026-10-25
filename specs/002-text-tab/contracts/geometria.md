@@ -83,18 +83,19 @@ parte del alcance **por linea**: este bloque no cambia la gobernanza, la **cumpl
   linea ("lo calculado es lo pintado", R-G1.1), igual que `autoFitText` ya hace con el
   giro del bloque.
 
-### 3.2 Decision pendiente (bloquea la implementacion)
+### 3.2 Decision (cerrada el 2026-10-24): los dos valores son RELATIVOS (suma)
 
-El **valor** que declara una linea, ¿**reemplaza** el de ALL o se **suma** a el?
+El valor que declara una linea es su **desvio respecto de ALL**, no un valor absoluto:
 
-- **Reemplaza** (coherente con el resto del modelo: color, fuente, tamaño, tope): para
-  `ALL 90` + L1 al 100 hay que escribir `100`; el `+10` del ejemplo no existe como tal.
-- **Suma** (lo que sugieren los ejemplos `ALL 90 + L1 +10 -> \/`): la linea declara un
-  **delta** respecto de ALL, y ese unico eje se comporta distinto a los otros veinte.
+- `rot(Ln) = rot(ALL) + desvio(Ln)` y `curva(Ln) = curva(ALL) + desvio(Ln)`.
+- Si ALL cambia, la linea la **sigue** (misma eleccion que en el tamaño: proporcional).
+- Es lo que describen los ejemplos `ALL 90 + L1 +10 -> \/` y
+  `ALL 90 + L1 curva + / L2 curva - -> ()`, y lo que hace falta para que la estructura de
+  lineas (angulo o curva propia de cada una) sobreviva a un cambio del angulo base.
 
-La decision fija el paso 2 de la resolucion (`contracts/lineas.md` §1.1), el significado
-del dato en el `.txm` y lo que muestra la UI. **No se implementa nada hasta cerrarla**:
-sacar `rotate`/`distort` de la tabla global sin partir el pipeline haria que el control
-por linea **acepte el valor y no haga nada**, que es peor que dejarlos globales. Las dos
-opciones son implementables; la segunda exige declarar que esas dos rutas son
-**relativas** en la resolucion por linea.
+Se descarto el valor **absoluto** (reemplazo): obligaria a escribir el total en cada linea
+(`100` para que L1 quedara a 100 con ALL en 90) y la linea se **clavaria** al cambiar ALL.
+
+Detalle, excepcion de mezcla y requisitos: `contracts/lineas.md` §2.4 (R-L2.11 a R-L2.15).
+**Nada se implementa antes de partir el pipeline** (§3.1): publicar `rotate`/`distort` como
+rutas por linea sin el pipeline partido dejaria el control **aceptando el valor sin efecto**.

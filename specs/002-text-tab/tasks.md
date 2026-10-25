@@ -314,17 +314,19 @@ mismo angulo en todas las lineas, sin aviso). Es peor que dejarlos globales.
 - Rotacion: `ALL 90 grados` + `L1 +10`, `L2 -10`, `L3 +10` -> `\/`
 - Curva: `ALL 90 grados` + `L1 curva +`, `L2 curva -` -> `()`
 
-**Bloquea**: la decision de `contracts/geometria.md` §3.2 (el valor de una linea
-**reemplaza** el de ALL o se **suma** a el). No se toca codigo hasta cerrarla: sacar
-`rotate`/`distort` de la tabla global sin partir el pipeline haria que el control por
-linea **acepte el valor y no haga nada**, que es peor que dejarlos globales. El orden
-obligatorio y sus requisitos estan en `contracts/geometria.md` §3.1.
+**Bloquea**: la decision de `contracts/geometria.md` §3.2, **cerrada el 2026-10-24**:
+los dos valores son **RELATIVOS** (`rot(Ln) = rot(ALL) + desvio`, `curva(Ln) = curva(ALL) + desvio`;
+la linea sigue a ALL). El orden obligatorio y sus requisitos estan en `contracts/geometria.md` §3.1
+y el detalle del dato en `contracts/lineas.md` §2.4.
 
 **Tareas**:
 
-- [ ] T068 Cerrar la decision de §3.2 (suma o reemplazo) y escribirla en
+- [x] T068 Cerrar la decision de §3.2 (suma o reemplazo) y escribirla en
       `contracts/lineas.md` §2.4 + `contracts/opciones.md` R-O1.2 (`rotate` y `distort`
-      pasan a `scope: linea`).
+      pasan a `scope: linea`). *(hecho 2026-10-24: **suma** —decision del administrador—;
+      `lineas.md` §2.4 con R-L2.11 a R-L2.15, `geometria.md` §3.2 reescrita como decision
+      cerrada y `opciones.md` R-O1.2 con el cambio previsto y su marker de estado: hasta
+      T072 las dos rutas siguen en la lista de globales.)*
 - [ ] T069 [P] Suite que fije el orden: el giro/curva de la linea se aplica ANTES de
       apilar y ninguna etapa posterior lo reaplica (R-G3.1 a R-G3.4).
 - [ ] T070 Partir la composicion en una capa por linea con su estilo resuelto.

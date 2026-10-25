@@ -28,8 +28,12 @@ Deriva de `defaultSettings` (walk de hojas, reutilizando el criterio de
 - **R-O1.1**: UNA sola fuente de verdad. `isGlobalPath` consulta el schema; se
   purgan `GLOBAL_PATHS` y `CANVAS_POR_LINEA` (VII, sin rutas dobles).
 - **R-O1.2**: `scope:'global'` para `text`, `canvas.*` (SALVO `canvas.maxFontSize`),
-  `lines`, `download`, `processing`, `rotate`, `distort`, y
+  `lines`, `download`, `processing` y
   `lettering.flag|boggle|reverseOverlap|blendmode`. `scope:'linea'` para lo demas.
+  **Cambio previsto por el bloque D4** (`contracts/lineas.md` §2.4, R-L2.13): `rotate` y
+  `distort` pasan a `scope:'linea'` con valor **relativo** a ALL, y lo hacen **junto** con
+  el pipeline partido (T070-T072). Hasta que T072 aterrice siguen en la lista de globales,
+  para que el contrato y el codigo no diverjan.
 - **R-O1.3**: `canvas.maxFontSize` es `scope:'linea'` (excepcion historica, R-L4.3
   de `contracts/lineas.md`).
 - **R-O1.4**: Grupos vacios (`processing:{}`, `lines`) NO generan entradas basura.

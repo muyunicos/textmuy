@@ -105,6 +105,36 @@ La consecuencia de arriba sigue en pie: "100 % de ALL" y "100 % del ajuste" dan 
 `ref:all` son sinónimos al leer: el alias existe para que la etiqueta pueda decir
 **ALL** sin cambiar el token guardado (dato persistido: §10 de `AGENTS.md`). El tamaño
 previo al encaje de una línea es `min(tamaño resuelto, su tope)`.
+### 2.4 Rotacion y curva por linea (decision cerrada 2026-10-24, bloque D4)
+
+La constitucion IV ya declaraba la rotacion y la curva dentro del alcance por linea: el
+bloque D4 las implementa. **Decision del administrador: los dos valores son RELATIVOS
+(suma)**, no absolutos: la linea declara su **desvio** respecto de ALL y, si ALL cambia,
+la linea la **sigue** (misma eleccion que en el tamaño, donde el eje es `pct`). Es lo que
+describen los ejemplos `ALL 90 + L1 +10 -> \/` y
+`ALL 90 + L1 curva + / L2 curva - -> ()`.
+
+| Valor | Dato | Semantica |
+|---|---|---|
+| Giro | `rotate` (base) y `lines.line["n"].rotate` (desvio) | `rot(Ln) = rot(ALL) + desvio(Ln)`, en grados |
+| Curva | `distort.arc.angle` (base) y `lines.line["n"].distort.arc.angle` (desvio) | `curva(Ln) = curva(ALL) + desvio(Ln)`, en grados |
+
+- **R-L2.11**: estas DOS rutas **no se mezclan** como el resto (R-L1.3): se **suman**. Es
+  la unica excepcion al delta por reemplazo, y por eso vive escrita en el contrato y no
+  suelta en el codigo. Cualquier otro campo de `distort` se **hereda** tal cual (no se suma).
+- **R-L2.12**: con las dos en su base (desvio 0 o ausente) el render es **identico** al de
+  hoy: el bloque gira y se curva como bloque (R-G3.2). Ningun preset existente se mueve.
+- **R-L2.13**: alcance: `rotate` y `distort` **dejan de ser globales de bloque** (R-L4.1)
+  y pasan a `scope: linea`, heredables como el resto (`contracts/opciones.md` R-O1.2). El
+  cambio de alcance va **junto** con el pipeline partido (T070-T072): publicar el control
+  antes dejaria la ruta **aceptando el valor sin efecto**, que es peor que hoy.
+- **R-L2.14**: la UI declara de donde sale el numero: el control de la linea activa dice
+  la relacion ("L2 = ALL 90° + 10°") y la chispeta `global` queda **solo** en All.
+- **R-L2.15**: el encaje y el tope siguen siendo del **bloque** (R-G3.3, R-G2.1): una linea
+  girada no cambia el tamaño de las demas ni el del lienzo.
+
+---
+
 ## 3. Ciclos
 
 ### 3.1 Requisitos
