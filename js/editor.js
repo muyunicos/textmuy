@@ -8,7 +8,6 @@
     // font.src es etiqueta generica inicial (ver FontLoader.DEFAULT_FONT_FAMILY):
     // NO implica fuente cargada; se reemplaza al elegir/cargar una real.
     const defaultSettings = {
-        editable: 1,
         // ===== TEXT =====
         text: 'TEXT',
         font: {
@@ -53,7 +52,6 @@
 
         // Lettering (Comportamiento tipográfico)
         lettering: {
-            editable: true,
             active: false,
             blendmode: 'over',
             // Flag v2: wave model shared by Tilt/Rise (per-letter actions) and
@@ -313,7 +311,6 @@
 
         // ===== ICON =====
         icon: {
-            editable: true,
             active: false,
             alpha: 1,
             src: null,
@@ -326,7 +323,6 @@
 
         // ===== BACKGROUND =====
         background: {
-            editable: true,
             active: true,
             composite: 'source-over',
             fill: {
@@ -335,15 +331,6 @@
                 image: { active: false, alpha: 1, src: null, size: 'cover', repeat: 'repeat' },
                 gradient: { active: false, angle: 0, type: 'radial', colors: [] }
             }
-        },
-
-        // ===== ANIMATION =====
-        animation: {
-            editable: true,
-            active: true,
-            id: '',
-            pause: 1000,
-            duration: 1000
         },
 
         // ===== DOWNLOAD =====
@@ -4156,6 +4143,56 @@ function clone(obj) {
     }
 
     // Load preset with enhanced TextStudio compatibility
+    // RC81 (F1): el modulo arrastra DOS vocabularios para los mismos efectos (herencia de
+    // TextStudio): el canonico (`shadow.outer`, `shadow.outer2`, `shadow.inner`,
+    // `shadow.inner2`, `outline.first`, `outline.second`) y el legacy suelto
+    // (`shadowOuter`, `shadowOuter2`, `shadowInner`, `shadowInner2`, `outline`, `outline2`).
+    // El motor lee AMBOS (con `||`) pero con alcances DISTINTOS: `outline.second` es global
+    // y `outline2` es por linea, asi que el mismo efecto obedecia o no al Style target segun
+    // que nombre trajera el preset (medido en F0b: outline.second -> "la base manda").
+    // Aca se normaliza a CANONICO al entrar un preset y se borra el legacy: el estado, la
+    // UI y el `.txm` que se guarda tienen una sola forma.
+    const ALIAS_LEGACY = {
+        shadowOuter: 'shadow.outer',
+        shadowOuter2: 'shadow.outer2',
+        shadowInner: 'shadow.inner',
+        shadowInner2: 'shadow.inner2',
+        outline: 'outline.first',
+        outline2: 'outline.second'
+    };
+
+    function normalizarVocabularioLegacy(settings) {
+        if (!settings || typeof settings !== 'object') return settings;
+        const esObjeto = function (v) { return v && typeof v === 'object' && !Array.isArray(v); };
+        // El legacy PISA: si un preset trae las dos formas (raro), gana el nombre viejo,
+        // que es el que escribian los presets de TextStudio importados. Asi la regla es
+        // una sola y no depende de comparar contra los defaults.
+        Object.keys(ALIAS_LEGACY).forEach(function (legacy) {
+            const canonico = ALIAS_LEGACY[legacy];
+            const valor = settings[legacy];
+            delete settings[legacy];
+            if (valor === undefined || valor === null) return;
+            const partes = canonico.split('.');
+            const destino = settings[partes[0]];
+            if (!esObjeto(destino) || !esObjeto(valor)) {
+                setNested(settings, canonico, valor);
+                return;
+            }
+            const hoja = destino[partes[1]] = esObjeto(destino[partes[1]]) ? destino[partes[1]] : {};
+            (function fusionar(d, v) {
+                Object.keys(v).forEach(function (k) {
+                    if (esObjeto(v[k])) {
+                        d[k] = esObjeto(d[k]) ? d[k] : {};
+                        fusionar(d[k], v[k]);
+                        return;
+                    }
+                    d[k] = v[k];
+                });
+            })(hoja, valor);
+        });
+        return settings;
+    }
+
     function loadPreset(preset, targetSettings) {
         // RC39 (001-fix-bugs-01): la carga aplica el preset sobre defaults
         // limpios, no sobre el estado vivo. Antes escribia campo por campo y
@@ -4165,6 +4202,7 @@ function clone(obj) {
         //
         // Con target (ruta API/export) el objeto es del llamador y se respeta
         // tal cual: ahi no hay "vista" que contaminar.
+        normalizarVocabularioLegacy(preset);
         let s;
         if (targetSettings) {
             s = targetSettings;
@@ -5142,6 +5180,7 @@ function clone(obj) {
         getLineTarget: getLineTarget,
         setLineTarget: setLineTarget,
         setTargetedSetting: setTargetedSetting,
+        normalizarVocabularioLegacy: normalizarVocabularioLegacy,
         getEffectiveSetting: getEffectiveSetting,
         OPTION_SCHEMA: OPTION_SCHEMA,
         RUTAS_DINAMICAS: RUTAS_DINAMICAS,

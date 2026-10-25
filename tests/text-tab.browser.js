@@ -781,6 +781,89 @@ function v(n) { return String(n); }
         assert.equal(t075c.bandas[1].color, "0,0,8", "T075(c): L2 azul (got " + t075c.bandas[1].color + ")");
         assert.notEqual(t075c.bandas[0].color, t075c.bandas[1].color, "T075(c): y son colores DISTINTOS por linea");
 
+        // ===== T076 (RC81, F0b): MATRIZ DE ALCANCE por efecto, MEDIDA =====
+        // Para cada efecto se hacen DOS renders con el mismo texto de 3 lineas:
+        //   (a) activo en ALL con color verde;
+        //   (b) activo en ALL con verde y ADEMAS en L2 con azul.
+        // Si en el píxel de la banda de L2 gana el azul => el efecto es POR LINEA (el
+        // panel de la linea manda). Si gana el verde => manda la BASE y el panel de la
+        // linea MIENTE. Se imprime la matriz; no hay asserts de valor (es una medicion).
+        const EFECTOS_ALCANCE = [
+            { id: "outline.first", pathActivo: "outline.first.active",
+              campos: [["outline.first.width", 0.08], ["outline.first.position", "outside"]],
+              pathColor: "outline.first.fill.color" },
+            { id: "outline.second", pathActivo: "outline.second.active",
+              campos: [["outline.second.width", 0.08], ["outline.second.position", "outside"]],
+              pathColor: "outline.second.fill.color" },
+            { id: "outline.global", pathActivo: "outline.global.active",
+              campos: [["outline.global.width", 0.08]], pathColor: "outline.global.fill.color" },
+            { id: "depth", pathActivo: "depth.active",
+              campos: [["depth.length", 0.4]], pathColor: "depth.fill.color" },
+            { id: "shadow.outer", pathActivo: "shadow.outer.active",
+              campos: [["shadow.outer.distance", 0.15], ["shadow.outer.size", 0.12]],
+              pathColor: "shadow.outer.fill.color" },
+            { id: "shadow.inner", pathActivo: "shadow.inner.active",
+              campos: [["shadow.inner.size", 0.15]], pathColor: "shadow.inner.fill.color" },
+            { id: "bevel.inner", pathActivo: "bevel.inner.active",
+              campos: [["bevel.inner.size", 0.3]], pathColor: "bevel.inner.highlight.color" },
+            { id: "specular.inner", pathActivo: "specular.inner.active",
+              campos: [["specular.inner.blur", 6], ["specular.inner.scale", 2]],
+              pathColor: "specular.inner.color" },
+            { id: "lettering.flag", pathActivo: "lettering.flag.active",
+              campos: [["lettering.flag.tilt", 25], ["lettering.flag.rise", 12]], pathColor: null }
+        ];
+        const matrizAlcance = [];
+        for (const ef of EFECTOS_ALCANCE) {
+            matrizAlcance.push(await page.evaluate(function (c) {
+                function poner(obj, path, v) {
+                    const ks = path.split(".");
+                    let cur = obj;
+                    for (let i = 0; i < ks.length - 1; i++) {
+                        cur[ks[i]] = (cur[ks[i]] && typeof cur[ks[i]] === "object") ? cur[ks[i]] : {};
+                        cur = cur[ks[i]];
+                    }
+                    cur[ks[ks.length - 1]] = v;
+                }
+                function activar(destino, col) {
+                    poner(destino, c.pathActivo, true);
+                    c.campos.forEach(function (p) { poner(destino, p[0], p[1]); });
+                    if (c.pathColor && col) poner(destino, c.pathColor, col);
+                }
+                const VERDE = { r: 0, g: 255, b: 0 }, AZUL = { r: 0, g: 0, b: 255 };
+                const s = window.TextEditor.getSettings();
+                s.canvas.width = 800; s.canvas.height = 400;
+                s.text = c.texto; s.background.active = false; s.font.src = 1;
+                s.lineHeight = 0; s.rotate = 0; s.distort.arc.angle = 0;
+                s.lines = { activeTarget: "all", inherit: {}, line: {} };
+                activar(s, VERDE);
+                window.TextEditor.render();
+                const a = window.__tt.bandas();
+                activar(s.lines.line["2"] = {}, AZUL);
+                window.TextEditor.render();
+                const b = window.__tt.bandas();
+                const cv = document.getElementById("tt-canvas");
+                const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+                let azul = 0;
+                for (let i = 0; i < d.length; i += 4) {
+                    if (d[i + 3] > 40 && d[i + 2] > 200 && d[i] < 100 && d[i + 1] < 100) azul++;
+                }
+                return {
+                    ef: c.id,
+                    allTinta: a.bandas.map(function (x) { return x.tinta; }),
+                    l2Tinta: b.bandas.map(function (x) { return x.tinta; }),
+                    l2Azul: azul
+                };
+            }, { texto: "MUY\nMUY\nMUY", id: ef.id, pathActivo: ef.pathActivo, campos: ef.campos, pathColor: ef.pathColor }));
+        }
+        console.log("MATRIZ ALCANCE (tinta por banda: [a]=solo ALL, [b]=ALL+L2)");
+        matrizAlcance.forEach(function (m) {
+            const dif = m.allTinta.map(function (t, i) { return (m.l2Tinta[i] || 0) - t; });
+            const veredicto = m.l2Azul > 200 ? "POR LINEA (L2 toma su color)"
+                : (Math.abs(dif[1]) > 50 ? "POR LINEA (cambia solo la banda de L2)"
+                    : (dif.some(function (x) { return Math.abs(x) > 50; }) ? "raro (cambia otra banda)" : "LA BASE MANDA (el target no hace nada)"));
+            console.log("  " + m.ef.padEnd(18) + " azul=" + m.l2Azul + " difBandas=" + JSON.stringify(dif) + " => " + veredicto);
+        });
+
         // R-P8.2: la corrida no puede dejar errores de pagina.
         assert.deepEqual(errores, []);
         console.log('OK: text-tab.browser.js (editor real; puente y assets simulados)');

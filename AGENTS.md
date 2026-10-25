@@ -187,7 +187,7 @@ textmuy/
    declare `lines` — antes la version no se comprobaba y un preset viejo entraba
    en silencio.
 6. **Cache-bust `?v=RCn`**: al cambiar CUALQUIER JS del módulo, subir el número en los
-   `<script>` de `index.html` Y `render-core.html` (hoy **RC80**); el `css/style.css`
+   `<script>` de `index.html` Y `render-core.html` (hoy **RC81**); el `css/style.css`
    de `index.html` lleva el mismo `?v`. El plugin detecta
    módulos viejos por el contrato y avisa con Ctrl+F5.
 7. **Sin `localStorage`**: prohibido para presets, imágenes y fuentes (sin excepciones
@@ -756,6 +756,43 @@ previa disponible") y, como no se creaba el item, el F5 borraba el formulario.
   `.catch` no traga el error real (si la fuente de verdad falta,
   `ensureFontReady` sigue reportando `fonts:<id>:<motivo>`, constitucion VI).
 - Bump `?v=RC71` en `index.html` y `render-core.html`.
+
+### 7.37 RC81 — F0 (auditoria MEDIDA) + F1: un solo vocabulario por efecto
+
+Primer tramo del proyecto de jerarquia de unidades (bloque -> linea -> palabra -> letra),
+arrancado porque el administrador reporto que STYLES "no funciona bien, sobre todo con
+Style target". **F0 es medicion, no opinion.**
+
+- ✅ **F0a estatica — inventario generado del `OPTION_SCHEMA()`** (372 hojas): `outline` 92
+  (21 globales / 71 por linea), `shadow` + `shadowOuter/Outer2/Inner/Inner2` = **92**,
+  `bevel` 32 (todas globales), `fill` 17 (todas por linea), `lettering` 23,
+  `depth`/`depth2` 18+18 (globales desde RC80), `specular` 15, `background` 15, `icon` 10.
+- 🔴 **7 hojas MUERTAS** (0 lecturas en el motor): `animation` (5, y ANIMATION no es parte
+  del modulo), `mergeGradients` (**con control en la UI: miente**) y `editable`.
+- ✅ **F0b medida — matriz de alcance por efecto** (`text-tab.browser.js`, **T076**): con el
+  mismo texto de 3 lineas, cada efecto se activa en ALL con verde y ademas en L2 con azul.
+  Resultado: `outline.first` ✅ por linea · `outline.global` ✅ · `shadow.inner` ✅ ·
+  `outline.second` ❌ la base manda · `depth` ❌ · `bevel.inner` ❌ · `specular.inner` ❌ ·
+  `lettering.flag` ❌ (correcto: es global de bloque por diseno) · `shadow.outer` ⚠️ **la
+  metrica de bandas colapsa** (la sombra de L2 expande la capa y el encaje reescala el
+  bloque): queda a revisar.
+- 🔴 **Causa raiz del reporte: DOS vocabularios para los mismos efectos.** `shadow.outer`
+  ↔ `shadowOuter` (+ outer2, inner, inner2), `outline.first` ↔ `outline`, `outline.second`
+  ↔ `outline2`. El motor lee ambos con `||` **pero con alcances DISTINTOS**:
+  `outline.second` es global y `outline2` es por linea, asi que el mismo efecto obedecia o
+  no al Style target **segun que nombre trajera el preset** (medido en T076).
+- ✅ **F1a: normalizacion a canonico al ENTRAR un preset** (`loadPreset` →
+  `normalizarVocabularioLegacy`): el legacy se mueve al nombre canonico y se retira del
+  estado, asi la UI, el render y el `.txm` que se guarda hablan **una sola forma**. Regla
+  unica y predecible: **el legacy pisa** (es la unica declaracion real del preset). Suite
+  nueva `tests/vocabulario-legacy.test.js`.
+- ✅ **F1b: fuera lo muerto de `defaultSettings`** (`animation`, `editable` top,
+  `lettering.editable`, `icon.editable`, `background.editable`). Un `.txm` viejo que las
+  traiga sigue cargando (raiz desconocida = campo de extension permitido por el fail-fast).
+- ⚠️ **Declarado, paso siguiente**: los alias legacy SIGUEN en `defaultSettings` (58 hojas
+  duplicadas del schema) y `mergeGradients` sigue con su control que no hace nada.
+- **T076** deja la matriz como puerta. **47 suites + las 2 puertas de navegador en verde.**
+- Bump `?v=RC81`.
 
 ### 7.36 RC80 — los efectos que el motor pinta con la BASE dejan de mentir en el panel
 
