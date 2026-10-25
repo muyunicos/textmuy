@@ -231,6 +231,29 @@ no vuelve identico.
 
 ---
 
+### 3.7 Font Size por linea (RC78, contrato `contracts/lineas.md` §5)
+
+Puerta automatica: **T066** de `tests/text-tab.browser.js` (mueve los controles REALES
+sobre el DOM con `input`/`change` y mide el lienzo).
+
+1. Con el texto en **dos lineas**, elegir **L2**. Aparece el panel de Font Size
+   (`Modo`, `Ref`, `Proporcion`, `Tope`) y el control "Max Font Size" global **se
+   oculta**: los cuatro controles son de ESA linea.
+2. **Proporcion 50 %** con `Ref: ALL`: el alto de tinta de L2 queda en la mitad del de
+   L1 y la frase de estado dice "L2 = 50 % del tamaño de ALL". **El tope de ALL no se
+   mueve**. Volver a 100: el dato vuelve a quedar vacio (no deja delta).
+3. **Modo Ancho + Ref L1 + 50 %**: el ancho de tinta de L2 queda en la mitad del de L1.
+   (En Ancho **no** se ofrece ALL. Un `>100 %` se topa con el ancho util del lienzo,
+   que es dinamico y sigue al texto.)
+4. **Tope al 10 %** con L2 activo: L2 se achica y **L1 queda igual** (el tope es de esa
+   linea). Aparece "Heredar de ALL": al pulsarlo el tope propio **se borra** y vuelve a
+   mandar el de ALL.
+
+**Fallar si**: el tope de ALL cambia al tocar una linea, la proporcion no se escribe, el
+modo Ancho no cambia el ancho, o el panel escribe algo sin que se haya movido un control.
+
+---
+
 ## 4. Recorrido integrado (pestana del plugin)
 
 1. Importar el modulo en el plugin y abrir "Estilos de Texto" con **Ctrl+F5**.
@@ -242,6 +265,26 @@ no vuelve identico.
 
 **Fallar si**: el editor y el PDF divergen en cualquier escenario, o algo funciona
 solo en el editor y no en el motor (o al reves).
+
+**Probe scripteado del panel de Font Size (RC78, evidencia de §3.7)**: se corre contra
+el **plugin real** (iframe + puente reales), no con el puente simulado:
+
+```powershell
+# Panel y credenciales del laboratorio: doc del plugin docs/entorno-desarrollo.md §9.2/§9.5
+$env:NODE_PATH = "$env:TEMP\pmu-pw\node_modules"
+$env:TEXTMUY_CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node C:\wp-lab\probe-fontsize.cjs
+```
+
+**Medido el 2026-10-24: 21/21 OK** — 15 fuentes indexadas por el puente real,
+`[145,145]` px de alto de tinta con dos lineas iguales y sin reglas;
+**(b)** L2 al 50 % de ALL: `143 -> 72` px de alto (rel 0,503; el modelo resuelve
+`[212,106]`), tope de ALL en **100**, dato `{ref:'canvas',mode:'fontsize',pct:50}` y
+frase "L2 = 50 % del tamaño de ALL · tope heredado de ALL · ≈106 px";
+**(c)** Modo Ancho 50 % de L1: `489 -> 246` px de ancho (rel 0,503), sin opcion ALL;
+**(d)** tope propio de L2 al 10 %: `capL2 10` con **`capBase 100`**, L1 `143` intacta y
+L2 `143 -> 27`; el boton borra el tope propio; y **0 POST** al motor (el probe no guarda
+nada). Evidencia: `C:\wp-lab\capturas\fontsize-panel.png` y `fontsize-panel.json`.
 
 ---
 
@@ -265,6 +308,9 @@ solo en el editor y no en el motor (o al reves).
 | 2.5 fuente por linea | FR-017, FR-018 | research R7 | US6 |
 | 2.5 alcance por linea | FR-016 | data-model 5 | US6 |
 | 2.6 paridad editor/PDF | FR-020 | R-C2.3 | US1, US6 |
+| 3.7 proporcion / 4 probe (b) | FR-011 | R-L2.1, R-L2.6, R-L2.8, R-L2.9 | US6 |
+| 3.7 ancho con pct / 4 probe (c) | FR-011, FR-012 | R-L2.2 | US6 |
+| 3.7 tope por linea / 4 probe (d) | FR-012 | R-L2.6, R-L2.10, R-L4.3 | US6 |
 | 1.1 puerta de pixeles (T052) | SC-001 a SC-007 | R-P1 a R-P8 (`contracts/pixeles.md`) | US1-US6 |
 | 4 recorrido integrado | FR-020 | constitucion II, III | todas |
 

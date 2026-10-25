@@ -900,7 +900,8 @@ Ahi aparecio el defecto:
 - Bump `?v=RC75` en `index.html` (con `css/style.css?v=RC75`) y `render-core.html`.
 
 > El mismo **laboratorio local** (`C:\wp-lab`: WP+Woo reales, plugin/tema por *junction*) sirve para
-> los recorridos del plugin: arranque, credenciales y trampas en `docs/entorno-desarrollo.md` §9.
+> los recorridos del plugin: arranque, credenciales y trampas en `docs/entorno-desarrollo.md` §9
+> **del repo del plugin** (el de este modulo no tiene laboratorio propio: es de la maquina).
 
 ### 7.30 RC72/RC73 — refactor de helpers compartidos y mensajes al espanol
 
@@ -1698,6 +1699,13 @@ Get-ChildItem js\effects -Filter *.js | ForEach-Object { node --check $_.FullNam
   (guardar/borrar preset, subir imagen o fuente) y vista previa / Procesar de un grupo
   con texto estilizado. Las suites de `tests/` corren en Node: son testing unitario, no
   un modo de ejecución del editor.
+- **Recorridos scripteados en el laboratorio local** (`C:\wp-lab\wordpress`, `php -S` en
+  8091, plugin por junction; arranque, panel y credenciales en `docs/entorno-desarrollo.md`
+  §9 del plugin). El del panel de Font Size por linea es **`C:\wp-lab\probe-fontsize.cjs`**
+  (**21/21 OK el 2026-10-24**, RC78): mueve los controles REALES dentro del iframe, mide el
+  lienzo por bandas de tinta y deja `capturas/fontsize-panel.{png,json}`. Correr con
+  `$env:NODE_PATH="$env:TEMP\pmu-pw\node_modules"` y `$env:TEXTMUY_CHROME`; ver
+  `specs/002-text-tab/quickstart.md` §3.7 (que mide) y §4 (como).
 - Tras cambiar CUALQUIER JS: subir `?v=RCn` en `index.html` y `render-core.html` y
   recargar con Ctrl+F5.
 
